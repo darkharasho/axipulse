@@ -3,6 +3,31 @@ import { ComposedChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, 
 import type { TimelineData } from '../../../shared/types';
 import type { TimelineLayerToggles } from '../../store';
 
+const PIN_PATH = 'M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0';
+const SKULL_PATH = 'M12 2a8 8 0 0 0-8 8c0 2.5 1.2 4.7 3 6.2V18a1 1 0 0 0 1 1h1v1a1 1 0 0 0 2 0v-1h2v1a1 1 0 0 0 2 0v-1h1a1 1 0 0 0 1-1v-1.8c1.8-1.5 3-3.7 3-6.2a8 8 0 0 0-8-8zm-2.5 9a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z';
+
+function DownLabel({ viewBox }: { viewBox?: { x?: number; y?: number } }) {
+    const x = viewBox?.x ?? 0;
+    return (
+        <g transform={`translate(${x - 7}, 2)`}>
+            <svg width="14" height="16" viewBox="0 0 24 24">
+                <path d={PIN_PATH} fill="#eab308" fillOpacity={0.6} stroke="#eab308" strokeWidth={1.5} />
+            </svg>
+        </g>
+    );
+}
+
+function DeathLabel({ viewBox }: { viewBox?: { x?: number; y?: number } }) {
+    const x = viewBox?.x ?? 0;
+    return (
+        <g transform={`translate(${x - 7}, 2)`}>
+            <svg width="14" height="16" viewBox="0 0 24 24">
+                <path d={SKULL_PATH} fill="#ef4444" />
+            </svg>
+        </g>
+    );
+}
+
 interface TimelineChartProps {
     data: TimelineData;
     toggles: TimelineLayerToggles;
@@ -52,10 +77,10 @@ export function TimelineChart({ data, toggles, durationMs: _durationMs }: Timeli
                 />
 
                 {data.deathEvents.map((t, i) => (
-                    <ReferenceLine key={`death-${i}`} x={t} stroke="#ef4444" strokeDasharray="3 3" />
+                    <ReferenceLine key={`death-${i}`} x={t} stroke="#ef4444" strokeDasharray="3 3" label={<DeathLabel />} />
                 ))}
                 {data.downEvents.map((t, i) => (
-                    <ReferenceLine key={`down-${i}`} x={t} stroke="#f59e0b" strokeDasharray="2 2" />
+                    <ReferenceLine key={`down-${i}`} x={t} stroke="#f59e0b" strokeDasharray="2 2" label={<DownLabel />} />
                 ))}
 
                 {toggles.damageDealt && <Area type="monotone" dataKey="damageDealt" fill="#ef444433" stroke="#ef4444" strokeWidth={1.5} />}

@@ -1,13 +1,22 @@
 // src/shared/extractPlayerData.ts
-import type { EiJson, EiPlayer, PlayerFightData, TimelineData, SquadContext } from './types';
+import type { EiJson, EiPlayer, PlayerFightData, TimelineData, SquadContext, MovementData, SquadMemberMovement } from './types';
 import { getDamage, getDps, getBreakbarDamage, getCleanses, getCleanseSelf, getStrips, getDamageTaken, getDeaths, getDowns, getDodges, getDownContribution, getIncomingCC, getIncomingStrips, getBlocked, getEvaded, getMissed, getInvulned, getInterrupted } from './dashboardMetrics';
 import { getHealingOutput, getBarrierOutput, getStabilityGeneration, getTopSkillDamage, getSquadRank, getDeathTimes, getDownTimes } from './combatMetrics';
 import { extractBoonUptimes, extractBoonGeneration } from './boonData';
-import { extractDamageTimeline, extractDistanceToTagTimeline } from './timelineData';
+import { extractDamageTimeline, extractDistanceToTagTimeline, extractBoonStatesTimeline } from './timelineData';
+import { WVW_BOON_IDS } from './boonData';
 import { resolveMapFromZone, normalizeMapName, formatDuration } from './mapUtils';
 import { findNearestLandmark } from './wvwLandmarks';
 
 function findLocalPlayer(json: EiJson): EiPlayer {
+    if (json.recordedAccountBy) {
+        const byAccount = json.players.find(p => p.account === json.recordedAccountBy);
+        if (byAccount) return byAccount;
+    }
+    if (json.recordedBy) {
+        const byName = json.players.find(p => p.name === json.recordedBy);
+        if (byName) return byName;
+    }
     const candidate = json.players.find(p => !p.isFake && !p.notInSquad);
     return candidate ?? json.players[0];
 }
@@ -19,18 +28,13 @@ function findCommander(players: EiPlayer[]): EiPlayer | null {
     return commanders[0];
 }
 
-function computeAveragePosition(players: EiPlayer[]): [number, number] | null {
-    let totalX = 0, totalY = 0, count = 0;
-    for (const p of players) {
-        const positions = p.combatReplayData?.positions;
-        if (!positions || positions.length === 0) continue;
-        const midIdx = Math.floor(positions.length / 2);
-        totalX += positions[midIdx][0];
-        totalY += positions[midIdx][1];
-        count++;
-    }
-    if (count === 0) return null;
-    return [totalX / count, totalY / count];
+function computeFightPosition(player: EiPlayer): [number, number] | null {
+    const positions = player.combatReplayData?.positions;
+    if (!positions || positions.length === 0) return null;
+    const xs = positions.map(p => p[0]).sort((a, b) => a - b);
+    const ys = positions.map(p => p[1]).sort((a, b) => a - b);
+    const mid = Math.floor(positions.length / 2);
+    return [xs[mid], ys[mid]];
 }
 
 function buildSquadContext(json: EiJson, player: EiPlayer): SquadContext {
@@ -51,6 +55,12 @@ function buildTimeline(json: EiJson, player: EiPlayer, bucketSizeMs: number): Ti
     const damageTaken1S = player.damageTaken1S?.[0] ?? [];
     const damageTaken = extractDamageTimeline(damageTaken1S, bucketSizeMs);
 
+    const healingReceived1S = player.extHealingStats?.healingReceived1S?.[0] ?? [];
+    const incomingHealing = extractDamageTimeline(healingReceived1S, bucketSizeMs);
+
+    const barrierReceived1S = player.extBarrierStats?.barrierReceived1S?.[0] ?? [];
+    const incomingBarrier = extractDamageTimeline(barrierReceived1S, bucketSizeMs);
+
     let distanceToTag: { time: number; value: number }[] = [];
     const commander = findCommander(json.players);
     const meta = json.combatReplayMetaData;
@@ -62,20 +72,55 @@ function buildTimeline(json: EiJson, player: EiPlayer, bucketSizeMs: number): Ti
         }
     }
 
+    const boonUptimeTimeline: Record<string, { time: number; value: number }[]> = {};
+    for (const buff of player.buffUptimes ?? []) {
+        if (!WVW_BOON_IDS.has(buff.id) || !buff.states) continue;
+        boonUptimeTimeline[String(buff.id)] = extractBoonStatesTimeline(buff.states, json.durationMS, bucketSizeMs);
+    }
+
     return {
         bucketSizeMs,
         damageDealt,
         damageTaken,
         distanceToTag,
-        incomingHealing: [],
-        incomingBarrier: [],
-        boonUptimeTimeline: {},
+        incomingHealing,
+        incomingBarrier,
+        boonUptimeTimeline,
         boonGenerationTimeline: {},
         ccDealt: [],
         ccReceived: [],
         deathEvents: getDeathTimes(player),
         downEvents: getDownTimes(player),
     };
+}
+
+function buildMovementData(json: EiJson, localPlayer: EiPlayer): MovementData | null {
+    const pollingRate = json.combatReplayMetaData?.pollingRate ?? 300;
+    const localGroup = localPlayer.group;
+    const squadPlayers = json.players.filter(p => !p.isFake && !p.notInSquad);
+
+    const tracked = squadPlayers.filter(p =>
+        p === localPlayer || p.hasCommanderTag || p.group === localGroup
+    );
+
+    const members: SquadMemberMovement[] = tracked
+        .filter(p => p.combatReplayData?.positions && p.combatReplayData.positions.length > 0)
+        .map(p => ({
+            name: p.name,
+            account: p.account,
+            profession: p.profession,
+            eliteSpec: p.elite_spec,
+            group: p.group,
+            isCommander: p.hasCommanderTag,
+            isLocal: p === localPlayer,
+            positions: p.combatReplayData!.positions!,
+            downRanges: p.combatReplayData?.down ?? [],
+            deadRanges: p.combatReplayData?.dead ?? [],
+        }));
+
+    if (members.length === 0) return null;
+
+    return { pollingRate, durationMs: json.durationMS, members };
 }
 
 export function extractPlayerFightData(json: EiJson, fightNumber: number, bucketSizeMs: number): PlayerFightData {
@@ -87,13 +132,24 @@ export function extractPlayerFightData(json: EiJson, fightNumber: number, bucket
     const meta = json.combatReplayMetaData;
     const mapImageUrl = meta?.maps?.[0]?.url ?? null;
     const mapSize = meta?.sizes ?? null;
-    const avgPos = computeAveragePosition(json.players.filter(p => !p.notInSquad));
+    const avgPos = computeFightPosition(player);
 
     let nearestLandmark: string | null = null;
     if (map && avgPos) {
         const landmark = findNearestLandmark(map, avgPos[0], avgPos[1]);
         nearestLandmark = landmark?.name ?? null;
     }
+
+    const pollingRate = meta?.pollingRate ?? 300;
+    const positions = player.combatReplayData?.positions ?? [];
+    const downPositions = (player.combatReplayData?.down ?? []).map(([t]) => {
+        const idx = Math.min(Math.floor(t / pollingRate), positions.length - 1);
+        return positions[idx] ?? null;
+    }).filter((p): p is [number, number] => p !== null);
+    const deathPositions = (player.combatReplayData?.dead ?? []).map(([t]) => {
+        const idx = Math.min(Math.floor(t / pollingRate), positions.length - 1);
+        return positions[idx] ?? null;
+    }).filter((p): p is [number, number] => p !== null);
 
     const durationFormatted = formatDuration(json.durationMS);
     const landmarkPart = nearestLandmark ? ` — ${nearestLandmark}` : '';
@@ -107,6 +163,8 @@ export function extractPlayerFightData(json: EiJson, fightNumber: number, bucket
         mapImageUrl,
         mapSize,
         avgPosition: avgPos,
+        downPositions,
+        deathPositions,
         duration: json.durationMS,
         durationFormatted,
         timestamp: json.timeStartStd ?? json.uploadTime ?? new Date().toISOString(),
@@ -152,5 +210,6 @@ export function extractPlayerFightData(json: EiJson, fightNumber: number, bucket
         },
         timeline: buildTimeline(json, player, bucketSizeMs),
         squadContext: buildSquadContext(json, player),
+        movementData: buildMovementData(json, player),
     };
 }

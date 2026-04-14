@@ -4,6 +4,7 @@ import type { PlayerFightData, FightHistoryEntry } from '../shared/types';
 
 export type View = 'pulse' | 'timeline' | 'map' | 'history' | 'settings';
 export type PulseSubview = 'overview' | 'damage' | 'support' | 'defense' | 'boons';
+export type MapSubview = 'overview' | 'movement';
 export type TimelinePreset = 'why-died' | 'my-damage' | 'support' | 'positioning' | 'custom';
 
 export interface TimelineLayerToggles {
@@ -53,6 +54,8 @@ interface AppState {
     setView: (view: View) => void;
     pulseSubview: PulseSubview;
     setPulseSubview: (subview: PulseSubview) => void;
+    mapSubview: MapSubview;
+    setMapSubview: (subview: MapSubview) => void;
     timelinePreset: TimelinePreset;
     setTimelinePreset: (preset: TimelinePreset) => void;
     pillBarExpanded: boolean;
@@ -101,6 +104,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     setView: (view) => set({ view }),
     pulseSubview: 'overview',
     setPulseSubview: (subview) => set({ pulseSubview: subview }),
+    mapSubview: 'overview',
+    setMapSubview: (subview) => set({ mapSubview: subview }),
     timelinePreset: 'custom',
     setTimelinePreset: (preset) => set({ timelinePreset: preset }),
     pillBarExpanded: false,

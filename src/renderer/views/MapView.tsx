@@ -3,6 +3,16 @@ import { MapPin, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
 import { useAppStore } from '../store';
 import { WVW_LANDMARKS, type WvwLandmark } from '../../shared/wvwLandmarks';
 import { resolveMapFromZone } from '../../shared/mapUtils';
+import { MovementView } from './map/MovementView';
+
+export function MapView() {
+    const mapSubview = useAppStore(s => s.mapSubview);
+
+    switch (mapSubview) {
+        case 'movement': return <MovementView />;
+        default: return <MapOverview />;
+    }
+}
 
 const TYPE_COLORS: Record<WvwLandmark['type'], string> = {
     keep: '#ef4444',
@@ -20,16 +30,15 @@ const TYPE_SCALES: Record<WvwLandmark['type'], number> = {
     named: 0.35,
 };
 
-// Lucide MapPin path (viewBox 0 0 24 24), anchor point is the pin tip at (12, 22)
+// Lucide paths (viewBox 0 0 24 24)
 const PIN_PATH = 'M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0';
-
 
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 6;
 const ZOOM_STEP = 0.15;
 const DEFAULT_ZOOM_PADDING = 1.15;
 
-export function MapView() {
+function MapOverview() {
     const currentFight = useAppStore(s => s.currentFight);
     const containerRef = useRef<HTMLDivElement>(null);
     const [view, setView] = useState({ scale: 1, tx: 0, ty: 0 });

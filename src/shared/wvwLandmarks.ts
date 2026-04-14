@@ -58,6 +58,27 @@ const GREEN_ALPINE: WvwLandmark[] = [
     { name: "Norfolk's Hollow", x: 197, y: 460, type: 'ruins' },
 ];
 
+const RED_DESERT: WvwLandmark[] = [
+    { name: 'Blistering Undercroft', x: 28, y: 409, type: 'keep' },
+    { name: 'Stoic Rampart', x: 370, y: 272, type: 'keep' },
+    { name: "Osprey's Palace", x: 700, y: 427, type: 'keep' },
+    { name: "O'del Academy", x: 151, y: 134, type: 'tower' },
+    { name: 'Eternal Necropolis', x: 590, y: 155, type: 'tower' },
+    { name: 'Crankshaft Depot', x: 485, y: 610, type: 'tower' },
+    { name: 'Parched Outpost', x: 251, y: 579, type: 'tower' },
+    { name: "Hamm's Lab", x: 367, y: 130, type: 'camp' },
+    { name: 'Bauer Farmstead', x: 654, y: 569, type: 'camp' },
+    { name: "McLain's Encampment", x: 90, y: 576, type: 'camp' },
+    { name: "Roy's Refuge", x: 704, y: 259, type: 'camp' },
+    { name: "Boettiger's Hideaway", x: 23, y: 256, type: 'camp' },
+    { name: 'Dustwhisper Well', x: 376, y: 707, type: 'camp' },
+    { name: "Higgins's Ascent", x: 415, y: 547, type: 'ruins' },
+    { name: "Bearce's Dwelling", x: 301, y: 440, type: 'ruins' },
+    { name: "Zak's Overlook", x: 433, y: 444, type: 'ruins' },
+    { name: "Darra's Maze", x: 289, y: 513, type: 'ruins' },
+    { name: "Tilly's Encampment", x: 369, y: 365, type: 'ruins' },
+];
+
 export const WVW_LANDMARKS: Record<WvwMap, WvwLandmark[]> = {
     [WvwMap.EternalBattlegrounds]: [
         { name: 'Stonemist Castle', x: 370, y: 435, type: 'keep' },
@@ -85,7 +106,7 @@ export const WVW_LANDMARKS: Record<WvwMap, WvwLandmark[]> = {
     ],
     [WvwMap.GreenBorderlands]: GREEN_ALPINE,
     [WvwMap.BlueBorderlands]: BLUE_ALPINE,
-    [WvwMap.RedBorderlands]: [], // Red Desert BL has different layout; not yet calibrated
+    [WvwMap.RedBorderlands]: RED_DESERT,
 };
 
 export function findNearestLandmark(map: WvwMap, x: number, y: number): WvwLandmark | null {

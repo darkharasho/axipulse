@@ -26,17 +26,19 @@ export interface EiPlayer {
     targetDamage1S?: number[][];
     damageTaken1S?: number[][];
     totalDamageDist: { id: number; name: string; totalDamage: number; connectedHits: number; min: number; max: number; downContribution?: number }[][];
-    buffUptimes?: { id: number; buffData: { uptime: number; generation: number; overstack: number; wasted: number }[]; statesPerSource?: Record<string, [number, number][]> }[];
+    buffUptimes?: { id: number; buffData: { uptime: number; generation: number; overstack: number; wasted: number }[]; states?: [number, number][]; statesPerSource?: Record<string, [number, number][]> }[];
     selfBuffs?: { id: number; buffData: { generation: number; overstack: number; wasted: number }[] }[];
     groupBuffs?: { id: number; buffData: { generation: number; overstack: number; wasted: number }[] }[];
     squadBuffs?: { id: number; buffData: { generation: number; overstack: number; wasted: number }[] }[];
     extHealingStats?: {
         outgoingHealingAllies: { healing: number }[][];
         totalHealingDist: { id: number; name: string; totalHealing: number; hits: number }[][];
+        healingReceived1S?: number[][];
     };
     extBarrierStats?: {
         outgoingBarrierAllies: { barrier: number }[][];
         totalBarrierDist: { id: number; name: string; totalBarrier: number; hits: number }[][];
+        barrierReceived1S?: number[][];
     };
     rotation: { id: number; skills: { castTime: number; duration: number }[] }[];
     combatReplayData?: {
@@ -65,6 +67,8 @@ export interface EiJson {
     success: boolean;
     uploadTime?: string;
     timeStartStd?: string;
+    recordedBy?: string;
+    recordedAccountBy?: string;
     players: EiPlayer[];
     targets: EiTarget[];
     skillMap: Record<string, { name: string; icon: string; autoAttack: boolean }>;
@@ -77,6 +81,27 @@ export interface EiJson {
     };
 }
 
+// --- Movement replay data ---
+
+export interface SquadMemberMovement {
+    name: string;
+    account: string;
+    profession: string;
+    eliteSpec: string;
+    group: number;
+    isCommander: boolean;
+    isLocal: boolean;
+    positions: [number, number][];
+    downRanges: [number, number][];
+    deadRanges: [number, number][];
+}
+
+export interface MovementData {
+    pollingRate: number;
+    durationMs: number;
+    members: SquadMemberMovement[];
+}
+
 // --- Extracted player-focused data ---
 
 export interface PlayerFightData {
@@ -87,6 +112,8 @@ export interface PlayerFightData {
     mapImageUrl: string | null;
     mapSize: [number, number] | null;
     avgPosition: [number, number] | null;
+    downPositions: [number, number][];
+    deathPositions: [number, number][];
     duration: number;
     durationFormatted: string;
     timestamp: string;
@@ -102,6 +129,7 @@ export interface PlayerFightData {
     boons: BoonStats;
     timeline: TimelineData;
     squadContext: SquadContext;
+    movementData: MovementData | null;
 }
 
 export interface DamageStats {

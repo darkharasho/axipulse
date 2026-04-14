@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Activity, Clock3, Dices, GanttChart, MapPin, Minus, Settings as SettingsIcon, Square, X } from 'lucide-react';
-import { useAppStore, type View, type PulseSubview, type TimelinePreset } from '../store';
+import { useAppStore, type View, type PulseSubview, type MapSubview, type TimelinePreset } from '../store';
 import { SubviewToggle, SubviewPillExpansion } from './SubviewPillBar';
 import { ToastContainer } from './Toast';
 import { PulseView } from '../views/PulseView';
@@ -26,6 +26,11 @@ const PULSE_PILLS = [
     { id: 'boons', label: 'Boons' },
 ];
 
+const MAP_PILLS = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'movement', label: 'Movement' },
+];
+
 const TIMELINE_PILLS = [
     { id: 'why-died', label: 'Why did I die?' },
     { id: 'my-damage', label: 'My damage' },
@@ -41,6 +46,8 @@ export function AppLayout() {
     const setView = useAppStore(s => s.setView);
     const pulseSubview = useAppStore(s => s.pulseSubview);
     const setPulseSubview = useAppStore(s => s.setPulseSubview);
+    const mapSubview = useAppStore(s => s.mapSubview);
+    const setMapSubview = useAppStore(s => s.setMapSubview);
     const timelinePreset = useAppStore(s => s.timelinePreset);
     const setTimelinePreset = useAppStore(s => s.setTimelinePreset);
     const applyPreset = useAppStore(s => s.applyPreset);
@@ -61,13 +68,15 @@ export function AppLayout() {
         return () => window.removeEventListener('keydown', handler);
     }, []);
 
-    const hasSubviews = view === 'pulse' || view === 'timeline';
-    const pills = view === 'pulse' ? PULSE_PILLS : view === 'timeline' ? TIMELINE_PILLS : [];
-    const activeSubviewId = view === 'pulse' ? pulseSubview : view === 'timeline' ? timelinePreset : '';
+    const hasSubviews = view === 'pulse' || view === 'map' || view === 'timeline';
+    const pills = view === 'pulse' ? PULSE_PILLS : view === 'map' ? MAP_PILLS : view === 'timeline' ? TIMELINE_PILLS : [];
+    const activeSubviewId = view === 'pulse' ? pulseSubview : view === 'map' ? mapSubview : view === 'timeline' ? timelinePreset : '';
 
     const handleSubviewSelect = (id: string) => {
         if (view === 'pulse') {
             setPulseSubview(id as PulseSubview);
+        } else if (view === 'map') {
+            setMapSubview(id as MapSubview);
         } else if (view === 'timeline') {
             if (id !== 'custom') {
                 applyPreset(id as Exclude<TimelinePreset, 'custom'>);
