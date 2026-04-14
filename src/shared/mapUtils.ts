@@ -11,7 +11,7 @@ function stripPrefix(zone: string): string {
 
 export function resolveMapFromZone(zone: string): WvwMap | null {
     const clean = stripPrefix(zone).toLowerCase();
-    if (clean.includes('eternal battlegrounds')) return WvwMap.EternalBattlegrounds;
+    if (clean.includes('eternal') || clean === 'ebg') return WvwMap.EternalBattlegrounds;
     if (clean.includes('green')) return WvwMap.GreenBorderlands;
     if (clean.includes('blue')) return WvwMap.BlueBorderlands;
     if (clean.includes('red')) return WvwMap.RedBorderlands;
@@ -20,11 +20,11 @@ export function resolveMapFromZone(zone: string): WvwMap | null {
 
 export function normalizeMapName(zone: string): string {
     const clean = stripPrefix(zone).toLowerCase();
-    if (clean.includes('eternal battlegrounds')) return 'EBG';
+    if (clean.includes('eternal')) return 'EBG';
     if (clean.includes('green')) return 'Green BL';
     if (clean.includes('blue')) return 'Blue BL';
     if (clean.includes('red')) return 'Red BL';
-    return zone;
+    return stripPrefix(zone);
 }
 
 export function formatDuration(ms: number): string {

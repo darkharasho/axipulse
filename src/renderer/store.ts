@@ -2,7 +2,7 @@
 import { create } from 'zustand';
 import type { PlayerFightData, FightHistoryEntry } from '../shared/types';
 
-export type View = 'pulse' | 'timeline' | 'history' | 'settings';
+export type View = 'pulse' | 'timeline' | 'map' | 'history' | 'settings';
 export type PulseSubview = 'overview' | 'damage' | 'support' | 'defense' | 'boons';
 export type TimelinePreset = 'why-died' | 'my-damage' | 'support' | 'positioning' | 'custom';
 
@@ -69,6 +69,9 @@ interface AppState {
     addToast: (message: string, fightLabel: string) => void;
     removeToast: (id: string) => void;
 
+    isParsing: boolean;
+    setIsParsing: (parsing: boolean) => void;
+
     logDirectory: string;
     setLogDirectory: (dir: string) => void;
     eiStatus: { installed: boolean; version: string | null; installing: boolean; error: string | null };
@@ -98,13 +101,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     setView: (view) => set({ view }),
     pulseSubview: 'overview',
     setPulseSubview: (subview) => set({ pulseSubview: subview }),
-    timelinePreset: 'why-died',
+    timelinePreset: 'custom',
     setTimelinePreset: (preset) => set({ timelinePreset: preset }),
     pillBarExpanded: false,
     setPillBarExpanded: (expanded) => set({ pillBarExpanded: expanded }),
     togglePillBar: () => set((state) => ({ pillBarExpanded: !state.pillBarExpanded })),
 
-    timelineToggles: PRESET_TOGGLES['why-died'],
+    timelineToggles: {
+        distanceToTag: true, damageDealt: true, damageTaken: true,
+        incomingHealing: true, incomingBarrier: true, boonUptime: true,
+        boonGeneration: true, ccDealtReceived: true,
+    },
     setTimelineToggle: (layer, enabled) => set((state) => ({
         timelineToggles: { ...state.timelineToggles, [layer]: enabled },
         timelinePreset: 'custom',
@@ -125,6 +132,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     removeToast: (id) => set((state) => ({
         toasts: state.toasts.filter(t => t.id !== id),
     })),
+
+    isParsing: false,
+    setIsParsing: (parsing) => set({ isParsing: parsing }),
 
     logDirectory: '',
     setLogDirectory: (dir) => set({ logDirectory: dir }),

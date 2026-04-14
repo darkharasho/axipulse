@@ -5,8 +5,7 @@ import type { EiJson } from '../../src/shared/types';
 
 function makeMinimalEiJson(): EiJson {
     return {
-        fightName: 'WvW Fight',
-        zone: 'Green Alpine Borderlands',
+        fightName: 'Detailed WvW - Green Alpine Borderlands',
         durationMS: 63000,
         success: true,
         players: [{

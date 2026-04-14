@@ -19,6 +19,7 @@ interface Window {
         onUpdateAvailable: (callback: (info: any) => void) => () => void;
         onUpdateDownloaded: (callback: (info: any) => void) => () => void;
         onUpdateProgress: (callback: (progress: any) => void) => () => void;
+        devParseRandom: () => Promise<{ success?: boolean; logPath?: string; error?: string }>;
         eiGetStatus: () => Promise<any>;
         eiInstall: () => Promise<any>;
         eiUpdate: () => Promise<any>;

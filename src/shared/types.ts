@@ -24,11 +24,12 @@ export interface EiPlayer {
     support: { condiCleanse: number; condiCleanseSelf: number; boonStrips: number; boonStripsTime: number }[];
     damage1S: number[][];
     targetDamage1S?: number[][];
+    damageTaken1S?: number[][];
     totalDamageDist: { id: number; name: string; totalDamage: number; connectedHits: number; min: number; max: number; downContribution?: number }[][];
-    buffUptimes: { id: number; buffData: { uptime: number; generation: number; overstack: number; wasted: number }[]; statesPerSource?: Record<string, [number, number][]> }[];
-    selfBuffs: { id: number; buffData: { generation: number; overstack: number; wasted: number }[] }[];
-    groupBuffs: { id: number; buffData: { generation: number; overstack: number; wasted: number }[] }[];
-    squadBuffs: { id: number; buffData: { generation: number; overstack: number; wasted: number }[] }[];
+    buffUptimes?: { id: number; buffData: { uptime: number; generation: number; overstack: number; wasted: number }[]; statesPerSource?: Record<string, [number, number][]> }[];
+    selfBuffs?: { id: number; buffData: { generation: number; overstack: number; wasted: number }[] }[];
+    groupBuffs?: { id: number; buffData: { generation: number; overstack: number; wasted: number }[] }[];
+    squadBuffs?: { id: number; buffData: { generation: number; overstack: number; wasted: number }[] }[];
     extHealingStats?: {
         outgoingHealingAllies: { healing: number }[][];
         totalHealingDist: { id: number; name: string; totalHealing: number; hits: number }[][];
@@ -63,6 +64,7 @@ export interface EiJson {
     durationMS: number;
     success: boolean;
     uploadTime?: string;
+    timeStartStd?: string;
     players: EiPlayer[];
     targets: EiTarget[];
     skillMap: Record<string, { name: string; icon: string; autoAttack: boolean }>;
@@ -70,6 +72,8 @@ export interface EiJson {
     combatReplayMetaData?: {
         inchToPixel?: number;
         pollingRate?: number;
+        sizes?: [number, number];
+        maps?: { url: string; interval: [number, number]; position: [number, number] }[];
     };
 }
 
@@ -80,6 +84,9 @@ export interface PlayerFightData {
     fightNumber: number;
     mapName: string;
     nearestLandmark: string | null;
+    mapImageUrl: string | null;
+    mapSize: [number, number] | null;
+    avgPosition: [number, number] | null;
     duration: number;
     durationFormatted: string;
     timestamp: string;

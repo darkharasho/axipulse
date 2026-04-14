@@ -5,8 +5,13 @@ import type { EiJson, FightHistoryEntry } from '../../shared/types';
 
 export function useFightListener() {
     useEffect(() => {
-        const cleanup = window.electronAPI?.onParseComplete((data) => {
+        const cleanupStarted = window.electronAPI?.onParseStarted(() => {
+            useAppStore.getState().setIsParsing(true);
+        });
+
+        const cleanupComplete = window.electronAPI?.onParseComplete((data) => {
             const state = useAppStore.getState();
+            state.setIsParsing(false);
             const json = data.data as EiJson;
             const fightNumber = state.incrementFightCounter();
             const fightData = extractPlayerFightData(json, fightNumber, state.bucketSizeMs);
@@ -36,6 +41,16 @@ export function useFightListener() {
             state.addToast('Fight parsed successfully', fightData.fightLabel);
         });
 
-        return cleanup;
+        const cleanupError = window.electronAPI?.onParseError((data) => {
+            const state = useAppStore.getState();
+            state.setIsParsing(false);
+            state.addToast('Parse failed', data.error);
+        });
+
+        return () => {
+            cleanupStarted?.();
+            cleanupComplete?.();
+            cleanupError?.();
+        };
     }, []);
 }

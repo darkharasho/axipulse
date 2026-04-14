@@ -132,6 +132,41 @@ function setupIpcHandlers(): void {
         return app.getVersion();
     });
 
+    ipcMain.handle('dev:parse-random', async () => {
+        const logDir = store.get('logDirectory') as string | undefined;
+        if (!logDir || !fs.existsSync(logDir)) return { error: 'No log directory configured' };
+        if (!eiManager.isInstalled()) return { error: 'EI not installed' };
+
+        const allFiles: string[] = [];
+        const walk = (dir: string, depth: number) => {
+            if (depth > 5) return;
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                if (entry.isDirectory()) walk(path.join(dir, entry.name), depth + 1);
+                else if (entry.name.endsWith('.evtc') || entry.name.endsWith('.zevtc'))
+                    allFiles.push(path.join(dir, entry.name));
+            }
+        };
+        walk(logDir, 0);
+        if (allFiles.length === 0) return { error: 'No .evtc/.zevtc files found' };
+
+        const logPath = allFiles[Math.floor(Math.random() * allFiles.length)];
+        const logId = path.basename(logPath, path.extname(logPath));
+        mainWindow?.webContents.send('parse-started', { logId, logPath });
+
+        eiManager.setParseProgressCallback((line: string) => {
+            mainWindow?.webContents.send('parse-progress', { logId, line });
+        });
+
+        try {
+            const result = await eiManager.parseLog(logPath, logId);
+            mainWindow?.webContents.send('parse-complete', { logId, logPath, data: result });
+            return { success: true, logPath };
+        } catch (err: any) {
+            mainWindow?.webContents.send('parse-error', { logId, logPath, error: err?.message || 'Parse failed' });
+            return { error: err?.message || 'Parse failed' };
+        }
+    });
+
     ipcMain.handle('open-external', async (_event, url: string) => {
         const { shell } = require('electron');
         await shell.openExternal(url);

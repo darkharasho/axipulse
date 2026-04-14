@@ -1,10 +1,11 @@
-// src/renderer/app/AppLayout.tsx
-import { Activity, Clock3, GanttChart, Minus, Settings as SettingsIcon, Square, X } from 'lucide-react';
+import { useEffect } from 'react';
+import { Activity, Clock3, Dices, GanttChart, MapPin, Minus, Settings as SettingsIcon, Square, X } from 'lucide-react';
 import { useAppStore, type View, type PulseSubview, type TimelinePreset } from '../store';
 import { SubviewToggle, SubviewPillExpansion } from './SubviewPillBar';
 import { ToastContainer } from './Toast';
 import { PulseView } from '../views/PulseView';
 import { TimelineView } from '../views/TimelineView';
+import { MapView } from '../views/MapView';
 import { HistoryView } from '../views/HistoryView';
 import { SettingsView } from '../views/SettingsView';
 import { useFightListener } from './useFightListener';
@@ -12,6 +13,7 @@ import { useFightListener } from './useFightListener';
 const NAV_ITEMS: { id: View; label: string; icon: typeof Activity }[] = [
     { id: 'pulse', label: 'Pulse', icon: Activity },
     { id: 'timeline', label: 'Timeline', icon: GanttChart },
+    { id: 'map', label: 'Map', icon: MapPin },
     { id: 'history', label: 'History', icon: Clock3 },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
 ];
@@ -32,6 +34,8 @@ const TIMELINE_PILLS = [
     { id: 'custom', label: 'Custom' },
 ];
 
+const IS_DEV = import.meta.env.DEV;
+
 export function AppLayout() {
     const view = useAppStore(s => s.view);
     const setView = useAppStore(s => s.setView);
@@ -40,9 +44,22 @@ export function AppLayout() {
     const timelinePreset = useAppStore(s => s.timelinePreset);
     const setTimelinePreset = useAppStore(s => s.setTimelinePreset);
     const applyPreset = useAppStore(s => s.applyPreset);
-    const activeFightNumber = useAppStore(s => s.activeFightNumber);
+    const isParsing = useAppStore(s => s.isParsing);
+    const currentFight = useAppStore(s => s.currentFight);
 
     useFightListener();
+
+    useEffect(() => {
+        if (!IS_DEV) return;
+        const handler = (e: KeyboardEvent) => {
+            if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+                e.preventDefault();
+                window.electronAPI?.devParseRandom();
+            }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, []);
 
     const hasSubviews = view === 'pulse' || view === 'timeline';
     const pills = view === 'pulse' ? PULSE_PILLS : view === 'timeline' ? TIMELINE_PILLS : [];
@@ -59,6 +76,8 @@ export function AppLayout() {
         }
     };
 
+    const isFirstParse = isParsing && !currentFight;
+
     return (
         <div className="h-full w-full flex flex-col select-none">
             {/* Title Bar */}
@@ -72,14 +91,25 @@ export function AppLayout() {
                         <span style={{ color: '#ffffff' }}>Axi</span>
                         <span style={{ color: 'var(--brand-primary)' }}>Pulse</span>
                     </span>
-                    {activeFightNumber !== null && (
+                    {currentFight && (
                         <span className="ml-1 px-1.5 py-0.5 text-[9px] font-semibold rounded border"
                             style={{ color: 'var(--brand-primary)', borderColor: 'var(--accent-border)', background: 'var(--accent-bg)' }}>
-                            F{activeFightNumber}
+                            F{currentFight.fightNumber}
+                        </span>
+                    )}
+                    {currentFight && (
+                        <span className="text-[10px] truncate max-w-[300px]" style={{ color: 'var(--text-secondary)' }}>
+                            {currentFight.mapName}
+                            {currentFight.nearestLandmark && <> — {currentFight.nearestLandmark}</>}
+                            {' — '}{currentFight.durationFormatted}
+                            {' — '}{currentFight.eliteSpec || currentFight.profession}
                         </span>
                     )}
                 </div>
                 <div className="flex items-center gap-4 no-drag">
+                    {isParsing && currentFight && (
+                        <Activity className="w-4 h-4 heartbeat-pulse" style={{ color: 'var(--brand-primary)' }} />
+                    )}
                     <button onClick={() => window.electronAPI?.windowControl('minimize')} className="text-gray-400 hover:text-white transition-colors">
                         <Minus className="w-4 h-4" />
                     </button>
@@ -115,9 +145,16 @@ export function AppLayout() {
                         </button>
                     ))}
                 </div>
-                {hasSubviews && (
-                    <SubviewToggle pills={pills} activeId={activeSubviewId} />
-                )}
+                <div className="flex items-center gap-2">
+                    {IS_DEV && (
+                        <span title="Parse random log (Ctrl+Shift+P)" onClick={() => window.electronAPI?.devParseRandom()} className="cursor-pointer text-amber-300 hover:text-amber-200 transition-colors">
+                            <Dices className="w-4 h-4" />
+                        </span>
+                    )}
+                    {hasSubviews && (
+                        <SubviewToggle pills={pills} activeId={activeSubviewId} />
+                    )}
+                </div>
             </div>
 
             {/* Subview pill expansion area */}
@@ -127,10 +164,20 @@ export function AppLayout() {
 
             {/* Content Area */}
             <div className="flex-1 overflow-auto p-4">
-                {view === 'pulse' && <PulseView />}
-                {view === 'timeline' && <TimelineView />}
-                {view === 'history' && <HistoryView />}
-                {view === 'settings' && <SettingsView />}
+                {isFirstParse ? (
+                    <div className="flex flex-col items-center justify-center h-full gap-3">
+                        <Activity className="w-10 h-10 heartbeat-pulse" style={{ color: 'var(--brand-primary)' }} />
+                        <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Parsing combat log...</span>
+                    </div>
+                ) : (
+                    <>
+                        {view === 'pulse' && <PulseView />}
+                        {view === 'timeline' && <TimelineView />}
+                        {view === 'map' && <MapView />}
+                        {view === 'history' && <HistoryView />}
+                        {view === 'settings' && <SettingsView />}
+                    </>
+                )}
             </div>
 
             <ToastContainer />

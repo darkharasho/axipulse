@@ -60,6 +60,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
         return () => ipcRenderer.removeAllListeners('update-progress')
     },
 
+    // Dev tools
+    devParseRandom: () => ipcRenderer.invoke('dev:parse-random'),
+
     // EI Management
     eiGetStatus: () => ipcRenderer.invoke('ei:get-status'),
     eiInstall: () => ipcRenderer.invoke('ei:install'),

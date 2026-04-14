@@ -2,11 +2,14 @@ import { describe, it, expect } from 'vitest';
 import { WvwMap, findNearestLandmark, WVW_LANDMARKS } from '../../src/shared/wvwLandmarks';
 
 describe('WVW_LANDMARKS', () => {
-    it('has entries for all four maps', () => {
+    it('has entries for calibrated maps', () => {
         expect(WVW_LANDMARKS[WvwMap.EternalBattlegrounds].length).toBeGreaterThan(0);
         expect(WVW_LANDMARKS[WvwMap.GreenBorderlands].length).toBeGreaterThan(0);
         expect(WVW_LANDMARKS[WvwMap.BlueBorderlands].length).toBeGreaterThan(0);
-        expect(WVW_LANDMARKS[WvwMap.RedBorderlands].length).toBeGreaterThan(0);
+    });
+
+    it('has an array for Red BL (not yet calibrated)', () => {
+        expect(Array.isArray(WVW_LANDMARKS[WvwMap.RedBorderlands])).toBe(true);
     });
 });
 

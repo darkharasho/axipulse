@@ -48,7 +48,8 @@ function buildTimeline(json: EiJson, player: EiPlayer, bucketSizeMs: number): Ti
     const damage1S = player.targetDamage1S?.[0] ?? player.damage1S?.[0] ?? [];
     const damageDealt = extractDamageTimeline(damage1S, bucketSizeMs);
 
-    const damageTaken: { time: number; value: number }[] = [];
+    const damageTaken1S = player.damageTaken1S?.[0] ?? [];
+    const damageTaken = extractDamageTimeline(damageTaken1S, bucketSizeMs);
 
     let distanceToTag: { time: number; value: number }[] = [];
     const commander = findCommander(json.players);
@@ -79,31 +80,36 @@ function buildTimeline(json: EiJson, player: EiPlayer, bucketSizeMs: number): Ti
 
 export function extractPlayerFightData(json: EiJson, fightNumber: number, bucketSizeMs: number): PlayerFightData {
     const player = findLocalPlayer(json);
-    const zone = json.zone ?? json.mapName ?? json.map ?? json.fightName;
+    const zone = json.fightName ?? json.zone ?? json.mapName ?? json.map ?? '';
     const map = resolveMapFromZone(zone);
     const mapName = normalizeMapName(zone);
 
+    const meta = json.combatReplayMetaData;
+    const mapImageUrl = meta?.maps?.[0]?.url ?? null;
+    const mapSize = meta?.sizes ?? null;
+    const avgPos = computeAveragePosition(json.players.filter(p => !p.notInSquad));
+
     let nearestLandmark: string | null = null;
-    if (map) {
-        const avgPos = computeAveragePosition(json.players.filter(p => !p.notInSquad));
-        if (avgPos) {
-            const landmark = findNearestLandmark(map, avgPos[0], avgPos[1]);
-            nearestLandmark = landmark?.name ?? null;
-        }
+    if (map && avgPos) {
+        const landmark = findNearestLandmark(map, avgPos[0], avgPos[1]);
+        nearestLandmark = landmark?.name ?? null;
     }
 
     const durationFormatted = formatDuration(json.durationMS);
-    const landmarkPart = nearestLandmark ? ` — Near ${nearestLandmark}` : '';
-    const fightLabel = `F${fightNumber}${landmarkPart} — ${mapName} — ${durationFormatted}`;
+    const landmarkPart = nearestLandmark ? ` — ${nearestLandmark}` : '';
+    const fightLabel = `F${fightNumber} — ${mapName}${landmarkPart} — ${durationFormatted}`;
 
     return {
         fightLabel,
         fightNumber,
         mapName,
         nearestLandmark,
+        mapImageUrl,
+        mapSize,
+        avgPosition: avgPos,
         duration: json.durationMS,
         durationFormatted,
-        timestamp: json.uploadTime ?? new Date().toISOString(),
+        timestamp: json.timeStartStd ?? json.uploadTime ?? new Date().toISOString(),
         playerName: player.name,
         accountName: player.account,
         profession: player.profession,
@@ -115,7 +121,7 @@ export function extractPlayerFightData(json: EiJson, fightNumber: number, bucket
             dps: getDps(player),
             breakbarDamage: getBreakbarDamage(player),
             downContribution: getDownContribution(player),
-            topSkills: getTopSkillDamage(player),
+            topSkills: getTopSkillDamage(player, json.skillMap),
         },
         support: {
             boonStrips: getStrips(player),
