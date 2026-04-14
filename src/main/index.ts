@@ -197,9 +197,12 @@ function setupLogWatcher(): void {
 
 app.whenReady().then(() => {
     eiManager = new EiManager(app.getPath('userData'));
+    const AXIPULSE_EI_DEFAULTS = { ...DEFAULT_EI_SETTINGS, parseCombatReplay: true };
     const savedEiSettings = store.get('eiParserSettings') as EiParserSettings | undefined;
     if (savedEiSettings) {
-        eiManager.setSettings({ ...DEFAULT_EI_SETTINGS, ...savedEiSettings });
+        eiManager.setSettings({ ...AXIPULSE_EI_DEFAULTS, ...savedEiSettings });
+    } else {
+        eiManager.setSettings(AXIPULSE_EI_DEFAULTS);
     }
 
     setupIpcHandlers();
