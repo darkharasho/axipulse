@@ -3,6 +3,11 @@ import { Activity, Clock3, GanttChart, Minus, Settings as SettingsIcon, Square, 
 import { useAppStore, type View, type PulseSubview, type TimelinePreset } from '../store';
 import { SubviewToggle, SubviewPillExpansion } from './SubviewPillBar';
 import { ToastContainer } from './Toast';
+import { PulseView } from '../views/PulseView';
+import { TimelineView } from '../views/TimelineView';
+import { HistoryView } from '../views/HistoryView';
+import { SettingsView } from '../views/SettingsView';
+import { useFightListener } from './useFightListener';
 
 const NAV_ITEMS: { id: View; label: string; icon: typeof Activity }[] = [
     { id: 'pulse', label: 'Pulse', icon: Activity },
@@ -36,6 +41,8 @@ export function AppLayout() {
     const setTimelinePreset = useAppStore(s => s.setTimelinePreset);
     const applyPreset = useAppStore(s => s.applyPreset);
     const activeFightNumber = useAppStore(s => s.activeFightNumber);
+
+    useFightListener();
 
     const hasSubviews = view === 'pulse' || view === 'timeline';
     const pills = view === 'pulse' ? PULSE_PILLS : view === 'timeline' ? TIMELINE_PILLS : [];
@@ -120,22 +127,13 @@ export function AppLayout() {
 
             {/* Content Area */}
             <div className="flex-1 overflow-auto p-4">
-                {view === 'pulse' && <PlaceholderView label="Pulse" sublabel={pulseSubview} />}
-                {view === 'timeline' && <PlaceholderView label="Timeline" sublabel={timelinePreset} />}
-                {view === 'history' && <PlaceholderView label="History" />}
-                {view === 'settings' && <PlaceholderView label="Settings" />}
+                {view === 'pulse' && <PulseView />}
+                {view === 'timeline' && <TimelineView />}
+                {view === 'history' && <HistoryView />}
+                {view === 'settings' && <SettingsView />}
             </div>
 
             <ToastContainer />
-        </div>
-    );
-}
-
-function PlaceholderView({ label, sublabel }: { label: string; sublabel?: string }) {
-    return (
-        <div className="flex flex-col items-center justify-center h-full gap-2 text-[color:var(--text-muted)]">
-            <p className="text-sm font-medium text-[color:var(--text-secondary)]">{label}</p>
-            {sublabel && <p className="text-xs">{sublabel}</p>}
         </div>
     );
 }
