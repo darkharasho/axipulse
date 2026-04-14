@@ -6,3 +6,4 @@ dist_out/
 .env
 .DS_Store
 Thumbs.db
+.superpowers/
