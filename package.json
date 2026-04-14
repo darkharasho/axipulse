@@ -1,0 +1,102 @@
+{
+    "name": "axipulse",
+    "private": true,
+    "version": "0.1.0",
+    "description": "AxiPulse - Personal GW2 Combat Analysis Dashboard",
+    "author": {
+        "name": "darkharasho",
+        "email": "mstephens@example.com"
+    },
+    "license": "GPL-3.0-only",
+    "main": "dist-electron/main/index.js",
+    "scripts": {
+        "dev": "concurrently \"npm run dev:electron\" \"npm run dev:react\"",
+        "dev:react": "cross-env NODE_OPTIONS=--max-old-space-size=6144 vite",
+        "dev:electron": "cross-env NODE_OPTIONS=--max-old-space-size=6144 VITE_DEV_SERVER_URL=http://localhost:5173 wait-on tcp:5173 && tsc -p electron/tsconfig.json && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
+        "clean": "rm -rf dist-electron dist-react dist_out",
+        "build": "npm run clean && cross-env NODE_OPTIONS=--max-old-space-size=6144 tsc && cross-env NODE_OPTIONS=--max-old-space-size=6144 vite build && cross-env NODE_OPTIONS=--max-old-space-size=6144 tsc -p electron/tsconfig.json",
+        "typecheck": "tsc --noEmit && tsc -p electron/tsconfig.json --noEmit",
+        "build:linux": "npm run build && electron-builder --linux",
+        "build:win": "npm run build && electron-builder --win",
+        "build:all": "npm run build && electron-builder --linux --win",
+        "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+        "test:unit": "vitest run"
+    },
+    "dependencies": {
+        "adm-zip": "^0.5.16",
+        "chokidar": "^3.5.3",
+        "clsx": "^2.0.0",
+        "electron-log": "^5.4.3",
+        "electron-store": "^8.1.0",
+        "electron-updater": "^6.7.3",
+        "framer-motion": "^10.16.4",
+        "lucide-react": "^0.292.0",
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0",
+        "recharts": "^3.6.0",
+        "tailwind-merge": "^2.0.0",
+        "zustand": "^5.0.12"
+    },
+    "devDependencies": {
+        "@types/adm-zip": "^0.5.8",
+        "@types/node": "^20.9.0",
+        "@types/react": "^18.2.37",
+        "@types/react-dom": "^18.2.15",
+        "@typescript-eslint/eslint-plugin": "^7.6.0",
+        "@typescript-eslint/parser": "^7.6.0",
+        "@vitejs/plugin-react": "^4.2.0",
+        "autoprefixer": "^10.4.16",
+        "concurrently": "^8.2.2",
+        "cross-env": "^10.1.0",
+        "electron": "^35.7.5",
+        "electron-builder": "^26.8.1",
+        "eslint": "^8.53.0",
+        "postcss": "^8.4.31",
+        "tailwindcss": "^3.3.5",
+        "typescript": "^5.2.2",
+        "vite": "^6.2.0",
+        "vitest": "^4.0.17",
+        "wait-on": "^7.2.0"
+    },
+    "build": {
+        "appId": "com.axipulse.app",
+        "productName": "AxiPulse",
+        "directories": {
+            "output": "dist_out"
+        },
+        "artifactName": "AxiPulse-${version}.${ext}",
+        "publish": {
+            "provider": "github",
+            "owner": "darkharasho",
+            "repo": "axipulse",
+            "releaseType": "draft"
+        },
+        "files": [
+            "dist-electron/**/*",
+            "dist-react/**/*",
+            "LICENSE",
+            "package.json",
+            "RELEASE_NOTES.md"
+        ],
+        "linux": {
+            "artifactName": "AxiPulse-${version}.${ext}",
+            "target": [
+                "AppImage"
+            ],
+            "category": "Utility",
+            "icon": "public/img/axipulse-white.png"
+        },
+        "win": {
+            "artifactName": "AxiPulse-${version}-Setup.${ext}",
+            "target": [
+                "nsis"
+            ],
+            "icon": "public/img/axipulse-white.png"
+        },
+        "nsis": {
+            "oneClick": true,
+            "allowToChangeInstallationDirectory": false,
+            "differentialPackage": true
+        }
+    }
+}
