@@ -1,36 +1,15 @@
 # Release Notes
 
-Version v0.1.0 — April 15, 2026
+Version v0.1.1 — April 15, 2026
 
-## Pulse Dashboard
+## Idle ticker on the Pulse view
 
-Your per-fight stats at a glance. AxiPulse detects whether you're playing damage or support and
-shows the relevant stats first — damage dealers see DPS and down contribution up top, support players
-see healing and barrier output. Includes squad rankings, strips, cleanses, deaths, distance to tag,
-and damage taken.
+When your log directory is already set up, the "Set your arcdps log directory" prompt is gone. Instead you get rotating WvW one-liners while waiting for combat data — 150 of them, cycling every 8 seconds.
 
-## Timeline View
+## Update check from the titlebar
 
-A full swimlane timeline of your fight — health, damage dealt/taken, boons, conditions, CC, and
-distance to tag over time. Drag-select any section to inspect it. Comes with presets (Why Did I Die,
-My Damage, Support, Show All) or toggle individual lanes.
+Clicking the version number in the titlebar now checks for updates. Shows a status pill that slides in with the current state — checking, downloading, up to date, or failed — and dismisses itself automatically.
 
-## Map View
+## Fixes
 
-Replay your movement on the WvW map with tiled backgrounds and commander tag tracking. Shows enemy
-player positions, distance-to-tag tooltip, and a party health panel with boon tracking.
-
-## Session History
-
-All fights from the current session are listed in the history tab. You can swap between them freely —
-the latest fight is always highlighted so you can get back to it.
-
-## Auto-Updating
-
-AxiPulse checks for updates on launch and downloads them in the background. The version pill in the
-titlebar turns into a restart button when an update is ready.
-
-## Elite Insights
-
-Managed automatically — AxiPulse downloads and installs GW2EI on first run. On Linux, it also handles
-the .NET 8.0 runtime. Parses arcdps logs locally, nothing leaves your machine.
+- Fixed map tile alignment issues that caused visible seams at certain zoom levels.
