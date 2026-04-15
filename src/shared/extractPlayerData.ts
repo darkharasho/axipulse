@@ -50,7 +50,7 @@ function buildSquadContext(json: EiJson, player: EiPlayer): SquadContext {
 }
 
 function buildTimeline(json: EiJson, player: EiPlayer, bucketSizeMs: number): TimelineData {
-    const damage1S = player.targetDamage1S?.[0] ?? player.damage1S?.[0] ?? [];
+    const damage1S = player.damage1S?.[0] ?? [];
     const damageDealt = extractDamageTimeline(damage1S, bucketSizeMs);
 
     const damageTaken1S = player.damageTaken1S?.[0] ?? [];

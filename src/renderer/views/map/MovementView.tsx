@@ -418,10 +418,10 @@ export function MovementView() {
                                     draggable={false}
                                     className="absolute"
                                     style={{
-                                        left: `${(tile.x / width) * 100}%`,
-                                        top: `${(tile.y / height) * 100}%`,
-                                        width: `${(tile.width / width) * 100}%`,
-                                        height: `${(tile.height / height) * 100}%`,
+                                        left: `calc(${(tile.x / width) * 100}% - 0.5px)`,
+                                        top: `calc(${(tile.y / height) * 100}% - 0.5px)`,
+                                        width: `calc(${(tile.width / width) * 100}% + 1px)`,
+                                        height: `calc(${(tile.height / height) * 100}% + 1px)`,
                                     }}
                                 />
                             ))}

@@ -1,5 +1,21 @@
 import type { TimelineBucket, BuffStateEntry } from './types';
 
+function interpolateHealth(healthPercent: [number, number][], timeMs: number): number {
+    if (healthPercent.length === 0) return 0;
+    if (timeMs <= healthPercent[0][0]) return healthPercent[0][1];
+    if (timeMs >= healthPercent[healthPercent.length - 1][0]) return healthPercent[healthPercent.length - 1][1];
+    for (let i = 0; i < healthPercent.length - 1; i++) {
+        const [t0, v0] = healthPercent[i];
+        const [t1, v1] = healthPercent[i + 1];
+        if (timeMs >= t0 && timeMs <= t1) {
+            if (t1 === t0) return v0;
+            const frac = (timeMs - t0) / (t1 - t0);
+            return v0 + frac * (v1 - v0);
+        }
+    }
+    return healthPercent[healthPercent.length - 1][1];
+}
+
 export function getHealthInRange(
     healthPercent: [number, number][],
     startMs: number,
@@ -8,22 +24,16 @@ export function getHealthInRange(
     if (healthPercent.length === 0) return [];
 
     const result: [number, number][] = [];
-    let lastBefore: [number, number] | null = null;
+
+    result.push([startMs, interpolateHealth(healthPercent, startMs)]);
 
     for (const point of healthPercent) {
-        if (point[0] < startMs) {
-            lastBefore = point;
-        } else if (point[0] <= endMs) {
-            if (result.length === 0 && lastBefore && point[0] > startMs) {
-                result.push(lastBefore);
-            }
+        if (point[0] > startMs && point[0] < endMs) {
             result.push(point);
         }
     }
 
-    if (result.length === 0 && lastBefore) {
-        result.push(lastBefore);
-    }
+    result.push([endMs, interpolateHealth(healthPercent, endMs)]);
 
     return result;
 }

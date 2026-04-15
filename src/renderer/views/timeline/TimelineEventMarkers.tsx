@@ -14,7 +14,7 @@ export function TimelineEventMarkers({ downEvents, deathEvents, durationMs, onEv
                 <div
                     key={`down-${i}`}
                     className="absolute top-0 bottom-0 z-[6] cursor-pointer"
-                    style={{ left: `calc(90px + ${(t / durationMs) * 100}% * (100% - 90px) / 100%)`, width: 12, marginLeft: -6 }}
+                    style={{ left: `calc(90px + ${t / durationMs} * (100% - 90px))`, width: 12, marginLeft: -6 }}
                     onClick={(e) => { e.stopPropagation(); onEventClick(t); }}
                 >
                     <div className="absolute top-[-12px] left-[2px] text-[8px]">⬇</div>
@@ -25,7 +25,7 @@ export function TimelineEventMarkers({ downEvents, deathEvents, durationMs, onEv
                 <div
                     key={`death-${i}`}
                     className="absolute top-0 bottom-0 z-[6] cursor-pointer"
-                    style={{ left: `calc(90px + ${(t / durationMs) * 100}% * (100% - 90px) / 100%)`, width: 12, marginLeft: -6 }}
+                    style={{ left: `calc(90px + ${t / durationMs} * (100% - 90px))`, width: 12, marginLeft: -6 }}
                     onClick={(e) => { e.stopPropagation(); onEventClick(t); }}
                 >
                     <div className="absolute top-[-12px] left-[1px] text-[8px]">💀</div>

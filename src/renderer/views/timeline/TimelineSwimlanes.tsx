@@ -2,6 +2,7 @@ import { useRef, useState, useCallback } from 'react';
 import type { TimelineData } from '../../../shared/types';
 import type { TimelineLayerToggles } from '../../store';
 import { TimelineLane } from './TimelineLane';
+import { TimelineHealthLane } from './TimelineHealthLane';
 import { TimelineBoonLane } from './TimelineBoonLane';
 import { TimelineEventMarkers } from './TimelineEventMarkers';
 
@@ -114,8 +115,8 @@ export function TimelineSwimlanes({ data, toggles, durationMs, onSelectionChange
                     <div
                         className="absolute top-0 bottom-0 z-[5] pointer-events-none"
                         style={{
-                            left: `calc(${labelWidth}px + ${(activeSelection.startMs / durationMs) * 100}% * (100% - ${labelWidth}px) / 100%)`,
-                            width: `calc(${((activeSelection.endMs - activeSelection.startMs) / durationMs) * 100}% * (100% - ${labelWidth}px) / 100%)`,
+                            left: `calc(${labelWidth}px + ${(activeSelection.startMs / durationMs)} * (100% - ${labelWidth}px))`,
+                            width: `calc(${((activeSelection.endMs - activeSelection.startMs) / durationMs)} * (100% - ${labelWidth}px))`,
                             background: 'rgba(96,165,250,0.06)',
                             borderLeft: '1.5px solid rgba(96,165,250,0.4)',
                             borderRight: '1.5px solid rgba(96,165,250,0.4)',
@@ -132,7 +133,7 @@ export function TimelineSwimlanes({ data, toggles, durationMs, onSelectionChange
                 />
 
                 {/* Area chart lanes */}
-                {toggles.health && <TimelineLane label="Health" color="#10b981" data={healthBuckets} domainMs={domainMs} />}
+                {toggles.health && <TimelineHealthLane data={healthBuckets} domainMs={domainMs} />}
                 {toggles.damageDealt && <TimelineLane label="Dmg Dealt" color="#ef4444" data={data.damageDealt} domainMs={domainMs} />}
                 {toggles.damageTaken && <TimelineLane label="Dmg Taken" color="#f87171" data={data.damageTaken} domainMs={domainMs} />}
                 {toggles.distanceToTag && <TimelineLane label="Dist to Tag" color="#f59e0b" data={data.distanceToTag} domainMs={domainMs} />}

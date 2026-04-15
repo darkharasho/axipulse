@@ -105,7 +105,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     setPulseSubview: (subview) => set({ pulseSubview: subview }),
     mapSubview: 'overview',
     setMapSubview: (subview) => set({ mapSubview: subview }),
-    timelinePreset: 'why-died',
+    timelinePreset: 'show-all',
     setTimelinePreset: (preset) => set({ timelinePreset: preset }),
     pillBarExpanded: false,
     setPillBarExpanded: (expanded) => set({ pillBarExpanded: expanded }),

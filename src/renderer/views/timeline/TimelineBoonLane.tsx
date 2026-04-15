@@ -102,8 +102,17 @@ export function TimelineBoonLane({ label, color, buffs, durationMs }: TimelineBo
                                 </div>
                             ))}
                             <span
-                                className="absolute text-right pr-1"
-                                style={{ right: 0, top: 0, fontSize: Math.min(7, rowHeight - 1), color: `${barColor}88`, lineHeight: `${rowHeight}px` }}
+                                className="absolute text-right truncate pointer-events-none"
+                                style={{
+                                    right: 2, top: 0,
+                                    zIndex: 2,
+                                    fontSize: 10, color: barColor,
+                                    lineHeight: `${rowHeight}px`,
+                                    maxWidth: 70,
+                                    background: 'rgba(0,0,0,0.5)',
+                                    padding: '0 3px',
+                                    borderRadius: 2,
+                                }}
                             >
                                 {entry.name}
                             </span>
