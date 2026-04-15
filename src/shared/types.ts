@@ -56,6 +56,12 @@ export interface EiTarget {
     enemyPlayer: boolean;
     isFake: boolean;
     profession?: string;
+    combatReplayData?: {
+        positions?: [number, number][];
+        dead?: [number, number][];
+        down?: [number, number][];
+        start?: number;
+    };
 }
 
 export interface EiJson {
@@ -91,6 +97,7 @@ export interface SquadMemberMovement {
     group: number;
     isCommander: boolean;
     isLocal: boolean;
+    isEnemy: boolean;
     positions: [number, number][];
     downRanges: [number, number][];
     deadRanges: [number, number][];
@@ -99,6 +106,7 @@ export interface SquadMemberMovement {
 export interface MovementData {
     pollingRate: number;
     durationMs: number;
+    inchToPixel: number;
     members: SquadMemberMovement[];
 }
 

@@ -213,9 +213,14 @@ export function MovementView() {
         );
     }
 
-    const { pollingRate, durationMs, members } = movementData;
+    const { pollingRate, durationMs, inchToPixel, members } = movementData;
     const posIndex = Math.min(Math.floor(timeMs / pollingRate), Math.max(0, members[0].positions.length - 1));
-    const markerScale = 1 / Math.pow(view.scale, 0.55);
+    const markerScale = 1 / Math.pow(view.scale, 0.7);
+
+    const allies = members.filter(m => !m.isEnemy);
+    const enemies = members.filter(m => m.isEnemy);
+    const commander = allies.find(m => m.isCommander);
+    const commanderPos = commander ? commander.positions[Math.min(posIndex, commander.positions.length - 1)] : null;
 
     return (
         <div className="flex flex-col h-full gap-2">
@@ -293,9 +298,22 @@ export function MovementView() {
                     <svg
                         className="absolute inset-0 w-full h-full"
                         viewBox={`0 0 ${width} ${height}`}
+                        xmlns="http://www.w3.org/2000/svg"
                         preserveAspectRatio="xMidYMid meet"
                         overflow="visible"
                     >
+                        <defs>
+                            <filter id="enemy-red-tint" x="-15%" y="-15%" width="130%" height="130%">
+                                <feMorphology in="SourceAlpha" operator="dilate" radius="0.6" result="expanded" />
+                                <feFlood floodColor="#7f1d1d" result="darkColor" />
+                                <feComposite in="darkColor" in2="expanded" operator="in" result="outline" />
+                                <feFlood floodColor="#ef4444" result="redOverlay" />
+                                <feComposite in="redOverlay" in2="SourceAlpha" operator="in" result="tint" />
+                                <feBlend in="SourceGraphic" in2="tint" mode="overlay" result="tinted" />
+                                <feComposite in="tinted" in2="SourceAlpha" operator="in" result="clipped" />
+                                <feComposite in="clipped" in2="outline" operator="over" />
+                            </filter>
+                        </defs>
                         {/* Landmark pins */}
                         {landmarks.map((lm, i) => {
                             const s = TYPE_SCALES[lm.type];
@@ -314,8 +332,59 @@ export function MovementView() {
                             );
                         })}
 
-                        {/* Player trails and markers */}
-                        {members.map((member) => {
+                        {/* Enemy markers (rendered first, behind allies) */}
+                        {enemies.map((member, i) => {
+                            const maxIdx = member.positions.length - 1;
+                            const currentIdx = Math.min(posIndex, maxIdx);
+                            const pos = member.positions[currentIdx];
+                            if (!pos) return null;
+                            const iconUrl = getClassIconUrl(member.eliteSpec, member.profession);
+                            const enemyId = `enemy-${member.name}-${i}`;
+                            const sz = 14;
+                            const status = getMemberStatus(member, timeMs);
+                            return (
+                                <g key={enemyId} opacity={0.3}>
+                                    <g transform={`translate(${pos[0]}, ${pos[1]}) scale(${markerScale})`}>
+                                        {status === 'down' && (
+                                            <g transform="translate(-6, -18)">
+                                                <svg width="12" height="14" viewBox="0 0 24 24">
+                                                    <path d={PIN_PATH} fill="#ef4444" fillOpacity={0.8} stroke="#991b1b" strokeWidth={1.5} />
+                                                </svg>
+                                            </g>
+                                        )}
+                                        {status === 'dead' && (
+                                            <g transform="translate(-6, -18)">
+                                                <svg width="12" height="14" viewBox="0 0 24 24">
+                                                    <path d={SKULL_PATH} fill="#ef4444" stroke="#991b1b" strokeWidth={0.5} />
+                                                </svg>
+                                            </g>
+                                        )}
+                                        {iconUrl ? (
+                                            <image href={iconUrl} x={-sz / 2} y={-sz / 2} width={sz} height={sz} filter="url(#enemy-red-tint)" />
+                                        ) : (
+                                            <circle r={4} fill="#ef4444" />
+                                        )}
+                                        <rect
+                                            x={-12} y={-12} width={24} height={24}
+                                            fill="transparent"
+                                            onMouseEnter={() => setHoveredMember(enemyId)}
+                                            onMouseLeave={() => setHoveredMember(null)}
+                                            style={{ cursor: 'pointer' }}
+                                        />
+                                        {hoveredMember === enemyId && (
+                                            <g transform="translate(0, -20)" opacity={5}>
+                                                <rect x={-100} y={-50} width={200} height={50} rx={8} fill="#1a1f2e" fillOpacity={0.95} stroke="rgba(255,255,255,0.15)" strokeWidth={1.5} />
+                                                <text x={0} y={-28} textAnchor="middle" fill="#ef4444" fontSize={18} fontWeight={600} fontFamily="Inter, sans-serif">{member.name}</text>
+                                                <text x={0} y={-10} textAnchor="middle" fill="#8b929e" fontSize={14} fontFamily="Inter, sans-serif">{member.profession}</text>
+                                            </g>
+                                        )}
+                                    </g>
+                                </g>
+                            );
+                        })}
+
+                        {/* Allied trails and markers */}
+                        {allies.map((member) => {
                             const maxIdx = member.positions.length - 1;
                             const currentIdx = Math.min(posIndex, maxIdx);
                             const pos = member.positions[currentIdx];
@@ -328,6 +397,11 @@ export function MovementView() {
                             const recentStart = Math.max(0, currentIdx - TRAIL_LENGTH);
                             const historyPoints = member.positions.slice(0, recentStart + 1);
                             const recentPoints = member.positions.slice(recentStart, currentIdx + 1);
+
+                            let distToTag: number | null = null;
+                            if (commanderPos && !member.isCommander) {
+                                distToTag = Math.round(Math.hypot(pos[0] - commanderPos[0], pos[1] - commanderPos[1]) / inchToPixel);
+                            }
 
                             return (
                                 <g key={member.account}>
@@ -376,20 +450,29 @@ export function MovementView() {
 
                                         {/* Player marker */}
                                         {status === 'alive' && (() => {
+                                            if (member.isCommander) {
+                                                const tagSz = 20;
+                                                return <image href="./img/commander_tag.svg" x={-tagSz / 2} y={-tagSz / 2} width={tagSz} height={tagSz} />;
+                                            }
                                             const iconUrl = getClassIconUrl(member.eliteSpec, member.profession);
                                             const sz = member.isLocal ? 24 : 20;
                                             if (iconUrl) {
                                                 return (
                                                     <>
-                                                        {member.isCommander && (
-                                                            <circle r={sz / 2 + 3} fill="none" stroke="#ffffff" strokeWidth={2} opacity={0.9} />
+                                                        {member.isLocal && (
+                                                            <circle r={sz / 2 + 4} fill="none" stroke="#10b981" strokeWidth={2.5} opacity={0.85} />
                                                         )}
                                                         <image href={iconUrl} x={-sz / 2} y={-sz / 2} width={sz} height={sz} />
                                                     </>
                                                 );
                                             }
                                             return (
-                                                <circle r={member.isLocal ? 8 : 6} fill={color} fillOpacity={0.9} stroke={member.isCommander ? '#ffffff' : color} strokeWidth={member.isCommander ? 2.5 : 1} />
+                                                <>
+                                                    {member.isLocal && (
+                                                        <circle r={12} fill="none" stroke="#10b981" strokeWidth={2.5} opacity={0.85} />
+                                                    )}
+                                                    <circle r={member.isLocal ? 8 : 6} fill={color} fillOpacity={0.9} stroke={color} strokeWidth={1} />
+                                                </>
                                             );
                                         })()}
 
@@ -408,9 +491,12 @@ export function MovementView() {
                                         {/* Hover tooltip */}
                                         {isHovered && (
                                             <g transform="translate(0, -28)">
-                                                <rect x={-120} y={-62} width={240} height={62} rx={8} fill="#1a1f2e" fillOpacity={0.95} stroke="rgba(255,255,255,0.15)" strokeWidth={1.5} />
-                                                <text x={0} y={-38} textAnchor="middle" fill="#e8eaed" fontSize={22} fontWeight={600} fontFamily="Inter, sans-serif">{member.name}</text>
-                                                <text x={0} y={-14} textAnchor="middle" fill="#8b929e" fontSize={17} fontFamily="Inter, sans-serif">{member.account}</text>
+                                                <rect x={-120} y={-78} width={240} height={78} rx={8} fill="#1a1f2e" fillOpacity={0.95} stroke="rgba(255,255,255,0.15)" strokeWidth={1.5} />
+                                                <text x={0} y={-54} textAnchor="middle" fill="#e8eaed" fontSize={22} fontWeight={600} fontFamily="Inter, sans-serif">{member.name}</text>
+                                                <text x={0} y={-32} textAnchor="middle" fill="#8b929e" fontSize={17} fontFamily="Inter, sans-serif">{member.account}</text>
+                                                <text x={0} y={-12} textAnchor="middle" fill="#6ee7b7" fontSize={14} fontFamily="Inter, sans-serif">
+                                                    {member.isCommander ? 'Commander' : distToTag != null ? `${distToTag} to tag` : ''}
+                                                </text>
                                             </g>
                                         )}
                                     </g>

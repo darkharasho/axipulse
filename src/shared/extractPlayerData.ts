@@ -96,31 +96,55 @@ function buildTimeline(json: EiJson, player: EiPlayer, bucketSizeMs: number): Ti
 
 function buildMovementData(json: EiJson, localPlayer: EiPlayer): MovementData | null {
     const pollingRate = json.combatReplayMetaData?.pollingRate ?? 300;
+
     const localGroup = localPlayer.group;
-    const squadPlayers = json.players.filter(p => !p.isFake && !p.notInSquad);
+    const members: SquadMemberMovement[] = [];
 
-    const tracked = squadPlayers.filter(p =>
-        p === localPlayer || p.hasCommanderTag || p.group === localGroup
-    );
-
-    const members: SquadMemberMovement[] = tracked
-        .filter(p => p.combatReplayData?.positions && p.combatReplayData.positions.length > 0)
-        .map(p => ({
+    const enemyNames = new Set<string>();
+    for (const p of json.players) {
+        if (p.isFake || !p.combatReplayData?.positions?.length) continue;
+        const isEnemy = p.notInSquad;
+        if (!isEnemy && p !== localPlayer && !p.hasCommanderTag && p.group !== localGroup) continue;
+        if (isEnemy) enemyNames.add(p.name);
+        members.push({
             name: p.name,
             account: p.account,
             profession: p.profession,
             eliteSpec: p.elite_spec,
             group: p.group,
-            isCommander: p.hasCommanderTag,
+            isCommander: !isEnemy && p.hasCommanderTag,
             isLocal: p === localPlayer,
+            isEnemy,
             positions: p.combatReplayData!.positions!,
             downRanges: p.combatReplayData?.down ?? [],
             deadRanges: p.combatReplayData?.dead ?? [],
-        }));
+        });
+    }
+
+    for (const t of json.targets) {
+        if (!t.enemyPlayer || t.isFake || !t.combatReplayData?.positions?.length) continue;
+        if (enemyNames.has(t.name)) continue;
+        const specMatch = t.name.match(/^(.+?) pl-\d+$/);
+        const specName = specMatch?.[1] ?? '';
+        members.push({
+            name: t.name,
+            account: '',
+            profession: t.profession ?? specName,
+            eliteSpec: specName,
+            group: 0,
+            isCommander: false,
+            isLocal: false,
+            isEnemy: true,
+            positions: t.combatReplayData.positions,
+            downRanges: t.combatReplayData.down ?? [],
+            deadRanges: t.combatReplayData.dead ?? [],
+        });
+    }
 
     if (members.length === 0) return null;
 
-    return { pollingRate, durationMs: json.durationMS, members };
+    const inchToPixel = json.combatReplayMetaData?.inchToPixel ?? 1;
+    return { pollingRate, durationMs: json.durationMS, inchToPixel, members };
 }
 
 export function extractPlayerFightData(json: EiJson, fightNumber: number, bucketSizeMs: number): PlayerFightData {
