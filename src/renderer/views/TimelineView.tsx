@@ -1,12 +1,14 @@
-// src/renderer/views/TimelineView.tsx
 import { useAppStore } from '../store';
-import { TimelineChart } from './timeline/TimelineChart';
-import { TimelineControls } from './timeline/TimelineControls';
+import { TimelinePresetBar } from './timeline/TimelinePresetBar';
+import { TimelineSwimlanes } from './timeline/TimelineSwimlanes';
+import { TimelineInspector } from './timeline/TimelineInspector';
 import { GanttChart } from 'lucide-react';
 
 export function TimelineView() {
     const currentFight = useAppStore(s => s.currentFight);
     const toggles = useAppStore(s => s.timelineToggles);
+    const selection = useAppStore(s => s.timelineSelection);
+    const setSelection = useAppStore(s => s.setTimelineSelection);
 
     if (!currentFight) {
         return (
@@ -21,11 +23,22 @@ export function TimelineView() {
     }
 
     return (
-        <div className="flex flex-col h-full">
-            <TimelineControls />
-            <div className="flex-1 min-h-0">
-                <TimelineChart data={currentFight.timeline} toggles={toggles} durationMs={currentFight.duration} />
-            </div>
+        <div className="flex flex-col h-full overflow-y-auto px-2 py-2">
+            <TimelinePresetBar />
+            <TimelineSwimlanes
+                data={currentFight.timeline}
+                toggles={toggles}
+                durationMs={currentFight.duration}
+                onSelectionChange={setSelection}
+                selection={selection}
+            />
+            {selection && (
+                <TimelineInspector
+                    data={currentFight.timeline}
+                    selection={selection}
+                    topDamageTakenSkills={currentFight.defense.topDamageTakenSkills}
+                />
+            )}
         </div>
     );
 }
