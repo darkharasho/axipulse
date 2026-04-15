@@ -69,7 +69,9 @@ function buildTimeline(json: EiJson, player: EiPlayer, bucketSizeMs: number): Ti
         const playerPos = player.combatReplayData?.positions ?? [];
         const tagPos = commander.combatReplayData?.positions ?? [];
         if (playerPos.length > 0 && tagPos.length > 0) {
-            distanceToTag = extractDistanceToTagTimeline(playerPos, tagPos, meta.pollingRate, meta.inchToPixel, bucketSizeMs);
+            distanceToTag = extractDistanceToTagTimeline(
+                playerPos, tagPos, meta.pollingRate, meta.inchToPixel, bucketSizeMs,
+            );
         }
     }
 

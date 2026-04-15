@@ -16,6 +16,23 @@ export function bucketTimeline(perSecondValues: number[], bucketSizeMs: number):
     return buckets;
 }
 
+export function bucketTimelineAvg(perSecondValues: number[], bucketSizeMs: number): TimelineBucket[] {
+    const bucketSizeSec = Math.max(1, Math.round(bucketSizeMs / 1000));
+    const buckets: TimelineBucket[] = [];
+
+    for (let i = 0; i < perSecondValues.length; i += bucketSizeSec) {
+        let sum = 0;
+        let count = 0;
+        for (let j = i; j < Math.min(i + bucketSizeSec, perSecondValues.length); j++) {
+            sum += perSecondValues[j];
+            count++;
+        }
+        buckets.push({ time: i * 1000, value: count > 0 ? Math.round(sum / count) : 0 });
+    }
+
+    return buckets;
+}
+
 export function cumulativeToPerSecond(cumulative: number[]): number[] {
     const perSecond: number[] = [];
     for (let i = 0; i < cumulative.length; i++) {
@@ -80,16 +97,15 @@ export function extractDistanceToTagTimeline(
     bucketSizeMs: number,
 ): TimelineBucket[] {
     const scale = inchToPixel || 1;
-    const perSample: number[] = [];
 
     const len = Math.min(playerPositions.length, tagPositions.length);
+    const perSample: number[] = [];
     for (let i = 0; i < len; i++) {
         const [px, py] = playerPositions[i];
         const [tx, ty] = tagPositions[i];
         perSample.push(Math.round(Math.hypot(px - tx, py - ty) / scale));
     }
 
-    // Resample from pollingRate intervals to 1-second intervals
     const samplesPerSecond = Math.max(1, Math.round(1000 / pollingRate));
     const perSecond: number[] = [];
     for (let i = 0; i < perSample.length; i += samplesPerSecond) {
@@ -102,5 +118,5 @@ export function extractDistanceToTagTimeline(
         perSecond.push(count > 0 ? Math.round(sum / count) : 0);
     }
 
-    return bucketTimeline(perSecond, bucketSizeMs);
+    return bucketTimelineAvg(perSecond, bucketSizeMs);
 }

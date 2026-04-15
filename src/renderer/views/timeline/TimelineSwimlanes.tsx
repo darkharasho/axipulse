@@ -1,5 +1,5 @@
-import { useRef, useState, useCallback } from 'react';
-import type { TimelineData } from '../../../shared/types';
+import { useRef, useState, useCallback, useMemo } from 'react';
+import type { TimelineData, TimelineBucket } from '../../../shared/types';
 import type { TimelineLayerToggles } from '../../store';
 import { TimelineLane } from './TimelineLane';
 import { TimelineHealthLane } from './TimelineHealthLane';
@@ -30,11 +30,24 @@ function healthPercentToBuckets(healthPercent: [number, number][], durationMs: n
     return buckets;
 }
 
+function nearestBucketValue(buckets: TimelineBucket[], timeMs: number): number | null {
+    if (buckets.length === 0) return null;
+    let best = buckets[0];
+    let bestDist = Math.abs(buckets[0].time - timeMs);
+    for (let i = 1; i < buckets.length; i++) {
+        const dist = Math.abs(buckets[i].time - timeMs);
+        if (dist < bestDist) { best = buckets[i]; bestDist = dist; }
+        else break;
+    }
+    return best.value;
+}
+
 export function TimelineSwimlanes({ data, toggles, durationMs, onSelectionChange, selection }: TimelineSwimlanesProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [dragging, setDragging] = useState(false);
     const [dragStart, setDragStart] = useState<number | null>(null);
     const [dragEnd, setDragEnd] = useState<number | null>(null);
+    const [hoverX, setHoverX] = useState<number | null>(null);
 
     const labelWidth = 90;
 
@@ -54,7 +67,18 @@ export function TimelineSwimlanes({ data, toggles, durationMs, onSelectionChange
         setDragEnd(ms);
     };
 
+    const clientXToPct = useCallback((clientX: number) => {
+        if (!containerRef.current) return null;
+        const rect = containerRef.current.getBoundingClientRect();
+        const dataWidth = rect.width - labelWidth;
+        const relX = clientX - rect.left - labelWidth;
+        const pct = relX / dataWidth;
+        if (pct < 0 || pct > 1) return null;
+        return pct;
+    }, []);
+
     const handleMouseMove = (e: React.MouseEvent) => {
+        setHoverX(clientXToPct(e.clientX));
         if (!dragging) return;
         setDragEnd(pxToMs(e.clientX));
     };
@@ -95,6 +119,38 @@ export function TimelineSwimlanes({ data, toggles, durationMs, onSelectionChange
     const tickCount = Math.min(8, Math.max(3, Math.floor(durationMs / 30000) + 1));
     const ticks = Array.from({ length: tickCount }, (_, i) => Math.round((i / (tickCount - 1)) * durationMs));
 
+    const hoverTimeMs = hoverX !== null ? Math.round(hoverX * durationMs) : null;
+
+    const tooltipRows = useMemo(() => {
+        if (hoverTimeMs === null || dragging) return [];
+        const rows: { label: string; color: string; value: string }[] = [];
+        if (toggles.health) {
+            const v = nearestBucketValue(healthBuckets, hoverTimeMs);
+            if (v !== null) rows.push({ label: 'Health', color: '#10b981', value: `${Math.round(v)}%` });
+        }
+        if (toggles.damageDealt) {
+            const v = nearestBucketValue(data.damageDealt, hoverTimeMs);
+            if (v !== null) rows.push({ label: 'Dmg Dealt', color: '#ef4444', value: v.toLocaleString() });
+        }
+        if (toggles.damageTaken) {
+            const v = nearestBucketValue(data.damageTaken, hoverTimeMs);
+            if (v !== null) rows.push({ label: 'Dmg Taken', color: '#f87171', value: v.toLocaleString() });
+        }
+        if (toggles.distanceToTag) {
+            const v = nearestBucketValue(data.distanceToTag, hoverTimeMs);
+            if (v !== null) rows.push({ label: 'Dist to Tag', color: '#f59e0b', value: v.toLocaleString() });
+        }
+        if (toggles.incomingHealing) {
+            const v = nearestBucketValue(data.incomingHealing, hoverTimeMs);
+            if (v !== null) rows.push({ label: 'Healing', color: '#4ade80', value: v.toLocaleString() });
+        }
+        if (toggles.incomingBarrier) {
+            const v = nearestBucketValue(data.incomingBarrier, hoverTimeMs);
+            if (v !== null) rows.push({ label: 'Barrier', color: '#a78bfa', value: v.toLocaleString() });
+        }
+        return rows;
+    }, [hoverTimeMs, dragging, toggles, healthBuckets, data]);
+
     return (
         <div className="relative" ref={containerRef}>
             {/* Time axis */}
@@ -108,7 +164,7 @@ export function TimelineSwimlanes({ data, toggles, durationMs, onSelectionChange
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseUp}
+                onMouseLeave={() => { handleMouseUp(); setHoverX(null); }}
             >
                 {/* Selection highlight */}
                 {activeSelection && activeSelection.endMs - activeSelection.startMs > 500 && (
@@ -122,6 +178,42 @@ export function TimelineSwimlanes({ data, toggles, durationMs, onSelectionChange
                             borderRight: '1.5px solid rgba(96,165,250,0.4)',
                         }}
                     />
+                )}
+
+                {/* Crosshair + tooltip */}
+                {hoverX !== null && !dragging && (
+                    <>
+                        <div
+                            className="absolute top-0 bottom-0 z-[4] pointer-events-none"
+                            style={{
+                                left: `calc(${labelWidth}px + ${hoverX} * (100% - ${labelWidth}px))`,
+                                width: 1,
+                                background: 'rgba(255,255,255,0.15)',
+                            }}
+                        />
+                        {tooltipRows.length > 0 && (
+                            <div
+                                className="absolute z-[6] pointer-events-none rounded py-1 px-2"
+                                style={{
+                                    top: 0,
+                                    left: `calc(${labelWidth}px + ${hoverX} * (100% - ${labelWidth}px) + 8px)`,
+                                    background: 'rgba(10,10,22,0.92)',
+                                    border: '1px solid rgba(255,255,255,0.08)',
+                                    backdropFilter: 'blur(6px)',
+                                    transform: hoverX > 0.75 ? 'translateX(calc(-100% - 16px))' : undefined,
+                                }}
+                            >
+                                <div className="text-[8px] text-[#666] mb-0.5">{formatTick(hoverTimeMs!)}</div>
+                                {tooltipRows.map(r => (
+                                    <div key={r.label} className="flex items-center gap-1.5 text-[9px] leading-[14px]">
+                                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: r.color }} />
+                                        <span className="text-[#888]">{r.label}</span>
+                                        <span className="ml-auto pl-2 text-[#ccc] font-medium">{r.value}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </>
                 )}
 
                 {/* Event markers — click to auto-select window around event */}

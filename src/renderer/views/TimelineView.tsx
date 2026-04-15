@@ -6,10 +6,10 @@ import { TimelineInspector } from './timeline/TimelineInspector';
 import { GanttChart } from 'lucide-react';
 
 const TIMELINE_PILLS = [
+    { id: 'show-all', label: 'Show all' },
     { id: 'why-died', label: 'Why did I die?' },
     { id: 'my-damage', label: 'My damage' },
     { id: 'support', label: 'Getting support?' },
-    { id: 'show-all', label: 'Show all' },
     { id: 'custom', label: 'Custom' },
 ];
 
@@ -42,7 +42,7 @@ export function TimelineView() {
     };
 
     return (
-        <div className="flex flex-col h-full overflow-y-auto px-2 py-2">
+        <div className="flex flex-col">
             <div className="flex items-center justify-between mb-3">
                 <SubviewCapsule
                     pills={TIMELINE_PILLS}
