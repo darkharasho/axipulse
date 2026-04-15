@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Inter:wght@400;500;600;700&family=Rajdhani:wght@500;600;700&display=swap');
 @import "tailwindcss/base";
 @import "tailwindcss/components";
 @import "tailwindcss/utilities";
@@ -108,4 +108,49 @@ html, body, #root {
 
 .heartbeat-pulse {
   animation: heartbeat 1.2s ease-in-out infinite;
+}
+
+@keyframes barFillIn {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+.stat-bar-fill {
+  transform-origin: left;
+  animation: barFillIn 0.6s var(--ease-out-expo) both;
+}
+
+.font-stat {
+  font-family: 'Rajdhani', sans-serif;
+}
+
+.gradient-text {
+  background: var(--brand-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.stat-card-glow {
+  position: relative;
+}
+
+.stat-card-glow::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity var(--duration-normal) ease;
+  pointer-events: none;
+  box-shadow: inset 0 0 20px var(--card-glow-color, rgba(16, 185, 129, 0.08));
+}
+
+.stat-card-glow:hover::before {
+  opacity: 1;
 }

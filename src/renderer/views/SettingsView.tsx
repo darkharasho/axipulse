@@ -1,7 +1,9 @@
 // src/renderer/views/SettingsView.tsx
 import { useEffect, useState } from 'react';
 import { useAppStore } from '../store';
-import { FolderOpen, Download, RefreshCw, Trash2, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { FolderOpen, Download, RefreshCw, Trash2, CheckCircle, AlertCircle, Loader2, Dices } from 'lucide-react';
+
+const IS_DEV = import.meta.env.DEV;
 
 export function SettingsView() {
     const logDirectory = useAppStore(s => s.logDirectory);
@@ -11,10 +13,12 @@ export function SettingsView() {
     const bucketSizeMs = useAppStore(s => s.bucketSizeMs);
     const setBucketSizeMs = useAppStore(s => s.setBucketSizeMs);
     const [eiProgress, setEiProgress] = useState<string>('');
+    const [devMinFileSize, setDevMinFileSize] = useState<number>(0);
 
     useEffect(() => {
         window.electronAPI?.getSettings().then(s => {
             if (s.logDirectory) setLogDirectory(s.logDirectory);
+            if (s.devMinFileSize) setDevMinFileSize(s.devMinFileSize);
         });
         window.electronAPI?.eiGetStatus().then(setEiStatus);
 
@@ -133,6 +137,35 @@ export function SettingsView() {
                     ))}
                 </div>
             </section>
+
+            {IS_DEV && (
+                <section>
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-amber-400 mb-2 flex items-center gap-1.5">
+                        <Dices className="w-3.5 h-3.5" /> Dev Tools
+                    </h3>
+                    <div className="flex items-center gap-3">
+                        <span className="text-xs text-[color:var(--text-secondary)]">Min file size (KB):</span>
+                        <input
+                            type="number"
+                            min={0}
+                            step={100}
+                            value={devMinFileSize}
+                            onChange={(e) => {
+                                const val = Math.max(0, Number(e.target.value) || 0);
+                                setDevMinFileSize(val);
+                                window.electronAPI?.saveSettings({ devMinFileSize: val });
+                            }}
+                            className="w-24 px-2 py-1 text-xs rounded text-[color:var(--text-primary)] outline-none focus:ring-1 focus:ring-amber-400/50"
+                            style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)' }}
+                        />
+                        {devMinFileSize > 0 && (
+                            <span className="text-[11px] text-amber-300">
+                                ≥ {devMinFileSize >= 1024 ? `${(devMinFileSize / 1024).toFixed(1)} MB` : `${devMinFileSize} KB`}
+                            </span>
+                        )}
+                    </div>
+                </section>
+            )}
         </div>
     );
 }

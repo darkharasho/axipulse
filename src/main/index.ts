@@ -119,12 +119,16 @@ function setupIpcHandlers(): void {
     ipcMain.handle('get-settings', () => {
         return {
             logDirectory: store.get('logDirectory', '') as string,
+            devMinFileSize: store.get('devMinFileSize', 0) as number,
         };
     });
 
-    ipcMain.on('save-settings', (_event, settings: { logDirectory?: string }) => {
+    ipcMain.on('save-settings', (_event, settings: { logDirectory?: string; devMinFileSize?: number }) => {
         if (settings.logDirectory !== undefined) {
             store.set('logDirectory', settings.logDirectory);
+        }
+        if (settings.devMinFileSize !== undefined) {
+            store.set('devMinFileSize', settings.devMinFileSize);
         }
     });
 
@@ -149,7 +153,13 @@ function setupIpcHandlers(): void {
         walk(logDir, 0);
         if (allFiles.length === 0) return { error: 'No .evtc/.zevtc files found' };
 
-        const logPath = allFiles[Math.floor(Math.random() * allFiles.length)];
+        const minSize = (store.get('devMinFileSize', 0) as number) * 1024;
+        const filtered = minSize > 0
+            ? allFiles.filter(f => { try { return fs.statSync(f).size >= minSize; } catch { return false; } })
+            : allFiles;
+        if (filtered.length === 0) return { error: `No files >= ${minSize / 1024} KB found` };
+
+        const logPath = filtered[Math.floor(Math.random() * filtered.length)];
         const logId = path.basename(logPath, path.extname(logPath));
         mainWindow?.webContents.send('parse-started', { logId, logPath });
 

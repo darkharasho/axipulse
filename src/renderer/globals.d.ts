@@ -8,7 +8,7 @@ interface Window {
         onParseProgress: (callback: (data: { logId: string; line: string }) => void) => () => void;
         onParseComplete: (callback: (data: { logId: string; logPath: string; data: unknown }) => void) => () => void;
         onParseError: (callback: (data: { logId: string; logPath: string; error: string }) => void) => () => void;
-        getSettings: () => Promise<{ logDirectory: string }>;
+        getSettings: () => Promise<{ logDirectory: string; devMinFileSize: number }>;
         saveSettings: (settings: any) => void;
         getAppVersion: () => Promise<string>;
         openExternal: (url: string) => Promise<void>;

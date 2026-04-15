@@ -1,7 +1,7 @@
 // src/shared/extractPlayerData.ts
 import type { EiJson, EiPlayer, PlayerFightData, TimelineData, SquadContext, MovementData, SquadMemberMovement } from './types';
 import { getDamage, getDps, getBreakbarDamage, getCleanses, getCleanseSelf, getStrips, getDamageTaken, getDeaths, getDowns, getDodges, getDownContribution, getIncomingCC, getIncomingStrips, getBlocked, getEvaded, getMissed, getInvulned, getInterrupted } from './dashboardMetrics';
-import { getHealingOutput, getBarrierOutput, getStabilityGeneration, getTopSkillDamage, getSquadRank, getDeathTimes, getDownTimes } from './combatMetrics';
+import { getHealingOutput, getBarrierOutput, getStabilityGeneration, getTopSkillDamage, getTopHealingSkills, getTopBarrierSkills, getTopDamageTakenSkills, getSquadRank, getDeathTimes, getDownTimes } from './combatMetrics';
 import { extractBoonUptimes, extractBoonGeneration } from './boonData';
 import { extractDamageTimeline, extractDistanceToTagTimeline, extractBoonStatesTimeline } from './timelineData';
 import { WVW_BOON_IDS } from './boonData';
@@ -42,9 +42,10 @@ function buildSquadContext(json: EiJson, player: EiPlayer): SquadContext {
     return {
         squadSize: squadPlayers.length,
         damageRank: getSquadRank(squadPlayers, player, getDamage),
+        downContributionRank: getSquadRank(squadPlayers, player, getDownContribution),
         stripsRank: getSquadRank(squadPlayers, player, getStrips),
-        healingRank: getSquadRank(squadPlayers, player, getHealingOutput),
         cleanseRank: getSquadRank(squadPlayers, player, getCleanses),
+        healingRank: getSquadRank(squadPlayers, player, getHealingOutput),
     };
 }
 
@@ -219,7 +220,7 @@ export function extractPlayerFightData(json: EiJson, fightNumber: number, bucket
             dps: getDps(player),
             breakbarDamage: getBreakbarDamage(player),
             downContribution: getDownContribution(player),
-            topSkills: getTopSkillDamage(player, json.skillMap),
+            topSkills: getTopSkillDamage(player, json.skillMap, json.buffMap),
         },
         support: {
             boonStrips: getStrips(player),
@@ -228,6 +229,8 @@ export function extractPlayerFightData(json: EiJson, fightNumber: number, bucket
             healingOutput: getHealingOutput(player),
             barrierOutput: getBarrierOutput(player),
             stabilityGeneration: getStabilityGeneration(player),
+            topHealingSkills: getTopHealingSkills(player, json.skillMap, json.buffMap),
+            topBarrierSkills: getTopBarrierSkills(player, json.skillMap, json.buffMap),
         },
         defense: {
             damageTaken: getDamageTaken(player),
@@ -243,6 +246,7 @@ export function extractPlayerFightData(json: EiJson, fightNumber: number, bucket
             interrupted: getInterrupted(player),
             incomingCC: getIncomingCC(player),
             incomingStrips: getIncomingStrips(player),
+            topDamageTakenSkills: getTopDamageTakenSkills(player, json.skillMap, json.buffMap),
         },
         boons: {
             uptimes: extractBoonUptimes(player),

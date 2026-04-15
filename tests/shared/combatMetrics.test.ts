@@ -60,7 +60,7 @@ describe('getTopSkillDamage', () => {
             's2': { name: 'Skill B', icon: '', autoAttack: false },
             's3': { name: 'Skill C', icon: '', autoAttack: false },
         };
-        const result = getTopSkillDamage(player, skillMap, 3);
+        const result = getTopSkillDamage(player, skillMap, {}, 3);
         expect(result[0].name).toBe('Skill B');
         expect(result[1].name).toBe('Skill C');
         expect(result[2].name).toBe('Skill A');

@@ -26,13 +26,14 @@ export interface EiPlayer {
     targetDamage1S?: number[][];
     damageTaken1S?: number[][];
     totalDamageDist: { id: number; name: string; totalDamage: number; connectedHits: number; min: number; max: number; downContribution?: number }[][];
+    totalDamageTaken: { id: number; totalDamage: number; connectedHits: number; indirectDamage: boolean }[][];
     buffUptimes?: { id: number; buffData: { uptime: number; generation: number; overstack: number; wasted: number }[]; states?: [number, number][]; statesPerSource?: Record<string, [number, number][]> }[];
     selfBuffs?: { id: number; buffData: { generation: number; overstack: number; wasted: number }[] }[];
     groupBuffs?: { id: number; buffData: { generation: number; overstack: number; wasted: number }[] }[];
     squadBuffs?: { id: number; buffData: { generation: number; overstack: number; wasted: number }[] }[];
     extHealingStats?: {
         outgoingHealingAllies: { healing: number }[][];
-        totalHealingDist: { id: number; name: string; totalHealing: number; hits: number }[][];
+        totalHealingDist: { id: number; name: string; totalHealing: number; totalDownedHealing: number; hits: number }[][];
         healingReceived1S?: number[][];
     };
     extBarrierStats?: {
@@ -156,7 +157,10 @@ export interface SkillDamage {
     id: number;
     name: string;
     damage: number;
+    downContribution: number;
+    downedHealing: number;
     hits: number;
+    icon?: string;
 }
 
 export interface SupportStats {
@@ -166,6 +170,8 @@ export interface SupportStats {
     healingOutput: number;
     barrierOutput: number;
     stabilityGeneration: number;
+    topHealingSkills: SkillDamage[];
+    topBarrierSkills: SkillDamage[];
 }
 
 export interface DefenseStats {
@@ -182,6 +188,7 @@ export interface DefenseStats {
     interrupted: number;
     incomingCC: number;
     incomingStrips: number;
+    topDamageTakenSkills: SkillDamage[];
 }
 
 export interface BoonUptimeEntry {
@@ -226,9 +233,10 @@ export interface TimelineData {
 export interface SquadContext {
     squadSize: number;
     damageRank: number;
+    downContributionRank: number;
     stripsRank: number;
-    healingRank: number;
     cleanseRank: number;
+    healingRank: number;
 }
 
 export interface FightHistoryEntry {

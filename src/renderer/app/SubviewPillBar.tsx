@@ -37,7 +37,6 @@ export function SubviewToggle({ pills, activeId }: { pills: PillDef[]; activeId:
 
 export function SubviewPillExpansion({ pills, activeId, onSelect }: SubviewPillBarProps) {
     const expanded = useAppStore(s => s.pillBarExpanded);
-    const togglePillBar = useAppStore(s => s.togglePillBar);
 
     return (
         <AnimatePresence>
@@ -56,7 +55,6 @@ export function SubviewPillExpansion({ pills, activeId, onSelect }: SubviewPillB
                                 key={pill.id}
                                 onClick={() => {
                                     onSelect(pill.id);
-                                    togglePillBar();
                                 }}
                                 className={`px-2.5 py-1 text-[11px] rounded-full transition-colors ${
                                     pill.id === activeId
