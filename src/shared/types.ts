@@ -1,4 +1,5 @@
 // src/shared/types.ts
+import type { RoleClassification } from './classifyRole';
 
 // --- Raw EI JSON types (subset we use) ---
 
@@ -143,6 +144,8 @@ export interface PlayerFightData {
     timeline: TimelineData;
     squadContext: SquadContext;
     movementData: MovementData | null;
+    roleClassification: RoleClassification;
+    distanceToTag: { average: number; median: number } | null;
 }
 
 export interface DamageStats {
@@ -244,6 +247,7 @@ export interface SquadContext {
     stripsRank: number;
     cleanseRank: number;
     healingRank: number;
+    damageTakenRank: number;
 }
 
 export interface FightHistoryEntry {
