@@ -64,4 +64,53 @@ describe('extractPlayerFightData', () => {
         expect(result.fightLabel).toContain('Green BL');
         expect(result.fightLabel).toContain('1:03');
     });
+
+    it('extracts health percent timeline', () => {
+        const json = makeMinimalEiJson();
+        json.players[0].healthPercents = [[0, 100], [5000, 80], [10000, 0]];
+        const result = extractPlayerFightData(json, 1, 1000);
+        expect(result.timeline.healthPercent).toEqual([[0, 100], [5000, 80], [10000, 0]]);
+    });
+
+    it('extracts offensive boon state timelines', () => {
+        const json = makeMinimalEiJson();
+        json.players[0].buffUptimes = [
+            { id: 740, buffData: [{ uptime: 80, generation: 0, overstack: 0, wasted: 0 }], states: [[0, 15], [5000, 25]] },
+        ];
+        json.buffMap = { 'b740': { name: 'Might', stacking: 'intensity', icon: 'https://example.com/might.png' } };
+        const result = extractPlayerFightData(json, 1, 1000);
+        expect(result.timeline.offensiveBoons[740]).toBeDefined();
+        expect(result.timeline.offensiveBoons[740].name).toBe('Might');
+        expect(result.timeline.offensiveBoons[740].icon).toBe('https://example.com/might.png');
+        expect(result.timeline.offensiveBoons[740].states).toEqual([[0, 15], [5000, 25]]);
+    });
+
+    it('extracts defensive boon state timelines', () => {
+        const json = makeMinimalEiJson();
+        json.players[0].buffUptimes = [
+            { id: 1122, buffData: [{ uptime: 50, generation: 0, overstack: 0, wasted: 0 }], states: [[0, 1], [3000, 0]] },
+        ];
+        json.buffMap = { 'b1122': { name: 'Stability', stacking: 'stacking', icon: 'https://example.com/stab.png' } };
+        const result = extractPlayerFightData(json, 1, 1000);
+        expect(result.timeline.defensiveBoons[1122]).toBeDefined();
+        expect(result.timeline.defensiveBoons[1122].name).toBe('Stability');
+    });
+
+    it('extracts condition state timelines when present', () => {
+        const json = makeMinimalEiJson();
+        json.players[0].buffUptimes = [
+            { id: 722, buffData: [{ uptime: 10, generation: 0, overstack: 0, wasted: 0 }], states: [[2000, 1], [4000, 0]] },
+        ];
+        json.buffMap = { 'b722': { name: 'Chilled', stacking: 'duration', icon: 'https://example.com/chill.png' } };
+        const result = extractPlayerFightData(json, 1, 1000);
+        expect(result.timeline.softCC[722]).toBeDefined();
+        expect(result.timeline.softCC[722].name).toBe('Chilled');
+    });
+
+    it('defaults healthPercent to empty array when not available', () => {
+        const json = makeMinimalEiJson();
+        delete json.players[0].healthPercents;
+        const result = extractPlayerFightData(json, 1, 1000);
+        expect(result.timeline.healthPercent).toEqual([]);
+    });
 });

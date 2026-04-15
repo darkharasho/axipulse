@@ -1,10 +1,10 @@
 // src/shared/extractPlayerData.ts
-import type { EiJson, EiPlayer, PlayerFightData, TimelineData, SquadContext, MovementData, SquadMemberMovement } from './types';
+import type { EiJson, EiPlayer, PlayerFightData, TimelineData, TimelineBucket, SquadContext, MovementData, SquadMemberMovement, BuffStateEntry } from './types';
 import { getDamage, getDps, getBreakbarDamage, getCleanses, getCleanseSelf, getStrips, getDamageTaken, getDeaths, getDowns, getDodges, getDownContribution, getIncomingCC, getIncomingStrips, getBlocked, getEvaded, getMissed, getInvulned, getInterrupted } from './dashboardMetrics';
 import { getHealingOutput, getBarrierOutput, getStabilityGeneration, getTopSkillDamage, getTopHealingSkills, getTopBarrierSkills, getTopDamageTakenSkills, getSquadRank, getDeathTimes, getDownTimes } from './combatMetrics';
 import { extractBoonUptimes, extractBoonGeneration } from './boonData';
 import { extractDamageTimeline, extractDistanceToTagTimeline, extractBoonStatesTimeline } from './timelineData';
-import { WVW_BOON_IDS } from './boonData';
+import { WVW_BOON_IDS, OFFENSIVE_BOON_IDS, DEFENSIVE_BOON_IDS, HARD_CC_IDS, SOFT_CC_IDS, ALL_TRACKED_BUFF_IDS } from './boonData';
 import { resolveMapFromZone, normalizeMapName, formatDuration } from './mapUtils';
 import { findNearestLandmark } from './wvwLandmarks';
 
@@ -62,7 +62,7 @@ function buildTimeline(json: EiJson, player: EiPlayer, bucketSizeMs: number): Ti
     const barrierReceived1S = player.extBarrierStats?.barrierReceived1S?.[0] ?? [];
     const incomingBarrier = extractDamageTimeline(barrierReceived1S, bucketSizeMs);
 
-    let distanceToTag: { time: number; value: number }[] = [];
+    let distanceToTag: TimelineBucket[] = [];
     const commander = findCommander(json.players);
     const meta = json.combatReplayMetaData;
     if (commander && player !== commander && meta?.pollingRate && meta?.inchToPixel) {
@@ -73,10 +73,25 @@ function buildTimeline(json: EiJson, player: EiPlayer, bucketSizeMs: number): Ti
         }
     }
 
-    const boonUptimeTimeline: Record<string, { time: number; value: number }[]> = {};
+    const healthPercent: [number, number][] = player.healthPercents ?? [];
+
+    const offensiveBoons: Record<number, BuffStateEntry> = {};
+    const defensiveBoons: Record<number, BuffStateEntry> = {};
+    const hardCC: Record<number, BuffStateEntry> = {};
+    const softCC: Record<number, BuffStateEntry> = {};
+
     for (const buff of player.buffUptimes ?? []) {
-        if (!WVW_BOON_IDS.has(buff.id) || !buff.states) continue;
-        boonUptimeTimeline[String(buff.id)] = extractBoonStatesTimeline(buff.states, json.durationMS, bucketSizeMs);
+        if (!buff.states || !ALL_TRACKED_BUFF_IDS.has(buff.id)) continue;
+        const buffMeta = json.buffMap?.[`b${buff.id}`];
+        const entry: BuffStateEntry = {
+            name: buffMeta?.name ?? `Buff ${buff.id}`,
+            icon: buffMeta?.icon ?? '',
+            states: buff.states,
+        };
+        if (OFFENSIVE_BOON_IDS.has(buff.id)) offensiveBoons[buff.id] = entry;
+        else if (DEFENSIVE_BOON_IDS.has(buff.id)) defensiveBoons[buff.id] = entry;
+        else if (HARD_CC_IDS.has(buff.id)) hardCC[buff.id] = entry;
+        else if (SOFT_CC_IDS.has(buff.id)) softCC[buff.id] = entry;
     }
 
     return {
@@ -86,10 +101,11 @@ function buildTimeline(json: EiJson, player: EiPlayer, bucketSizeMs: number): Ti
         distanceToTag,
         incomingHealing,
         incomingBarrier,
-        boonUptimeTimeline,
-        boonGenerationTimeline: {},
-        ccDealt: [],
-        ccReceived: [],
+        healthPercent,
+        offensiveBoons,
+        defensiveBoons,
+        hardCC,
+        softCC,
         deathEvents: getDeathTimes(player),
         downEvents: getDownTimes(player),
     };
@@ -109,7 +125,7 @@ function buildMovementData(json: EiJson, localPlayer: EiPlayer): MovementData | 
         if (!isEnemy && p.buffUptimes) {
             boonStates = {};
             for (const buff of p.buffUptimes) {
-                if (!WVW_BOON_IDS.has(buff.id) || !buff.states?.length) continue;
+                if (!ALL_TRACKED_BUFF_IDS.has(buff.id) || !buff.states?.length) continue;
                 boonStates[buff.id] = buff.states;
             }
         }
@@ -155,7 +171,7 @@ function buildMovementData(json: EiJson, localPlayer: EiPlayer): MovementData | 
     const boonIcons: Record<number, { name: string; icon: string }> = {};
     for (const [key, val] of Object.entries(json.buffMap ?? {})) {
         const id = Number(key.replace('b', ''));
-        if (WVW_BOON_IDS.has(id) && val.icon) {
+        if (ALL_TRACKED_BUFF_IDS.has(id) && val.icon) {
             boonIcons[id] = { name: val.name, icon: val.icon };
         }
     }
