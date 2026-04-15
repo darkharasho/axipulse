@@ -85,7 +85,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     sessionHistory: [],
     pushToHistory: (entry) => set((state) => ({
-        sessionHistory: [entry, ...state.sessionHistory],
+        sessionHistory: [entry, ...state.sessionHistory.filter(e => e.fightNumber !== entry.fightNumber)],
     })),
     loadFromHistory: (fightNumber) => {
         const entry = get().sessionHistory.find(e => e.fightNumber === fightNumber);

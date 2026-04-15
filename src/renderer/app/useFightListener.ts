@@ -16,28 +16,25 @@ export function useFightListener() {
             const fightNumber = state.incrementFightCounter();
             const fightData = extractPlayerFightData(json, fightNumber, state.bucketSizeMs);
 
-            if (state.currentFight) {
-                const prev = state.currentFight;
-                const historyEntry: FightHistoryEntry = {
-                    fightNumber: prev.fightNumber,
-                    fightLabel: prev.fightLabel,
-                    timestamp: prev.timestamp,
-                    profession: prev.profession,
-                    eliteSpec: prev.eliteSpec,
-                    duration: prev.duration,
-                    durationFormatted: prev.durationFormatted,
-                    quickStats: {
-                        damage: prev.damage.totalDamage,
-                        deaths: prev.defense.deaths,
-                        strips: prev.support.boonStrips,
-                        dps: prev.damage.dps,
-                    },
-                    data: prev,
-                };
-                state.pushToHistory(historyEntry);
-            }
+            const toHistoryEntry = (fight: typeof fightData): FightHistoryEntry => ({
+                fightNumber: fight.fightNumber,
+                fightLabel: fight.fightLabel,
+                timestamp: fight.timestamp,
+                profession: fight.profession,
+                eliteSpec: fight.eliteSpec,
+                duration: fight.duration,
+                durationFormatted: fight.durationFormatted,
+                quickStats: {
+                    damage: fight.damage.totalDamage,
+                    deaths: fight.defense.deaths,
+                    strips: fight.support.boonStrips,
+                    dps: fight.damage.dps,
+                },
+                data: fight,
+            });
 
             state.setCurrentFight(fightData);
+            state.pushToHistory(toHistoryEntry(fightData));
             state.addToast('Fight parsed successfully', fightData.fightLabel);
         });
 
