@@ -16,6 +16,16 @@
 
 ---
 
+<p align="center">
+  <img src="docs/screenshots/pulse-overview.png" alt="Pulse view — per-fight performance snapshot showing damage, down contribution, strips, and distance to tag" width="800" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/timeline-view.png" alt="Timeline view — second-by-second fight replay with damage, healing, boons, and CC lanes" width="800" />
+</p>
+
+---
+
 ## See what happened. Know what to fix.
 
 AxiPulse is a lightweight desktop companion that watches your arcdps log folder, parses each fight locally with Elite Insights, and shows you exactly how you performed — while the squad is still forming up for the next one.
