@@ -47,9 +47,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Auto Updater
     checkForUpdates: () => ipcRenderer.send('check-for-updates'),
     restartApp: () => ipcRenderer.send('restart-app'),
+    onUpdateChecking: (callback: () => void) => {
+        ipcRenderer.on('update-checking', () => callback())
+        return () => ipcRenderer.removeAllListeners('update-checking')
+    },
     onUpdateAvailable: (callback: (info: any) => void) => {
         ipcRenderer.on('update-available', (_event, value) => callback(value))
         return () => ipcRenderer.removeAllListeners('update-available')
+    },
+    onUpdateNotAvailable: (callback: () => void) => {
+        ipcRenderer.on('update-not-available', () => callback())
+        return () => ipcRenderer.removeAllListeners('update-not-available')
     },
     onUpdateDownloaded: (callback: (info: any) => void) => {
         ipcRenderer.on('update-downloaded', (_event, value) => callback(value))
@@ -58,6 +66,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onUpdateProgress: (callback: (progress: any) => void) => {
         ipcRenderer.on('update-progress', (_event, value) => callback(value))
         return () => ipcRenderer.removeAllListeners('update-progress')
+    },
+    onUpdateError: (callback: () => void) => {
+        ipcRenderer.on('update-error', () => callback())
+        return () => ipcRenderer.removeAllListeners('update-error')
     },
 
     // Dev tools

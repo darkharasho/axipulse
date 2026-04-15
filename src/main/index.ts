@@ -74,6 +74,10 @@ function createWindow(): void {
         mainWindow?.show();
     });
 
+    mainWindow.webContents.once('did-finish-load', () => {
+        if (FAKE_UPDATE) runFakeScenario();
+    });
+
     mainWindow.on('close', () => {
         if (mainWindow) {
             const bounds = mainWindow.getBounds();
@@ -192,13 +196,58 @@ function setupIpcHandlers(): void {
     });
 }
 
+const FAKE_UPDATE = process.env.FAKE_UPDATE;
+
+const fakeScenarios: Record<string, () => void> = {
+    available: () => {
+        mainWindow?.webContents.send('update-checking');
+        setTimeout(() => mainWindow?.webContents.send('update-available', { version: '99.0.0' }), 1500);
+        setTimeout(() => mainWindow?.webContents.send('update-downloaded', { version: '99.0.0' }), 4000);
+    },
+    none: () => {
+        mainWindow?.webContents.send('update-checking');
+        setTimeout(() => mainWindow?.webContents.send('update-not-available'), 1500);
+    },
+    error: () => {
+        mainWindow?.webContents.send('update-checking');
+        setTimeout(() => mainWindow?.webContents.send('update-error'), 1500);
+    },
+};
+
+function runFakeScenario(): void {
+    const scenario = fakeScenarios[FAKE_UPDATE!] || fakeScenarios.none;
+    scenario();
+}
+
+function setupFakeUpdate(): void {
+    ipcMain.on('check-for-updates', runFakeScenario);
+
+    ipcMain.on('restart-app', () => {
+        log.info('[fake-update] restart-app requested — ignoring in dev');
+    });
+}
+
 function setupAutoUpdate(): void {
+    if (FAKE_UPDATE) {
+        log.info(`[fake-update] Using fake update scenario: ${FAKE_UPDATE}`);
+        setupFakeUpdate();
+        return;
+    }
+
     autoUpdater.logger = log;
     autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
 
+    autoUpdater.on('checking-for-update', () => {
+        mainWindow?.webContents.send('update-checking');
+    });
+
     autoUpdater.on('update-available', (info) => {
         mainWindow?.webContents.send('update-available', info);
+    });
+
+    autoUpdater.on('update-not-available', () => {
+        mainWindow?.webContents.send('update-not-available');
     });
 
     autoUpdater.on('update-downloaded', (info) => {
@@ -207,6 +256,10 @@ function setupAutoUpdate(): void {
 
     autoUpdater.on('download-progress', (progress) => {
         mainWindow?.webContents.send('update-progress', progress);
+    });
+
+    autoUpdater.on('error', () => {
+        mainWindow?.webContents.send('update-error');
     });
 
     ipcMain.on('check-for-updates', () => {

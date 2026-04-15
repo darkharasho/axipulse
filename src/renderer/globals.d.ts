@@ -16,9 +16,12 @@ interface Window {
         saveSessionHistory: (history: unknown[]) => void;
         checkForUpdates: () => void;
         restartApp: () => void;
+        onUpdateChecking: (callback: () => void) => () => void;
         onUpdateAvailable: (callback: (info: any) => void) => () => void;
+        onUpdateNotAvailable: (callback: () => void) => () => void;
         onUpdateDownloaded: (callback: (info: any) => void) => () => void;
         onUpdateProgress: (callback: (progress: any) => void) => () => void;
+        onUpdateError: (callback: () => void) => () => void;
         devParseRandom: () => Promise<{ success?: boolean; logPath?: string; error?: string }>;
         eiGetStatus: () => Promise<any>;
         eiInstall: () => Promise<any>;

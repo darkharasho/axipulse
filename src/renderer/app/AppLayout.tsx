@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Activity, Clock3, Dices, GanttChart, MapPin, Minus, Settings as SettingsIcon, Square, X } from 'lucide-react';
+import { Activity, Clock3, Dices, GanttChart, MapPin, Minus, RefreshCw, Settings as SettingsIcon, Square, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useAppStore, type View } from '../store';
 import { ToastContainer } from './Toast';
 import { PulseView } from '../views/PulseView';
@@ -27,13 +28,35 @@ export function AppLayout() {
 
     const [appVersion, setAppVersion] = useState<string | null>(null);
     const [updateDownloaded, setUpdateDownloaded] = useState(false);
+    const [updateStatus, setUpdateStatus] = useState<string | null>(null);
 
     useFightListener();
 
     useEffect(() => {
         window.electronAPI?.getAppVersion().then((v: string) => setAppVersion(v));
         const cleanupDownloaded = window.electronAPI?.onUpdateDownloaded(() => setUpdateDownloaded(true));
-        return () => { cleanupDownloaded?.(); };
+        let dismissTimer: ReturnType<typeof setTimeout>;
+        let fallbackTimer: ReturnType<typeof setTimeout>;
+        const showStatus = (msg: string, autoDismiss = false) => {
+            clearTimeout(dismissTimer);
+            clearTimeout(fallbackTimer);
+            setUpdateStatus(msg);
+            if (autoDismiss) dismissTimer = setTimeout(() => setUpdateStatus(null), 3000);
+            else fallbackTimer = setTimeout(() => setUpdateStatus(null), 10000);
+        };
+        const cleanupChecking = window.electronAPI?.onUpdateChecking(() => showStatus('Checking for updates\u2026'));
+        const cleanupAvailable = window.electronAPI?.onUpdateAvailable(() => showStatus('Downloading update\u2026'));
+        const cleanupNotAvailable = window.electronAPI?.onUpdateNotAvailable(() => showStatus('Up to date', true));
+        const cleanupError = window.electronAPI?.onUpdateError(() => showStatus('Update check failed', true));
+        return () => {
+            clearTimeout(dismissTimer);
+            clearTimeout(fallbackTimer);
+            cleanupDownloaded?.();
+            cleanupChecking?.();
+            cleanupAvailable?.();
+            cleanupNotAvailable?.();
+            cleanupError?.();
+        };
     }, []);
 
     useEffect(() => {
@@ -82,25 +105,55 @@ export function AppLayout() {
                     {isParsing && currentFight && (
                         <Activity className="w-4 h-4 heartbeat-pulse" style={{ color: 'var(--brand-primary)' }} />
                     )}
-                    {updateDownloaded ? (
-                        <button
-                            className="text-[10px] px-2 py-0.5 rounded-[4px] border font-medium transition-colors hover:brightness-110"
-                            style={{ color: 'var(--brand-primary)', borderColor: 'var(--brand-primary)', background: 'rgba(16, 185, 129, 0.1)' }}
-                            onClick={() => window.electronAPI?.restartApp()}
-                            title="Restart to install update"
-                        >
-                            Restart to Update
-                        </button>
-                    ) : appVersion && (
-                        <span
-                            className="text-[10px] px-2 py-0.5 rounded-[4px] border cursor-pointer select-none transition-colors hover:border-[color:var(--border-hover)]"
-                            style={{ color: 'var(--text-muted)', borderColor: 'var(--border-subtle)', background: 'var(--bg-card)' }}
-                            onClick={() => window.electronAPI?.checkForUpdates()}
-                            title="Check for updates"
-                        >
-                            v{appVersion}
-                        </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                        <AnimatePresence>
+                            {updateDownloaded ? (
+                                <motion.button
+                                    key="restart"
+                                    initial={{ opacity: 0, x: 20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: 20 }}
+                                    className="text-[10px] px-2 py-0.5 rounded-[4px] border font-medium transition-colors hover:brightness-110"
+                                    style={{ color: 'var(--brand-primary)', borderColor: 'var(--brand-primary)', background: 'rgba(16, 185, 129, 0.1)' }}
+                                    onClick={() => window.electronAPI?.restartApp()}
+                                    title="Restart to install update"
+                                >
+                                    Restart to Update
+                                </motion.button>
+                            ) : updateStatus && (
+                                <motion.span
+                                    key="status"
+                                    initial={{ opacity: 0, x: 20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: 20 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="text-[10px] px-2 py-0.5 rounded-[4px] border flex items-center gap-1.5 font-medium"
+                                    style={updateStatus.includes('failed')
+                                        ? { color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)', background: 'var(--bg-card)' }
+                                        : { color: 'var(--brand-primary)', borderColor: 'var(--accent-border)', background: 'var(--accent-bg)' }
+                                    }
+                                >
+                                    <RefreshCw className={`w-3 h-3 ${updateStatus.includes('Up to date') || updateStatus.includes('failed') ? '' : 'animate-spin'}`} />
+                                    {updateStatus}
+                                </motion.span>
+                            )}
+                        </AnimatePresence>
+                        {appVersion && (
+                            <span
+                                className="text-[10px] px-2 py-0.5 rounded-[4px] border cursor-pointer select-none transition-colors hover:border-[color:var(--border-hover)]"
+                                style={{ color: 'var(--text-muted)', borderColor: 'var(--border-subtle)', background: 'var(--bg-card)' }}
+                                onClick={() => {
+                                    if (!updateStatus && !updateDownloaded) {
+                                        setUpdateStatus('Checking for updates\u2026');
+                                        window.electronAPI?.checkForUpdates();
+                                    }
+                                }}
+                                title="Check for updates"
+                            >
+                                v{appVersion}
+                            </span>
+                        )}
+                    </div>
                     <button onClick={() => window.electronAPI?.windowControl('minimize')} className="text-gray-400 hover:text-white transition-colors">
                         <Minus className="w-4 h-4" />
                     </button>
