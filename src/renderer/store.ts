@@ -5,39 +5,36 @@ import type { PlayerFightData, FightHistoryEntry } from '../shared/types';
 export type View = 'pulse' | 'timeline' | 'map' | 'history' | 'settings';
 export type PulseSubview = 'overview' | 'damage' | 'support' | 'defense' | 'boons';
 export type MapSubview = 'overview' | 'movement';
-export type TimelinePreset = 'why-died' | 'my-damage' | 'support' | 'positioning' | 'custom';
+export type TimelinePreset = 'why-died' | 'my-damage' | 'support' | 'show-all' | 'custom';
 
 export interface TimelineLayerToggles {
-    distanceToTag: boolean;
+    health: boolean;
     damageDealt: boolean;
     damageTaken: boolean;
+    distanceToTag: boolean;
     incomingHealing: boolean;
     incomingBarrier: boolean;
-    boonUptime: boolean;
-    boonGeneration: boolean;
-    ccDealtReceived: boolean;
+    offensiveBoons: boolean;
+    defensiveBoons: boolean;
+    hardCC: boolean;
+    softCC: boolean;
 }
 
-const PRESET_TOGGLES: Record<Exclude<TimelinePreset, 'custom'>, TimelineLayerToggles> = {
+const PRESET_TOGGLES: Record<Exclude<TimelinePreset, 'custom' | 'show-all'>, TimelineLayerToggles> = {
     'why-died': {
-        distanceToTag: true, damageDealt: false, damageTaken: true,
-        incomingHealing: true, incomingBarrier: true, boonUptime: true,
-        boonGeneration: false, ccDealtReceived: false,
+        health: true, damageDealt: false, damageTaken: true,
+        distanceToTag: true, incomingHealing: false, incomingBarrier: false,
+        offensiveBoons: false, defensiveBoons: true, hardCC: true, softCC: true,
     },
     'my-damage': {
-        distanceToTag: false, damageDealt: true, damageTaken: false,
-        incomingHealing: false, incomingBarrier: false, boonUptime: true,
-        boonGeneration: false, ccDealtReceived: false,
+        health: true, damageDealt: true, damageTaken: false,
+        distanceToTag: false, incomingHealing: false, incomingBarrier: false,
+        offensiveBoons: true, defensiveBoons: false, hardCC: false, softCC: false,
     },
     'support': {
-        distanceToTag: false, damageDealt: false, damageTaken: false,
-        incomingHealing: true, incomingBarrier: true, boonUptime: true,
-        boonGeneration: false, ccDealtReceived: false,
-    },
-    'positioning': {
-        distanceToTag: true, damageDealt: true, damageTaken: false,
-        incomingHealing: false, incomingBarrier: false, boonUptime: false,
-        boonGeneration: false, ccDealtReceived: false,
+        health: false, damageDealt: false, damageTaken: false,
+        distanceToTag: false, incomingHealing: true, incomingBarrier: true,
+        offensiveBoons: true, defensiveBoons: true, hardCC: false, softCC: false,
     },
 };
 
@@ -67,6 +64,8 @@ interface AppState {
     applyPreset: (preset: Exclude<TimelinePreset, 'custom'>) => void;
     bucketSizeMs: number;
     setBucketSizeMs: (ms: number) => void;
+    timelineSelection: { startMs: number; endMs: number } | null;
+    setTimelineSelection: (selection: { startMs: number; endMs: number } | null) => void;
 
     toasts: { id: string; message: string; fightLabel: string }[];
     addToast: (message: string, fightLabel: string) => void;
@@ -106,27 +105,37 @@ export const useAppStore = create<AppState>((set, get) => ({
     setPulseSubview: (subview) => set({ pulseSubview: subview }),
     mapSubview: 'overview',
     setMapSubview: (subview) => set({ mapSubview: subview }),
-    timelinePreset: 'custom',
+    timelinePreset: 'why-died',
     setTimelinePreset: (preset) => set({ timelinePreset: preset }),
     pillBarExpanded: false,
     setPillBarExpanded: (expanded) => set({ pillBarExpanded: expanded }),
     togglePillBar: () => set((state) => ({ pillBarExpanded: !state.pillBarExpanded })),
 
     timelineToggles: {
-        distanceToTag: true, damageDealt: true, damageTaken: true,
-        incomingHealing: true, incomingBarrier: true, boonUptime: true,
-        boonGeneration: true, ccDealtReceived: true,
+        health: true, damageDealt: true, damageTaken: true,
+        distanceToTag: true, incomingHealing: true, incomingBarrier: true,
+        offensiveBoons: true, defensiveBoons: true, hardCC: true, softCC: true,
     },
     setTimelineToggle: (layer, enabled) => set((state) => ({
         timelineToggles: { ...state.timelineToggles, [layer]: enabled },
         timelinePreset: 'custom',
     })),
-    applyPreset: (preset) => set({
-        timelineToggles: { ...PRESET_TOGGLES[preset] },
-        timelinePreset: preset,
-    }),
+    applyPreset: (preset) => {
+        if (preset === 'show-all') {
+            const all: TimelineLayerToggles = {
+                health: true, damageDealt: true, damageTaken: true,
+                distanceToTag: true, incomingHealing: true, incomingBarrier: true,
+                offensiveBoons: true, defensiveBoons: true, hardCC: true, softCC: true,
+            };
+            set({ timelineToggles: all, timelinePreset: preset });
+        } else {
+            set({ timelineToggles: { ...PRESET_TOGGLES[preset] }, timelinePreset: preset });
+        }
+    },
     bucketSizeMs: 1000,
     setBucketSizeMs: (ms) => set({ bucketSizeMs: ms }),
+    timelineSelection: null,
+    setTimelineSelection: (selection) => set({ timelineSelection: selection }),
 
     toasts: [],
     addToast: (message, fightLabel) => {
