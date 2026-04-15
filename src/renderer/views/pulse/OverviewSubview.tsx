@@ -15,6 +15,7 @@ export function OverviewSubview({ data }: { data: PlayerFightData }) {
                     secondaryValue={support.barrierOutput}
                     secondaryLabel="Barrier"
                     rank={squadContext.healingRank}
+                    theme="support"
                 />
             ) : (
                 <HeroBanner
@@ -23,6 +24,7 @@ export function OverviewSubview({ data }: { data: PlayerFightData }) {
                     secondaryValue={damage.dps}
                     secondaryLabel="DPS"
                     rank={squadContext.damageRank}
+                    theme="damage"
                 />
             )}
 
@@ -110,28 +112,48 @@ export function OverviewSubview({ data }: { data: PlayerFightData }) {
     );
 }
 
-function HeroBanner({ label, primaryValue, secondaryValue, secondaryLabel, rank }: {
+const BANNER_THEMES = {
+    support: {
+        gradient: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(6, 182, 212, 0.08))',
+        border: '1px solid rgba(16, 185, 129, 0.2)',
+        label: 'var(--brand-primary)',
+        valueGradient: 'linear-gradient(135deg, #10b981, #06b6d4)',
+    },
+    damage: {
+        gradient: 'linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(249, 115, 22, 0.08))',
+        border: '1px solid rgba(239, 68, 68, 0.2)',
+        label: '#ef4444',
+        valueGradient: 'linear-gradient(135deg, #ef4444, #f97316)',
+    },
+} as const;
+
+function HeroBanner({ label, primaryValue, secondaryValue, secondaryLabel, rank, theme }: {
     label: string;
     primaryValue: number;
     secondaryValue: number;
     secondaryLabel: string;
     rank: number;
+    theme: 'support' | 'damage';
 }) {
+    const t = BANNER_THEMES[theme];
     return (
         <motion.div
             initial={{ opacity: 0, scale: 0.97 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
             className="rounded-lg p-4 relative overflow-hidden"
-            style={{ background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(6, 182, 212, 0.08))' }}
+            style={{ background: t.gradient }}
         >
-            <div className="absolute inset-0 rounded-lg" style={{ border: '1px solid rgba(16, 185, 129, 0.2)' }} />
+            <div className="absolute inset-0 rounded-lg" style={{ border: t.border }} />
             <div className="relative flex items-end justify-between">
                 <div>
-                    <div className="text-xs uppercase tracking-[0.1em] font-medium" style={{ color: 'var(--brand-primary)' }}>
+                    <div className="text-xs uppercase tracking-[0.1em] font-medium" style={{ color: t.label }}>
                         {label}
                     </div>
-                    <div className="font-stat font-bold text-4xl leading-none mt-1 gradient-text">
+                    <div
+                        className="font-stat font-bold text-4xl leading-none mt-1"
+                        style={{ background: t.valueGradient, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
+                    >
                         {primaryValue.toLocaleString()}
                     </div>
                 </div>
