@@ -41,6 +41,7 @@ export interface EiPlayer {
         barrierReceived1S?: number[][];
     };
     rotation: { id: number; skills: { castTime: number; duration: number }[] }[];
+    healthPercents?: [number, number][];
     combatReplayData?: {
         positions?: [number, number][];
         dead?: [number, number][];
@@ -101,6 +102,8 @@ export interface SquadMemberMovement {
     positions: [number, number][];
     downRanges: [number, number][];
     deadRanges: [number, number][];
+    boonStates?: Record<number, [number, number][]>;
+    healthPercents?: [number, number][];
 }
 
 export interface MovementData {
@@ -108,6 +111,7 @@ export interface MovementData {
     durationMs: number;
     inchToPixel: number;
     members: SquadMemberMovement[];
+    boonIcons?: Record<number, { name: string; icon: string }>;
 }
 
 // --- Extracted player-focused data ---

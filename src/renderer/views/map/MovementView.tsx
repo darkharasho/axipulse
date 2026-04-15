@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect, useMemo, type MouseEvent } from 'react';
-import { MapPin, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
+import { ChevronRight, MapPin, RotateCcw, Users, ZoomIn, ZoomOut } from 'lucide-react';
 import { useAppStore } from '../../store';
 import { WVW_LANDMARKS, WvwMap, type WvwLandmark } from '../../../shared/wvwLandmarks';
 import { resolveMapFromZone } from '../../../shared/mapUtils';
@@ -73,6 +73,30 @@ function getMemberStatus(member: SquadMemberMovement, timeMs: number): 'alive' |
     return 'alive';
 }
 
+function getBoonStacks(member: SquadMemberMovement, boonId: number, timeMs: number): number {
+    const states = member.boonStates?.[boonId];
+    if (!states?.length) return 0;
+    let stacks = 0;
+    for (const [t, s] of states) {
+        if (t > timeMs) break;
+        stacks = s;
+    }
+    return stacks;
+}
+
+function getHealthPercent(member: SquadMemberMovement, timeMs: number): number {
+    const hp = member.healthPercents;
+    if (!hp?.length) return 100;
+    let pct = hp[0][1];
+    for (const [t, p] of hp) {
+        if (t > timeMs) break;
+        pct = p;
+    }
+    return pct;
+}
+
+const PANEL_BOON_ORDER = [740, 725, 717, 718, 726, 1122, 719, 743, 873, 1187, 30328, 26980];
+
 function formatTime(ms: number): string {
     const sec = Math.floor(ms / 1000);
     return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
@@ -92,6 +116,8 @@ export function MovementView() {
     const dragRef = useRef<{ startX: number; startY: number; startTx: number; startTy: number } | null>(null);
     const [timeMs, setTimeMs] = useState(0);
     const [hoveredMember, setHoveredMember] = useState<string | null>(null);
+    const [showSquad, setShowSquad] = useState(false);
+    const [showPanel, setShowPanel] = useState(false);
     const lastFightRef = useRef<number | null>(null);
 
     useEffect(() => {
@@ -213,12 +239,14 @@ export function MovementView() {
         );
     }
 
-    const { pollingRate, durationMs, inchToPixel, members } = movementData;
+    const { pollingRate, durationMs, inchToPixel, members, boonIcons } = movementData;
     const posIndex = Math.min(Math.floor(timeMs / pollingRate), Math.max(0, members[0].positions.length - 1));
     const markerScale = 1 / Math.pow(view.scale, 0.7);
 
     const allies = members.filter(m => !m.isEnemy);
     const enemies = members.filter(m => m.isEnemy);
+    const localPlayer = allies.find(m => m.isLocal);
+    const localGroup = localPlayer?.group ?? -1;
     const commander = allies.find(m => m.isCommander);
     const commanderPos = commander ? commander.positions[Math.min(posIndex, commander.positions.length - 1)] : null;
 
@@ -228,6 +256,17 @@ export function MovementView() {
                 <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{mapName}</span>
                 <span className="text-xs tabular-nums" style={{ color: 'var(--text-secondary)' }}>{formatTime(timeMs)}</span>
                 <div className="flex items-center gap-2 ml-auto">
+                    <button
+                        onClick={() => setShowSquad(v => !v)}
+                        className="flex items-center gap-1.5 px-2 py-0.5 rounded text-xs transition-colors"
+                        style={{
+                            color: showSquad ? 'var(--text-primary)' : 'var(--text-muted)',
+                            background: showSquad ? 'rgba(255,255,255,0.1)' : 'transparent',
+                        }}
+                    >
+                        <Users className="w-3.5 h-3.5" />
+                        Squad
+                    </button>
                     <button onClick={() => zoomCenter(1)} className="p-1 rounded hover:bg-white/10 transition-colors" style={{ color: 'var(--text-muted)' }}>
                         <ZoomIn className="w-3.5 h-3.5" />
                     </button>
@@ -242,14 +281,108 @@ export function MovementView() {
                 </div>
             </div>
 
-            <div
-                ref={containerRef}
-                className="flex-1 flex items-center justify-center overflow-hidden cursor-grab active:cursor-grabbing"
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseUp}
-            >
+            <div className="flex-1 relative overflow-hidden">
+                {/* Party panel tab */}
+                <button
+                    onClick={() => setShowPanel(v => !v)}
+                    className="absolute top-2 left-0 z-20 flex items-center px-1 py-2 rounded-r transition-all"
+                    style={{
+                        background: 'rgba(26,31,46,0.9)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        borderLeft: 'none',
+                        color: showPanel ? 'var(--text-primary)' : 'var(--text-muted)',
+                        transform: showPanel ? 'translateX(260px)' : 'translateX(0)',
+                        transition: 'transform 0.25s ease, color 0.15s',
+                    }}
+                >
+                    <ChevronRight className="w-3.5 h-3.5" style={{ transform: showPanel ? 'rotate(180deg)' : 'none', transition: 'transform 0.25s ease' }} />
+                </button>
+
+                {/* Party info panel */}
+                <div
+                    className="absolute top-0 left-0 bottom-0 z-10 overflow-y-auto"
+                    style={{
+                        width: 260,
+                        background: 'rgba(26,31,46,0.95)',
+                        borderRight: '1px solid rgba(255,255,255,0.1)',
+                        transform: showPanel ? 'translateX(0)' : 'translateX(-100%)',
+                        transition: 'transform 0.25s ease',
+                        pointerEvents: showPanel ? 'auto' : 'none',
+                    }}
+                >
+                    <div className="p-3 flex flex-col gap-2">
+                        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Party</span>
+                        {allies.filter(m => m.group === localGroup).map((member) => {
+                            const status = getMemberStatus(member, timeMs);
+                            const iconUrl = getClassIconUrl(member.eliteSpec, member.profession);
+                            const health = getHealthPercent(member, timeMs);
+                            const healthColor = status === 'dead' ? '#ef4444' : status === 'down' ? '#3b82f6' : health > 50 ? '#22c55e' : health > 25 ? '#f59e0b' : '#ef4444';
+                            return (
+                                <div key={member.account} className="flex flex-col gap-1.5 rounded-lg px-2.5 py-2" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                                    <div className="flex items-center gap-2">
+                                        {iconUrl ? (
+                                            <img src={iconUrl} alt="" className="w-5 h-5" />
+                                        ) : (
+                                            <div className="w-5 h-5 rounded-full" style={{ background: getProfessionColor(member.profession) }} />
+                                        )}
+                                        <span className="text-xs font-medium truncate flex-1" style={{ color: 'var(--text-primary)' }}>
+                                            {member.name}
+                                        </span>
+                                        {member.isCommander && <span className="text-[9px] px-1 rounded" style={{ background: 'rgba(16,185,129,0.2)', color: '#6ee7b7' }}>CMD</span>}
+                                        {member.isLocal && <span className="text-[9px] px-1 rounded" style={{ background: 'rgba(16,185,129,0.2)', color: '#6ee7b7' }}>YOU</span>}
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="flex-1 h-3 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                                            <div
+                                                className="h-full rounded-full"
+                                                style={{
+                                                    width: `${Math.max(0, Math.min(100, health))}%`,
+                                                    background: healthColor,
+                                                    transition: 'width 0.2s ease, background-color 0.2s ease',
+                                                }}
+                                            />
+                                        </div>
+                                        <span className="text-[10px] tabular-nums w-8 text-right" style={{ color: healthColor }}>
+                                            {status === 'dead' ? 'Dead' : status === 'down' ? 'Down' : `${Math.round(health)}%`}
+                                        </span>
+                                    </div>
+                                    {member.boonStates && (
+                                        <div className="flex flex-wrap gap-1">
+                                            {PANEL_BOON_ORDER.map(boonId => {
+                                                const stacks = getBoonStacks(member, boonId, timeMs);
+                                                if (stacks === 0) return null;
+                                                const boon = boonIcons?.[boonId];
+                                                return (
+                                                    <div key={boonId} className="relative flex items-center justify-center" style={{ width: 18, height: 18 }} title={boon?.name ?? String(boonId)}>
+                                                        {boon?.icon ? (
+                                                            <img src={boon.icon} alt="" className="w-full h-full rounded-sm" />
+                                                        ) : (
+                                                            <div className="w-full h-full rounded-sm" style={{ background: 'rgba(255,255,255,0.15)' }} />
+                                                        )}
+                                                        {stacks > 1 && (
+                                                            <span className="absolute -bottom-0.5 -right-0.5 text-[8px] font-bold leading-none px-0.5 rounded" style={{ background: '#1a1f2e', color: '#e8eaed' }}>
+                                                                {stacks}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                <div
+                    ref={containerRef}
+                    className="absolute inset-0 flex items-center justify-center cursor-grab active:cursor-grabbing"
+                    onMouseDown={handleMouseDown}
+                    onMouseMove={handleMouseMove}
+                    onMouseUp={handleMouseUp}
+                    onMouseLeave={handleMouseUp}
+                >
                 <div
                     className="relative"
                     style={{
@@ -359,11 +492,11 @@ export function MovementView() {
                                                 </svg>
                                             </g>
                                         )}
-                                        {iconUrl ? (
+                                        {status === 'alive' && (iconUrl ? (
                                             <image href={iconUrl} x={-sz / 2} y={-sz / 2} width={sz} height={sz} filter="url(#enemy-red-tint)" />
                                         ) : (
                                             <circle r={4} fill="#ef4444" />
-                                        )}
+                                        ))}
                                         <rect
                                             x={-12} y={-12} width={24} height={24}
                                             fill="transparent"
@@ -385,6 +518,8 @@ export function MovementView() {
 
                         {/* Allied trails and markers */}
                         {allies.map((member) => {
+                            const isParty = member.isCommander || member.group === localGroup;
+                            const visible = showSquad || isParty;
                             const maxIdx = member.positions.length - 1;
                             const currentIdx = Math.min(posIndex, maxIdx);
                             const pos = member.positions[currentIdx];
@@ -404,7 +539,7 @@ export function MovementView() {
                             }
 
                             return (
-                                <g key={member.account}>
+                                <g key={member.account} style={{ opacity: visible ? 1 : 0, transition: 'opacity 0.3s ease', pointerEvents: visible ? 'auto' : 'none' }}>
                                     {/* Historical path (dashed) */}
                                     {historyPoints.length > 1 && (
                                         <polyline
@@ -505,6 +640,7 @@ export function MovementView() {
                         })}
                     </svg>
                 </div>
+            </div>
             </div>
 
             {/* Timeline slider */}

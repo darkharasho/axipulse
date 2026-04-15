@@ -97,15 +97,21 @@ function buildTimeline(json: EiJson, player: EiPlayer, bucketSizeMs: number): Ti
 function buildMovementData(json: EiJson, localPlayer: EiPlayer): MovementData | null {
     const pollingRate = json.combatReplayMetaData?.pollingRate ?? 300;
 
-    const localGroup = localPlayer.group;
     const members: SquadMemberMovement[] = [];
 
     const enemyNames = new Set<string>();
     for (const p of json.players) {
         if (p.isFake || !p.combatReplayData?.positions?.length) continue;
         const isEnemy = p.notInSquad;
-        if (!isEnemy && p !== localPlayer && !p.hasCommanderTag && p.group !== localGroup) continue;
         if (isEnemy) enemyNames.add(p.name);
+        let boonStates: Record<number, [number, number][]> | undefined;
+        if (!isEnemy && p.buffUptimes) {
+            boonStates = {};
+            for (const buff of p.buffUptimes) {
+                if (!WVW_BOON_IDS.has(buff.id) || !buff.states?.length) continue;
+                boonStates[buff.id] = buff.states;
+            }
+        }
         members.push({
             name: p.name,
             account: p.account,
@@ -118,6 +124,8 @@ function buildMovementData(json: EiJson, localPlayer: EiPlayer): MovementData | 
             positions: p.combatReplayData!.positions!,
             downRanges: p.combatReplayData?.down ?? [],
             deadRanges: p.combatReplayData?.dead ?? [],
+            boonStates,
+            healthPercents: !isEnemy ? p.healthPercents : undefined,
         });
     }
 
@@ -143,8 +151,16 @@ function buildMovementData(json: EiJson, localPlayer: EiPlayer): MovementData | 
 
     if (members.length === 0) return null;
 
+    const boonIcons: Record<number, { name: string; icon: string }> = {};
+    for (const [key, val] of Object.entries(json.buffMap ?? {})) {
+        const id = Number(key.replace('b', ''));
+        if (WVW_BOON_IDS.has(id) && val.icon) {
+            boonIcons[id] = { name: val.name, icon: val.icon };
+        }
+    }
+
     const inchToPixel = json.combatReplayMetaData?.inchToPixel ?? 1;
-    return { pollingRate, durationMs: json.durationMS, inchToPixel, members };
+    return { pollingRate, durationMs: json.durationMS, inchToPixel, members, boonIcons };
 }
 
 export function extractPlayerFightData(json: EiJson, fightNumber: number, bucketSizeMs: number): PlayerFightData {
