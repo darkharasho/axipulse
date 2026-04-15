@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Activity, Clock3, Dices, GanttChart, MapPin, Minus, Settings as SettingsIcon, Square, X } from 'lucide-react';
 import { useAppStore, type View } from '../store';
 import { ToastContainer } from './Toast';
@@ -25,7 +25,16 @@ export function AppLayout() {
     const isParsing = useAppStore(s => s.isParsing);
     const currentFight = useAppStore(s => s.currentFight);
 
+    const [appVersion, setAppVersion] = useState<string | null>(null);
+    const [updateDownloaded, setUpdateDownloaded] = useState(false);
+
     useFightListener();
+
+    useEffect(() => {
+        window.electronAPI?.getAppVersion().then((v: string) => setAppVersion(v));
+        const cleanupDownloaded = window.electronAPI?.onUpdateDownloaded(() => setUpdateDownloaded(true));
+        return () => { cleanupDownloaded?.(); };
+    }, []);
 
     useEffect(() => {
         if (!IS_DEV) return;
@@ -72,6 +81,25 @@ export function AppLayout() {
                 <div className="flex items-center gap-4 no-drag">
                     {isParsing && currentFight && (
                         <Activity className="w-4 h-4 heartbeat-pulse" style={{ color: 'var(--brand-primary)' }} />
+                    )}
+                    {updateDownloaded ? (
+                        <button
+                            className="text-[10px] px-2 py-0.5 rounded-[4px] border font-medium transition-colors hover:brightness-110"
+                            style={{ color: 'var(--brand-primary)', borderColor: 'var(--brand-primary)', background: 'rgba(16, 185, 129, 0.1)' }}
+                            onClick={() => window.electronAPI?.restartApp()}
+                            title="Restart to install update"
+                        >
+                            Restart to Update
+                        </button>
+                    ) : appVersion && (
+                        <span
+                            className="text-[10px] px-2 py-0.5 rounded-[4px] border cursor-pointer select-none transition-colors hover:border-[color:var(--border-hover)]"
+                            style={{ color: 'var(--text-muted)', borderColor: 'var(--border-subtle)', background: 'var(--bg-card)' }}
+                            onClick={() => window.electronAPI?.checkForUpdates()}
+                            title="Check for updates"
+                        >
+                            v{appVersion}
+                        </span>
                     )}
                     <button onClick={() => window.electronAPI?.windowControl('minimize')} className="text-gray-400 hover:text-white transition-colors">
                         <Minus className="w-4 h-4" />
