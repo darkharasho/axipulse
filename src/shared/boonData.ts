@@ -18,6 +18,27 @@ const BOON_NAMES: Record<number, string> = {
 
 export const WVW_BOON_IDS = new Set(Object.keys(BOON_NAMES).map(Number));
 
+export const OFFENSIVE_BOON_IDS = new Set([740, 725, 1187, 30328]); // Might, Fury, Quickness, Alacrity
+export const DEFENSIVE_BOON_IDS = new Set([1122, 717, 26980, 743]); // Stability, Protection, Resistance, Aegis
+
+export const CONDITION_NAMES: Record<number, string> = {
+    872: 'Stun',
+    833: 'Daze',
+    785: 'Fear',
+    727: 'Immobilize',
+    722: 'Chill',
+    26766: 'Slow',
+};
+
+export const HARD_CC_IDS = new Set([872, 833, 785]); // Stun, Daze, Fear
+export const SOFT_CC_IDS = new Set([722, 727, 26766]); // Chill, Immobilize, Slow
+
+export const ALL_TRACKED_BUFF_IDS = new Set([
+    ...WVW_BOON_IDS,
+    ...HARD_CC_IDS,
+    ...SOFT_CC_IDS,
+]);
+
 export function extractBoonUptimes(player: EiPlayer): BoonUptimeEntry[] {
     const uptimes: BoonUptimeEntry[] = [];
     for (const buff of player.buffUptimes ?? []) {

@@ -1,6 +1,6 @@
 // tests/shared/boonData.test.ts
 import { describe, it, expect } from 'vitest';
-import { extractBoonUptimes, extractBoonGeneration, WVW_BOON_IDS } from '../../src/shared/boonData';
+import { extractBoonUptimes, extractBoonGeneration, WVW_BOON_IDS, OFFENSIVE_BOON_IDS, DEFENSIVE_BOON_IDS, HARD_CC_IDS, SOFT_CC_IDS, CONDITION_NAMES } from '../../src/shared/boonData';
 import type { EiPlayer } from '../../src/shared/types';
 
 function makePlayer(overrides: Partial<EiPlayer> = {}): EiPlayer {
@@ -58,5 +58,49 @@ describe('extractBoonGeneration', () => {
         expect(might!.selfGeneration).toBe(100);
         expect(might!.groupGeneration).toBe(200);
         expect(might!.squadGeneration).toBe(300);
+    });
+});
+
+describe('boon and condition ID sets', () => {
+    it('has offensive boon IDs as subset of WVW_BOON_IDS', () => {
+        for (const id of OFFENSIVE_BOON_IDS) {
+            expect(WVW_BOON_IDS.has(id)).toBe(true);
+        }
+    });
+
+    it('has defensive boon IDs as subset of WVW_BOON_IDS', () => {
+        for (const id of DEFENSIVE_BOON_IDS) {
+            expect(WVW_BOON_IDS.has(id)).toBe(true);
+        }
+    });
+
+    it('offensive boons include Might, Fury, Quickness, Alacrity', () => {
+        expect(OFFENSIVE_BOON_IDS.size).toBe(4);
+        expect(OFFENSIVE_BOON_IDS.has(740)).toBe(true);
+        expect(OFFENSIVE_BOON_IDS.has(725)).toBe(true);
+        expect(OFFENSIVE_BOON_IDS.has(1187)).toBe(true);
+        expect(OFFENSIVE_BOON_IDS.has(30328)).toBe(true);
+    });
+
+    it('defensive boons include Stability, Protection, Resistance, Aegis', () => {
+        expect(DEFENSIVE_BOON_IDS.size).toBe(4);
+        expect(DEFENSIVE_BOON_IDS.has(1122)).toBe(true);
+        expect(DEFENSIVE_BOON_IDS.has(717)).toBe(true);
+        expect(DEFENSIVE_BOON_IDS.has(26980)).toBe(true);
+        expect(DEFENSIVE_BOON_IDS.has(743)).toBe(true);
+    });
+
+    it('hard CC IDs are defined', () => {
+        expect(HARD_CC_IDS.size).toBeGreaterThan(0);
+        for (const id of HARD_CC_IDS) {
+            expect(CONDITION_NAMES[id]).toBeDefined();
+        }
+    });
+
+    it('soft CC IDs are defined', () => {
+        expect(SOFT_CC_IDS.size).toBeGreaterThan(0);
+        for (const id of SOFT_CC_IDS) {
+            expect(CONDITION_NAMES[id]).toBeDefined();
+        }
     });
 });
