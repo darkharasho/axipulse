@@ -215,6 +215,12 @@ export interface TimelineBucket {
     value: number;
 }
 
+export interface BuffStateEntry {
+    name: string;
+    icon: string;
+    states: [number, number][];
+}
+
 export interface TimelineData {
     bucketSizeMs: number;
     damageDealt: TimelineBucket[];
@@ -222,10 +228,11 @@ export interface TimelineData {
     distanceToTag: TimelineBucket[];
     incomingHealing: TimelineBucket[];
     incomingBarrier: TimelineBucket[];
-    boonUptimeTimeline: Record<string, TimelineBucket[]>;
-    boonGenerationTimeline: Record<string, TimelineBucket[]>;
-    ccDealt: number[];
-    ccReceived: number[];
+    healthPercent: [number, number][];
+    offensiveBoons: Record<number, BuffStateEntry>;
+    defensiveBoons: Record<number, BuffStateEntry>;
+    hardCC: Record<number, BuffStateEntry>;
+    softCC: Record<number, BuffStateEntry>;
     deathEvents: number[];
     downEvents: number[];
 }
