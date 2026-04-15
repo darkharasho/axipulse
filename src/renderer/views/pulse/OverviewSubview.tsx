@@ -3,86 +3,177 @@ import type { PlayerFightData } from '../../../shared/types';
 import { StatCard } from '../StatCard';
 
 export function OverviewSubview({ data }: { data: PlayerFightData }) {
-    const { damage, defense, support, squadContext } = data;
+    const { damage, defense, support, squadContext, roleClassification, distanceToTag } = data;
+    const isSupport = roleClassification.role === 'support';
 
     return (
         <div className="space-y-3">
-            {/* Hero DPS Banner */}
-            <motion.div
-                initial={{ opacity: 0, scale: 0.97 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                className="rounded-lg p-4 relative overflow-hidden"
-                style={{ background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(6, 182, 212, 0.08))' }}
-            >
-                <div className="absolute inset-0 rounded-lg" style={{ border: '1px solid rgba(16, 185, 129, 0.2)' }} />
-                <div className="relative flex items-end justify-between">
-                    <div>
-                        <div className="text-xs uppercase tracking-[0.1em] font-medium" style={{ color: 'var(--brand-primary)' }}>
-                            Damage Dealt
-                        </div>
-                        <div className="font-stat font-bold text-4xl leading-none mt-1 gradient-text">
-                            {damage.totalDamage.toLocaleString()}
-                        </div>
-                    </div>
-                    <div className="text-right">
-                        <span className="font-stat font-bold text-2xl" style={{ color: 'var(--text-primary)' }}>
-                            {damage.dps.toLocaleString()}
-                        </span>
-                        <span className="text-xs ml-1 font-medium" style={{ color: 'var(--text-muted)' }}>DPS</span>
-                        <div className="mt-0.5">
-                            <RankBadge rank={squadContext.damageRank} />
-                        </div>
-                    </div>
-                </div>
-            </motion.div>
+            {isSupport ? (
+                <HeroBanner
+                    label="Healing Output"
+                    primaryValue={support.healingOutput}
+                    secondaryValue={support.barrierOutput}
+                    secondaryLabel="Barrier"
+                    rank={squadContext.healingRank}
+                />
+            ) : (
+                <HeroBanner
+                    label="Damage Dealt"
+                    primaryValue={damage.totalDamage}
+                    secondaryValue={damage.dps}
+                    secondaryLabel="DPS"
+                    rank={squadContext.damageRank}
+                />
+            )}
 
-            {/* Stats Grid */}
             <div className="grid grid-cols-2 gap-2">
-                <StatCard
-                    label="Down Contribution"
-                    value={damage.downContribution}
-                    detail={`${ordinal(squadContext.downContributionRank)} in squad`}
-                    detailColor="good"
-                    accentColor="var(--brand-primary)"
-                    index={1}
-                />
-                <StatCard
-                    label="Deaths / Downs"
-                    value={`${defense.deaths} / ${defense.downs}`}
-                    detail={defense.deathTimes.length > 0 ? `at ${defense.deathTimes.map(t => formatTime(t)).join(', ')}` : 'clean fight'}
-                    detailColor={defense.deaths > 0 ? 'bad' : 'good'}
-                    accentColor={defense.deaths > 0 ? 'var(--status-error)' : 'var(--status-success)'}
-                    index={2}
-                />
-                <StatCard
-                    label="Strips"
-                    value={support.boonStrips}
-                    detail={`${ordinal(squadContext.stripsRank)} in squad`}
-                    detailColor="good"
-                    accentColor="var(--brand-secondary)"
-                    index={3}
-                />
-                <StatCard
-                    label="Cleanses"
-                    value={support.cleanses}
-                    detail={`${ordinal(squadContext.cleanseRank)} in squad`}
-                    detailColor="good"
-                    accentColor="var(--brand-secondary)"
-                    index={4}
-                />
-                {support.healingOutput > 0 && (
-                    <StatCard
-                        label="Healing"
-                        value={support.healingOutput.toLocaleString()}
-                        detail={`${ordinal(squadContext.healingRank)} in squad`}
-                        detailColor="good"
-                        accentColor="#a78bfa"
-                        index={5}
-                    />
+                {isSupport ? (
+                    <>
+                        <StatCard
+                            label="Cleanses"
+                            value={support.cleanses}
+                            detail={`${ordinal(squadContext.cleanseRank)} in squad`}
+                            detailColor="good"
+                            accentColor="var(--brand-secondary)"
+                            index={1}
+                        />
+                        <StatCard
+                            label="Barrier Output"
+                            value={support.barrierOutput.toLocaleString()}
+                            accentColor="#a78bfa"
+                            index={2}
+                        />
+                        <StatCard
+                            label="Strips"
+                            value={support.boonStrips}
+                            detail={`${ordinal(squadContext.stripsRank)} in squad`}
+                            detailColor="good"
+                            accentColor="var(--brand-secondary)"
+                            index={3}
+                        />
+                        <StatCard
+                            label="Deaths / Downs"
+                            value={`${defense.deaths} / ${defense.downs}`}
+                            detail={defense.deathTimes.length > 0 ? `at ${defense.deathTimes.map(t => formatTime(t)).join(', ')}` : 'clean fight'}
+                            detailColor={defense.deaths > 0 ? 'bad' : 'good'}
+                            accentColor={defense.deaths > 0 ? 'var(--status-error)' : 'var(--status-success)'}
+                            index={4}
+                        />
+                    </>
+                ) : (
+                    <>
+                        <StatCard
+                            label="Down Contribution"
+                            value={damage.downContribution}
+                            detail={`${ordinal(squadContext.downContributionRank)} in squad`}
+                            detailColor="good"
+                            accentColor="var(--brand-primary)"
+                            index={1}
+                        />
+                        <StatCard
+                            label="Deaths / Downs"
+                            value={`${defense.deaths} / ${defense.downs}`}
+                            detail={defense.deathTimes.length > 0 ? `at ${defense.deathTimes.map(t => formatTime(t)).join(', ')}` : 'clean fight'}
+                            detailColor={defense.deaths > 0 ? 'bad' : 'good'}
+                            accentColor={defense.deaths > 0 ? 'var(--status-error)' : 'var(--status-success)'}
+                            index={2}
+                        />
+                        <StatCard
+                            label="Strips"
+                            value={support.boonStrips}
+                            detail={`${ordinal(squadContext.stripsRank)} in squad`}
+                            detailColor="good"
+                            accentColor="var(--brand-secondary)"
+                            index={3}
+                        />
+                        <StatCard
+                            label="Cleanses"
+                            value={support.cleanses}
+                            detail={`${ordinal(squadContext.cleanseRank)} in squad`}
+                            detailColor="good"
+                            accentColor="var(--brand-secondary)"
+                            index={4}
+                        />
+                    </>
                 )}
+                <StatCard
+                    label="Damage Taken"
+                    value={defense.damageTaken.toLocaleString()}
+                    detail={`${ordinal(squadContext.damageTakenRank)} in squad`}
+                    detailColor="neutral"
+                    accentColor="var(--status-warning, #f59e0b)"
+                    index={5}
+                />
+                <DistanceToTagCard distanceToTag={distanceToTag} index={6} />
             </div>
         </div>
+    );
+}
+
+function HeroBanner({ label, primaryValue, secondaryValue, secondaryLabel, rank }: {
+    label: string;
+    primaryValue: number;
+    secondaryValue: number;
+    secondaryLabel: string;
+    rank: number;
+}) {
+    return (
+        <motion.div
+            initial={{ opacity: 0, scale: 0.97 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            className="rounded-lg p-4 relative overflow-hidden"
+            style={{ background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(6, 182, 212, 0.08))' }}
+        >
+            <div className="absolute inset-0 rounded-lg" style={{ border: '1px solid rgba(16, 185, 129, 0.2)' }} />
+            <div className="relative flex items-end justify-between">
+                <div>
+                    <div className="text-xs uppercase tracking-[0.1em] font-medium" style={{ color: 'var(--brand-primary)' }}>
+                        {label}
+                    </div>
+                    <div className="font-stat font-bold text-4xl leading-none mt-1 gradient-text">
+                        {primaryValue.toLocaleString()}
+                    </div>
+                </div>
+                <div className="text-right">
+                    <span className="font-stat font-bold text-2xl" style={{ color: 'var(--text-primary)' }}>
+                        {secondaryValue.toLocaleString()}
+                    </span>
+                    <span className="text-xs ml-1 font-medium" style={{ color: 'var(--text-muted)' }}>{secondaryLabel}</span>
+                    <div className="mt-0.5">
+                        <RankBadge rank={rank} />
+                    </div>
+                </div>
+            </div>
+        </motion.div>
+    );
+}
+
+function DistanceToTagCard({ distanceToTag, index }: {
+    distanceToTag: { average: number; median: number } | null;
+    index: number;
+}) {
+    if (!distanceToTag) {
+        return (
+            <StatCard
+                label="Distance to Tag"
+                value="N/A"
+                detail="no tag data"
+                detailColor="neutral"
+                accentColor="var(--text-muted)"
+                index={index}
+            />
+        );
+    }
+    return (
+        <StatCard
+            label="Distance to Tag"
+            value={`${distanceToTag.average} / ${distanceToTag.median}`}
+            detail="avg / median"
+            detailColor="neutral"
+            accentColor="var(--brand-secondary)"
+            index={index}
+        />
     );
 }
 
