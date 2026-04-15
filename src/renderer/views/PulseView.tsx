@@ -1,5 +1,5 @@
-// src/renderer/views/PulseView.tsx
-import { useAppStore } from '../store';
+import { useAppStore, type PulseSubview } from '../store';
+import { SubviewCapsule } from '../app/SubviewCapsule';
 import { OverviewSubview } from './pulse/OverviewSubview';
 import { DamageSubview } from './pulse/DamageSubview';
 import { SupportSubview } from './pulse/SupportSubview';
@@ -7,9 +7,18 @@ import { DefenseSubview } from './pulse/DefenseSubview';
 import { BoonsSubview } from './pulse/BoonsSubview';
 import { Activity } from 'lucide-react';
 
+const PULSE_PILLS = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'damage', label: 'Damage' },
+    { id: 'support', label: 'Support' },
+    { id: 'defense', label: 'Defense' },
+    { id: 'boons', label: 'Boons' },
+];
+
 export function PulseView() {
     const currentFight = useAppStore(s => s.currentFight);
     const subview = useAppStore(s => s.pulseSubview);
+    const setPulseSubview = useAppStore(s => s.setPulseSubview);
 
     if (!currentFight) {
         return (
@@ -23,11 +32,21 @@ export function PulseView() {
         );
     }
 
-    switch (subview) {
-        case 'overview': return <OverviewSubview data={currentFight} />;
-        case 'damage': return <DamageSubview data={currentFight} />;
-        case 'support': return <SupportSubview data={currentFight} />;
-        case 'defense': return <DefenseSubview data={currentFight} />;
-        case 'boons': return <BoonsSubview data={currentFight} />;
-    }
+    return (
+        <>
+            <div className="mb-3">
+                <SubviewCapsule
+                    pills={PULSE_PILLS}
+                    activeId={subview}
+                    onSelect={(id) => setPulseSubview(id as PulseSubview)}
+                    layoutGroup="pulse"
+                />
+            </div>
+            {subview === 'overview' && <OverviewSubview data={currentFight} />}
+            {subview === 'damage' && <DamageSubview data={currentFight} />}
+            {subview === 'support' && <SupportSubview data={currentFight} />}
+            {subview === 'defense' && <DefenseSubview data={currentFight} />}
+            {subview === 'boons' && <BoonsSubview data={currentFight} />}
+        </>
+    );
 }
