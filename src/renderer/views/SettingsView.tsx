@@ -1,7 +1,7 @@
 // src/renderer/views/SettingsView.tsx
 import { useEffect, useState } from 'react';
 import { useAppStore } from '../store';
-import { FolderOpen, Download, RefreshCw, Trash2, CheckCircle, AlertCircle, Loader2, Dices } from 'lucide-react';
+import { FolderOpen, Download, RefreshCw, Trash2, CheckCircle, AlertCircle, Loader2, Dices, ExternalLink } from 'lucide-react';
 
 const IS_DEV = import.meta.env.DEV;
 
@@ -135,6 +135,25 @@ export function SettingsView() {
                             {ms / 1000}s
                         </button>
                     ))}
+                </div>
+            </section>
+
+            {/* Links */}
+            <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-[color:var(--text-muted)] mb-2">Links</h3>
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => window.electronAPI?.openExternal?.('https://discord.gg/UjzMXMGXEg')}
+                        className="flex items-center gap-1.5 px-3 py-1 text-[11px] rounded-full border border-white/10 bg-white/5 text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:border-white/20 transition-colors"
+                    >
+                        <ExternalLink className="w-3 h-3" /> Discord
+                    </button>
+                    <button
+                        onClick={() => window.electronAPI?.openExternal?.('https://github.com/darkharasho/axipulse')}
+                        className="flex items-center gap-1.5 px-3 py-1 text-[11px] rounded-full border border-white/10 bg-white/5 text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:border-white/20 transition-colors"
+                    >
+                        <ExternalLink className="w-3 h-3" /> GitHub
+                    </button>
                 </div>
             </section>
 
