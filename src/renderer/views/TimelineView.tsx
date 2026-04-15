@@ -1,14 +1,26 @@
-import { useAppStore } from '../store';
-import { TimelinePresetBar } from './timeline/TimelinePresetBar';
+import { useAppStore, type TimelinePreset } from '../store';
+import { SubviewCapsule } from '../app/SubviewCapsule';
+import { TimelineLaneToggles } from './timeline/TimelinePresetBar';
 import { TimelineSwimlanes } from './timeline/TimelineSwimlanes';
 import { TimelineInspector } from './timeline/TimelineInspector';
 import { GanttChart } from 'lucide-react';
 
+const TIMELINE_PILLS = [
+    { id: 'why-died', label: 'Why did I die?' },
+    { id: 'my-damage', label: 'My damage' },
+    { id: 'support', label: 'Getting support?' },
+    { id: 'show-all', label: 'Show all' },
+    { id: 'custom', label: 'Custom' },
+];
+
 export function TimelineView() {
     const currentFight = useAppStore(s => s.currentFight);
+    const preset = useAppStore(s => s.timelinePreset);
     const toggles = useAppStore(s => s.timelineToggles);
     const selection = useAppStore(s => s.timelineSelection);
     const setSelection = useAppStore(s => s.setTimelineSelection);
+    const applyPreset = useAppStore(s => s.applyPreset);
+    const setTimelinePreset = useAppStore(s => s.setTimelinePreset);
 
     if (!currentFight) {
         return (
@@ -22,9 +34,24 @@ export function TimelineView() {
         );
     }
 
+    const handlePresetSelect = (id: string) => {
+        if (id !== 'custom') {
+            applyPreset(id as Exclude<TimelinePreset, 'custom'>);
+        }
+        setTimelinePreset(id as TimelinePreset);
+    };
+
     return (
         <div className="flex flex-col h-full overflow-y-auto px-2 py-2">
-            <TimelinePresetBar />
+            <div className="flex items-center justify-between mb-3">
+                <SubviewCapsule
+                    pills={TIMELINE_PILLS}
+                    activeId={preset}
+                    onSelect={handlePresetSelect}
+                    layoutGroup="timeline"
+                />
+                <TimelineLaneToggles />
+            </div>
             <TimelineSwimlanes
                 data={currentFight.timeline}
                 toggles={toggles}
