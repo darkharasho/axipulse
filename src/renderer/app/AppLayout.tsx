@@ -33,6 +33,9 @@ export function AppLayout() {
     useFightListener();
 
     useEffect(() => {
+        window.electronAPI?.getSettings().then(s => {
+            if (s.logDirectory) useAppStore.getState().setLogDirectory(s.logDirectory);
+        });
         window.electronAPI?.getAppVersion().then((v: string) => setAppVersion(v));
         const cleanupDownloaded = window.electronAPI?.onUpdateDownloaded(() => setUpdateDownloaded(true));
         let dismissTimer: ReturnType<typeof setTimeout>;

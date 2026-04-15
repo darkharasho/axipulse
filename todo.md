@@ -1,6 +1,6 @@
-- [ ] brush for the timeline view
-- [ ] need an info card for what class, the icon, etc
-- [ ] skills need icons
+- [x] brush for the timeline view
+- [x] need an info card for what class, the icon, etc
+- [x] skills need icons
 - [ ] add option to minimize to taskbar
-- [ ] clicking the version should force an update check
-- [ ] it should show a brief pill when checking for updates like axibridge
+- [x] clicking the version should force an update check
+- [x] it should show a brief pill when checking for updates like axibridge
