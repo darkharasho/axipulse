@@ -113,4 +113,40 @@ describe('extractPlayerFightData', () => {
         const result = extractPlayerFightData(json, 1, 1000);
         expect(result.timeline.healthPercent).toEqual([]);
     });
+
+    it('includes roleClassification', () => {
+        const result = extractPlayerFightData(makeMinimalEiJson(), 1, 1000);
+        expect(result.roleClassification).toBeDefined();
+        expect(result.roleClassification.role).toBe('damage');
+        expect(result.roleClassification.confidenceScore).toBeGreaterThanOrEqual(0);
+        expect(result.roleClassification.confidenceScore).toBeLessThanOrEqual(1);
+    });
+
+    it('includes damageTakenRank in squadContext', () => {
+        const result = extractPlayerFightData(makeMinimalEiJson(), 1, 1000);
+        expect(result.squadContext.damageTakenRank).toBe(1);
+    });
+
+    it('computes distanceToTag as null for single player with no commander', () => {
+        const result = extractPlayerFightData(makeMinimalEiJson(), 1, 1000);
+        expect(result.distanceToTag).toBeNull();
+    });
+
+    it('computes distanceToTag stats when commander exists', () => {
+        const json = makeMinimalEiJson();
+        json.players[0].hasCommanderTag = true;
+        const follower = {
+            ...json.players[0],
+            name: 'Follower', account: 'Follower.5678',
+            hasCommanderTag: false,
+            statsAll: [{ downContribution: 0, distToCom: 250, stackDist: 200, appliedCrowdControl: 0, appliedCrowdControlDuration: 0 }],
+            combatReplayData: { positions: [[120, 120], [130, 130]] as [number, number][], down: [] as [number, number][], dead: [] as [number, number][] },
+        };
+        json.players.push(follower as any);
+        json.recordedAccountBy = 'Follower.5678';
+        const result = extractPlayerFightData(json, 1, 1000);
+        expect(result.distanceToTag).not.toBeNull();
+        expect(result.distanceToTag!.average).toBeGreaterThanOrEqual(0);
+        expect(result.distanceToTag!.median).toBeGreaterThanOrEqual(0);
+    });
 });

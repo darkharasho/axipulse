@@ -2,6 +2,7 @@
 import type { EiJson, EiPlayer, PlayerFightData, TimelineData, TimelineBucket, SquadContext, MovementData, SquadMemberMovement, BuffStateEntry } from './types';
 import { getDamage, getDps, getBreakbarDamage, getCleanses, getCleanseSelf, getStrips, getDamageTaken, getDeaths, getDowns, getDodges, getDownContribution, getIncomingCC, getIncomingStrips, getBlocked, getEvaded, getMissed, getInvulned, getInterrupted } from './dashboardMetrics';
 import { getHealingOutput, getBarrierOutput, getStabilityGeneration, getTopSkillDamage, getTopHealingSkills, getTopBarrierSkills, getTopDamageTakenSkills, getSquadRank, getDeathTimes, getDownTimes } from './combatMetrics';
+import { classifySquadRoles } from './classifyRole';
 import { extractBoonUptimes, extractBoonGeneration } from './boonData';
 import { extractDamageTimeline, extractDistanceToTagTimeline } from './timelineData';
 import { OFFENSIVE_BOON_IDS, DEFENSIVE_BOON_IDS, HARD_CC_IDS, SOFT_CC_IDS, ALL_TRACKED_BUFF_IDS } from './boonData';
@@ -37,8 +38,25 @@ function computeFightPosition(player: EiPlayer): [number, number] | null {
     return [xs[mid], ys[mid]];
 }
 
-function buildSquadContext(json: EiJson, player: EiPlayer): SquadContext {
-    const squadPlayers = json.players.filter(p => !p.notInSquad && !p.isFake);
+function computeDistanceToTagStats(
+    timeline: TimelineData,
+    player: EiPlayer,
+): { average: number; median: number } | null {
+    if (player.hasCommanderTag) return null;
+    const buckets = timeline.distanceToTag;
+    if (buckets.length === 0) return null;
+    const values = buckets.map(b => b.value);
+    const sum = values.reduce((a, b) => a + b, 0);
+    const average = Math.round(sum / values.length);
+    const sorted = [...values].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    const median = Math.round(
+        sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid],
+    );
+    return { average, median };
+}
+
+function buildSquadContext(squadPlayers: EiPlayer[], player: EiPlayer): SquadContext {
     return {
         squadSize: squadPlayers.length,
         damageRank: getSquadRank(squadPlayers, player, getDamage),
@@ -46,6 +64,7 @@ function buildSquadContext(json: EiJson, player: EiPlayer): SquadContext {
         stripsRank: getSquadRank(squadPlayers, player, getStrips),
         cleanseRank: getSquadRank(squadPlayers, player, getCleanses),
         healingRank: getSquadRank(squadPlayers, player, getHealingOutput),
+        damageTakenRank: getSquadRank(squadPlayers, player, getDamageTaken),
     };
 }
 
@@ -214,6 +233,12 @@ export function extractPlayerFightData(json: EiJson, fightNumber: number, bucket
     const landmarkPart = nearestLandmark ? ` — ${nearestLandmark}` : '';
     const fightLabel = `F${fightNumber} — ${mapName}${landmarkPart} — ${durationFormatted}`;
 
+    const squadPlayers = json.players.filter(p => !p.notInSquad && !p.isFake);
+    const timeline = buildTimeline(json, player, bucketSizeMs);
+    const roleMap = classifySquadRoles(squadPlayers);
+    const roleClassification = roleMap.get(player.account) ?? { role: 'damage' as const, supportScore: 0, confidenceScore: 0 };
+    const distanceToTagStats = computeDistanceToTagStats(timeline, player);
+
     return {
         fightLabel,
         fightNumber,
@@ -270,8 +295,10 @@ export function extractPlayerFightData(json: EiJson, fightNumber: number, bucket
             uptimes: extractBoonUptimes(player),
             generation: extractBoonGeneration(player),
         },
-        timeline: buildTimeline(json, player, bucketSizeMs),
-        squadContext: buildSquadContext(json, player),
+        timeline,
+        squadContext: buildSquadContext(squadPlayers, player),
         movementData: buildMovementData(json, player),
+        roleClassification,
+        distanceToTag: distanceToTagStats,
     };
 }
