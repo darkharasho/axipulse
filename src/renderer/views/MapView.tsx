@@ -1,17 +1,36 @@
 import { useRef, useState, useCallback, useEffect, type MouseEvent } from 'react';
 import { MapPin, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
 import { useAppStore } from '../store';
+import { SubviewCapsule } from '../app/SubviewCapsule';
+import type { MapSubview } from '../store';
 import { WVW_LANDMARKS, type WvwLandmark } from '../../shared/wvwLandmarks';
 import { resolveMapFromZone } from '../../shared/mapUtils';
 import { MovementView } from './map/MovementView';
 
+const MAP_PILLS = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'movement', label: 'Movement' },
+];
+
 export function MapView() {
     const mapSubview = useAppStore(s => s.mapSubview);
+    const setMapSubview = useAppStore(s => s.setMapSubview);
 
-    switch (mapSubview) {
-        case 'movement': return <MovementView />;
-        default: return <MapOverview />;
-    }
+    return (
+        <div className="flex flex-col h-full">
+            <div className="mb-3 shrink-0">
+                <SubviewCapsule
+                    pills={MAP_PILLS}
+                    activeId={mapSubview}
+                    onSelect={(id) => setMapSubview(id as MapSubview)}
+                    layoutGroup="map"
+                />
+            </div>
+            <div className="flex-1 min-h-0">
+                {mapSubview === 'movement' ? <MovementView /> : <MapOverview />}
+            </div>
+        </div>
+    );
 }
 
 const TYPE_COLORS: Record<WvwLandmark['type'], string> = {
