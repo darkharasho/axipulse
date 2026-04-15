@@ -28,9 +28,11 @@ export function SubviewCapsule({ pills, activeId, onSelect, layoutGroup }: Subvi
                     <button
                         key={pill.id}
                         onClick={() => onSelect(pill.id)}
-                        className="relative px-[13px] py-[5px] rounded-[6px] text-[10px] transition-colors duration-150 cursor-pointer"
+                        className={`relative px-[13px] py-[5px] rounded-[6px] text-[10px] transition-colors duration-150 cursor-pointer ${
+                            isActive ? '' : 'text-[#555] hover:text-[color:var(--text-secondary)]'
+                        }`}
                         style={{
-                            color: isActive ? 'var(--brand-primary)' : '#555',
+                            color: isActive ? 'var(--brand-primary)' : undefined,
                             fontWeight: isActive ? 500 : 400,
                         }}
                     >
