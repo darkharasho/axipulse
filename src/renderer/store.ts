@@ -55,10 +55,6 @@ interface AppState {
     setMapSubview: (subview: MapSubview) => void;
     timelinePreset: TimelinePreset;
     setTimelinePreset: (preset: TimelinePreset) => void;
-    pillBarExpanded: boolean;
-    setPillBarExpanded: (expanded: boolean) => void;
-    togglePillBar: () => void;
-
     timelineToggles: TimelineLayerToggles;
     setTimelineToggle: (layer: keyof TimelineLayerToggles, enabled: boolean) => void;
     applyPreset: (preset: Exclude<TimelinePreset, 'custom'>) => void;
@@ -107,9 +103,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     setMapSubview: (subview) => set({ mapSubview: subview }),
     timelinePreset: 'show-all',
     setTimelinePreset: (preset) => set({ timelinePreset: preset }),
-    pillBarExpanded: false,
-    setPillBarExpanded: (expanded) => set({ pillBarExpanded: expanded }),
-    togglePillBar: () => set((state) => ({ pillBarExpanded: !state.pillBarExpanded })),
 
     timelineToggles: {
         health: true, damageDealt: true, damageTaken: true,

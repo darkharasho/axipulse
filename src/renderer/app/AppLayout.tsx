@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { Activity, Clock3, Dices, GanttChart, MapPin, Minus, Settings as SettingsIcon, Square, X } from 'lucide-react';
-import { useAppStore, type View, type PulseSubview, type MapSubview, type TimelinePreset } from '../store';
-import { SubviewToggle, SubviewPillExpansion } from './SubviewPillBar';
+import { useAppStore, type View } from '../store';
 import { ToastContainer } from './Toast';
 import { PulseView } from '../views/PulseView';
 import { TimelineView } from '../views/TimelineView';
@@ -18,39 +17,11 @@ const NAV_ITEMS: { id: View; label: string; icon: typeof Activity }[] = [
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
 ];
 
-const PULSE_PILLS = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'damage', label: 'Damage' },
-    { id: 'support', label: 'Support' },
-    { id: 'defense', label: 'Defense' },
-    { id: 'boons', label: 'Boons' },
-];
-
-const MAP_PILLS = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'movement', label: 'Movement' },
-];
-
-const TIMELINE_PILLS = [
-    { id: 'why-died', label: 'Why did I die?' },
-    { id: 'my-damage', label: 'My damage' },
-    { id: 'support', label: 'Am I getting support?' },
-    { id: 'positioning', label: 'Positioning' },
-    { id: 'custom', label: 'Custom' },
-];
-
 const IS_DEV = import.meta.env.DEV;
 
 export function AppLayout() {
     const view = useAppStore(s => s.view);
     const setView = useAppStore(s => s.setView);
-    const pulseSubview = useAppStore(s => s.pulseSubview);
-    const setPulseSubview = useAppStore(s => s.setPulseSubview);
-    const mapSubview = useAppStore(s => s.mapSubview);
-    const setMapSubview = useAppStore(s => s.setMapSubview);
-    const timelinePreset = useAppStore(s => s.timelinePreset);
-    const setTimelinePreset = useAppStore(s => s.setTimelinePreset);
-    const applyPreset = useAppStore(s => s.applyPreset);
     const isParsing = useAppStore(s => s.isParsing);
     const currentFight = useAppStore(s => s.currentFight);
 
@@ -67,23 +38,6 @@ export function AppLayout() {
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
     }, []);
-
-    const hasSubviews = view === 'pulse' || view === 'map' || view === 'timeline';
-    const pills = view === 'pulse' ? PULSE_PILLS : view === 'map' ? MAP_PILLS : view === 'timeline' ? TIMELINE_PILLS : [];
-    const activeSubviewId = view === 'pulse' ? pulseSubview : view === 'map' ? mapSubview : view === 'timeline' ? timelinePreset : '';
-
-    const handleSubviewSelect = (id: string) => {
-        if (view === 'pulse') {
-            setPulseSubview(id as PulseSubview);
-        } else if (view === 'map') {
-            setMapSubview(id as MapSubview);
-        } else if (view === 'timeline') {
-            if (id !== 'custom') {
-                applyPreset(id as Exclude<TimelinePreset, 'custom'>);
-            }
-            setTimelinePreset(id as TimelinePreset);
-        }
-    };
 
     const isFirstParse = isParsing && !currentFight;
 
@@ -154,22 +108,12 @@ export function AppLayout() {
                         </button>
                     ))}
                 </div>
-                <div className="flex items-center gap-2">
-                    {IS_DEV && (
-                        <span title="Parse random log (Ctrl+Shift+P)" onClick={() => window.electronAPI?.devParseRandom()} className="cursor-pointer text-amber-300 hover:text-amber-200 transition-colors">
-                            <Dices className="w-4 h-4" />
-                        </span>
-                    )}
-                    {hasSubviews && (
-                        <SubviewToggle pills={pills} activeId={activeSubviewId} />
-                    )}
-                </div>
+                {IS_DEV && (
+                    <span title="Parse random log (Ctrl+Shift+P)" onClick={() => window.electronAPI?.devParseRandom()} className="cursor-pointer text-amber-300 hover:text-amber-200 transition-colors">
+                        <Dices className="w-4 h-4" />
+                    </span>
+                )}
             </div>
-
-            {/* Subview pill expansion area */}
-            {hasSubviews && (
-                <SubviewPillExpansion pills={pills} activeId={activeSubviewId} onSelect={handleSubviewSelect} />
-            )}
 
             {/* Content Area */}
             <div className="flex-1 overflow-auto p-4">
