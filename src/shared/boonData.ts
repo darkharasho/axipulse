@@ -21,6 +21,10 @@ export const WVW_BOON_IDS = new Set(Object.keys(BOON_NAMES).map(Number));
 export const OFFENSIVE_BOON_IDS = new Set([740, 725, 1187, 30328]); // Might, Fury, Quickness, Alacrity
 export const DEFENSIVE_BOON_IDS = new Set([1122, 717, 26980, 743]); // Stability, Protection, Resistance, Aegis
 
+// EI's buffData.uptime for these represents average stacks (0-25), not a percentage.
+export const INTENSITY_STACKING_BOON_IDS = new Set([740, 1122]); // Might, Stability
+export const MAX_BOON_STACKS: Record<number, number> = { 740: 25, 1122: 25 };
+
 export const CONDITION_NAMES: Record<number, string> = {
     872: 'Stun',
     833: 'Daze',
@@ -45,7 +49,8 @@ export function extractBoonUptimes(player: EiPlayer): BoonUptimeEntry[] {
         if (!WVW_BOON_IDS.has(buff.id)) continue;
         const name = BOON_NAMES[buff.id] ?? `Boon ${buff.id}`;
         const uptime = buff.buffData[0]?.uptime ?? 0;
-        uptimes.push({ id: buff.id, name, uptime });
+        const stacking: 'duration' | 'intensity' = INTENSITY_STACKING_BOON_IDS.has(buff.id) ? 'intensity' : 'duration';
+        uptimes.push({ id: buff.id, name, uptime, stacking });
     }
     return uptimes;
 }

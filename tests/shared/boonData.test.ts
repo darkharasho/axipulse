@@ -38,6 +38,20 @@ describe('extractBoonUptimes', () => {
         expect(might!.uptime).toBe(85.5);
     });
 
+    it('tags intensity-stacking boons (Might, Stability)', () => {
+        const player = makePlayer({
+            buffUptimes: [
+                { id: 740, buffData: [{ uptime: 15, generation: 0, overstack: 0, wasted: 0 }] },
+                { id: 1122, buffData: [{ uptime: 2.3, generation: 0, overstack: 0, wasted: 0 }] },
+                { id: 725, buffData: [{ uptime: 92, generation: 0, overstack: 0, wasted: 0 }] },
+            ],
+        });
+        const uptimes = extractBoonUptimes(player);
+        expect(uptimes.find(u => u.id === 740)!.stacking).toBe('intensity');
+        expect(uptimes.find(u => u.id === 1122)!.stacking).toBe('intensity');
+        expect(uptimes.find(u => u.id === 725)!.stacking).toBe('duration');
+    });
+
     it('filters out non-boon buffs', () => {
         const player = makePlayer({
             buffUptimes: [

@@ -206,7 +206,9 @@ export interface DefenseStats {
 export interface BoonUptimeEntry {
     id: number;
     name: string;
+    // For duration-stacking boons: percentage 0-100. For intensity-stacking (Might, Stability): average stacks 0-25.
     uptime: number;
+    stacking: 'duration' | 'intensity';
 }
 
 export interface BoonGenerationEntry {

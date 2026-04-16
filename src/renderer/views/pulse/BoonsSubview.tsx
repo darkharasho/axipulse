@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import type { PlayerFightData } from '../../../shared/types';
+import { MAX_BOON_STACKS } from '../../../shared/boonData';
 
 const BOON_COLORS: Record<string, string> = {
     Might: '#e85d3a',
@@ -38,7 +39,14 @@ export function BoonsSubview({ data }: { data: PlayerFightData }) {
                     <div className="space-y-2.5">
                         {boons.uptimes.map((boon, i) => {
                             const color = getBoonColor(boon.name);
-                            const uptime = Math.min(boon.uptime, 100);
+                            const isIntensity = boon.stacking === 'intensity';
+                            const maxStacks = MAX_BOON_STACKS[boon.id] ?? 25;
+                            const barPercent = isIntensity
+                                ? Math.min((boon.uptime / maxStacks) * 100, 100)
+                                : Math.min(boon.uptime, 100);
+                            const label = isIntensity
+                                ? `${boon.uptime.toFixed(1)} stacks`
+                                : `${boon.uptime.toFixed(1)}%`;
                             return (
                                 <motion.div
                                     key={boon.id}
@@ -57,24 +65,24 @@ export function BoonsSubview({ data }: { data: PlayerFightData }) {
                                         <div
                                             className="h-full rounded stat-bar-fill"
                                             style={{
-                                                width: `${uptime}%`,
+                                                width: `${barPercent}%`,
                                                 background: `linear-gradient(90deg, ${color}, ${color}aa)`,
                                                 opacity: 0.7,
                                                 animationDelay: `${0.1 + i * 0.05}s`,
                                             }}
                                         />
-                                        {uptime > 8 && (
+                                        {barPercent > 8 && (
                                             <span
                                                 className="absolute inset-y-0 left-2.5 flex items-center text-xs font-stat font-bold"
                                                 style={{ color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,0.7)' }}
                                             >
-                                                {boon.uptime.toFixed(1)}%
+                                                {label}
                                             </span>
                                         )}
                                     </div>
-                                    {uptime <= 8 && (
+                                    {barPercent <= 8 && (
                                         <span className="w-16 text-right text-sm font-stat font-semibold" style={{ color: 'var(--text-muted)' }}>
-                                            {boon.uptime.toFixed(1)}%
+                                            {label}
                                         </span>
                                     )}
                                 </motion.div>
