@@ -1,10 +1,10 @@
 import { useRef, useState, useCallback, useEffect, useMemo, type MouseEvent } from 'react';
-import { ChevronRight, MapPin, RotateCcw, Users, ZoomIn, ZoomOut } from 'lucide-react';
+import { ChevronRight, Crosshair, MapPin, Pause, Play, RotateCcw, Users, ZoomIn, ZoomOut } from 'lucide-react';
 import { useAppStore } from '../../store';
 import { WVW_LANDMARKS, WvwMap, type WvwLandmark } from '../../../shared/wvwLandmarks';
 import { resolveMapFromZone } from '../../../shared/mapUtils';
 import { getMapTiles, hasTileData } from '../../../shared/wvwTiles';
-import type { SquadMemberMovement } from '../../../shared/types';
+import type { SkillCast, SquadMemberMovement } from '../../../shared/types';
 
 const TYPE_COLORS: Record<WvwLandmark['type'], string> = {
     keep: '#ef4444',
@@ -95,7 +95,48 @@ function getHealthPercent(member: SquadMemberMovement, timeMs: number): number {
     return pct;
 }
 
+const SKILL_FADE_MS = 1500;
+const LATEST_HOLD_MS = 1200;
+const LATEST_FADE_MS = 2500;
+const MAX_VISIBLE_SKILLS = 4;
+
+function getRecentSkills(
+    casts: SkillCast[] | undefined,
+    timeMs: number,
+    skillIcons: Record<number, { name: string; icon: string }> | undefined,
+): { id: number; opacity: number }[] {
+    if (!casts?.length) return [];
+    const result: { id: number; opacity: number }[] = [];
+    let foundLatest = false;
+    for (let i = casts.length - 1; i >= 0; i--) {
+        const c = casts[i];
+        if (c.time > timeMs) continue;
+        if (!skillIcons?.[c.id]?.icon) continue;
+        const age = timeMs - c.time;
+        if (!foundLatest) {
+            foundLatest = true;
+            const totalLife = LATEST_HOLD_MS + LATEST_FADE_MS;
+            if (age > totalLife) break;
+            const opacity = age <= LATEST_HOLD_MS ? 1 : 1 - (age - LATEST_HOLD_MS) / LATEST_FADE_MS;
+            result.push({ id: c.id, opacity });
+        } else {
+            if (age > SKILL_FADE_MS) continue;
+            result.push({ id: c.id, opacity: 1 - age / SKILL_FADE_MS });
+        }
+        if (result.length >= MAX_VISIBLE_SKILLS) break;
+    }
+    result.reverse();
+    return result;
+}
+
 const PANEL_BOON_ORDER = [740, 725, 717, 718, 726, 1122, 719, 743, 873, 1187, 30328, 26980];
+
+function lerpPos(positions: [number, number][], index: number, frac: number): [number, number] {
+    const a = positions[index];
+    if (frac === 0 || index >= positions.length - 1) return a;
+    const b = positions[index + 1];
+    return [a[0] + (b[0] - a[0]) * frac, a[1] + (b[1] - a[1]) * frac];
+}
 
 function formatTime(ms: number): string {
     const sec = Math.floor(ms / 1000);
@@ -117,6 +158,11 @@ export function MovementView() {
     const [timeMs, setTimeMs] = useState(0);
     const [hoveredMember, setHoveredMember] = useState<string | null>(null);
     const [showSquad, setShowSquad] = useState(false);
+    const [followPlayer, setFollowPlayer] = useState(false);
+    const [playing, setPlaying] = useState(false);
+    const [playSpeed, setPlaySpeed] = useState(1);
+    const playSpeedRef = useRef(1);
+    useEffect(() => { playSpeedRef.current = playSpeed; }, [playSpeed]);
     const [showPanel, setShowPanel] = useState(false);
     const lastFightRef = useRef<number | null>(null);
 
@@ -124,6 +170,7 @@ export function MovementView() {
         if (!currentFight || currentFight.fightNumber === lastFightRef.current) return;
         lastFightRef.current = currentFight.fightNumber;
         setTimeMs(0);
+        setPlaying(false);
         const container = containerRef.current;
         if (!container || !currentFight.avgPosition || !currentFight.mapSize) return;
         requestAnimationFrame(() => {
@@ -168,8 +215,61 @@ export function MovementView() {
         return () => container.removeEventListener('wheel', onWheel);
     }, []);
 
+    // Follow player: center view on local player's position
+    useEffect(() => {
+        if (!followPlayer || !currentFight?.movementData || !containerRef.current) return;
+        const { movementData, mapSize } = currentFight;
+        const local = movementData.members.find(m => m.isLocal);
+        if (!local) return;
+        const mw = mapSize?.[0] ?? 523;
+        const mh = mapSize?.[1] ?? 750;
+        const rect = containerRef.current.getBoundingClientRect();
+        const renderScale = Math.min(rect.width / mw, rect.height / mh);
+        const renderW = mw * renderScale;
+        const renderH = mh * renderScale;
+        const maxIdx = Math.max(0, local.positions.length - 1);
+        const fIdx = Math.min(timeMs / movementData.pollingRate, maxIdx);
+        const idx = Math.min(Math.floor(fIdx), maxIdx);
+        const frac = idx < maxIdx ? fIdx - idx : 0;
+        const pos = lerpPos(local.positions, idx, frac);
+        if (!pos) return;
+        const nx = pos[0] / mw;
+        const ny = pos[1] / mh;
+        setView(prev => ({
+            scale: prev.scale,
+            tx: -(nx - 0.5) * renderW * prev.scale,
+            ty: -(ny - 0.5) * renderH * prev.scale,
+        }));
+    }, [followPlayer, timeMs, currentFight]);
+
+    // Auto-play: smooth real-time playback via requestAnimationFrame
+    useEffect(() => {
+        if (!playing || !currentFight?.movementData) return;
+        const { durationMs } = currentFight.movementData;
+        let prevFrame: number | null = null;
+        let raf: number;
+        const tick = (timestamp: number) => {
+            if (prevFrame !== null) {
+                const delta = (timestamp - prevFrame) * playSpeedRef.current;
+                setTimeMs(prev => {
+                    const next = prev + delta;
+                    if (next >= durationMs) {
+                        setPlaying(false);
+                        return durationMs;
+                    }
+                    return next;
+                });
+            }
+            prevFrame = timestamp;
+            raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(raf);
+    }, [playing, currentFight]);
+
     const handleMouseDown = useCallback((e: MouseEvent) => {
         if (e.button !== 0) return;
+        setFollowPlayer(false);
         setView(prev => {
             dragRef.current = { startX: e.clientX, startY: e.clientY, startTx: prev.tx, startTy: prev.ty };
             return prev;
@@ -239,16 +339,19 @@ export function MovementView() {
         );
     }
 
-    const { pollingRate, durationMs, inchToPixel, members, boonIcons } = movementData;
-    const posIndex = Math.min(Math.floor(timeMs / pollingRate), Math.max(0, members[0].positions.length - 1));
+    const { pollingRate, durationMs, inchToPixel, members, boonIcons, skillIcons } = movementData;
+    const maxPosIndex = Math.max(0, members[0].positions.length - 1);
+    const fractionalIndex = Math.min(timeMs / pollingRate, maxPosIndex);
+    const posIndex = Math.min(Math.floor(fractionalIndex), maxPosIndex);
+    const posFrac = fractionalIndex - posIndex;
     const markerScale = 1 / Math.pow(view.scale, 0.7);
 
-    const allies = members.filter(m => !m.isEnemy);
+    const allies = members.filter(m => !m.isEnemy && m.inSquad);
     const enemies = members.filter(m => m.isEnemy);
     const localPlayer = allies.find(m => m.isLocal);
     const localGroup = localPlayer?.group ?? -1;
     const commander = allies.find(m => m.isCommander);
-    const commanderPos = commander ? commander.positions[Math.min(posIndex, commander.positions.length - 1)] : null;
+    const commanderPos = commander ? lerpPos(commander.positions, Math.min(posIndex, commander.positions.length - 1), posIndex < commander.positions.length - 1 ? posFrac : 0) : null;
 
     return (
         <div className="flex flex-col h-full gap-2">
@@ -266,6 +369,17 @@ export function MovementView() {
                     >
                         <Users className="w-3.5 h-3.5" />
                         Squad
+                    </button>
+                    <button
+                        onClick={() => setFollowPlayer(v => !v)}
+                        className="flex items-center gap-1.5 px-2 py-0.5 rounded text-xs transition-colors"
+                        style={{
+                            color: followPlayer ? 'var(--text-primary)' : 'var(--text-muted)',
+                            background: followPlayer ? 'rgba(255,255,255,0.1)' : 'transparent',
+                        }}
+                    >
+                        <Crosshair className="w-3.5 h-3.5" />
+                        Follow
                     </button>
                     <button onClick={() => zoomCenter(1)} className="p-1 rounded hover:bg-white/10 transition-colors" style={{ color: 'var(--text-muted)' }}>
                         <ZoomIn className="w-3.5 h-3.5" />
@@ -317,6 +431,13 @@ export function MovementView() {
                             const iconUrl = getClassIconUrl(member.eliteSpec, member.profession);
                             const health = getHealthPercent(member, timeMs);
                             const healthColor = status === 'dead' ? '#ef4444' : status === 'down' ? '#3b82f6' : health > 50 ? '#22c55e' : health > 25 ? '#f59e0b' : '#ef4444';
+                            const memberMaxIdx = member.positions.length - 1;
+                            const memberIdx = Math.min(posIndex, memberMaxIdx);
+                            const memberFrac = posIndex < memberMaxIdx ? posFrac : 0;
+                            const memberPos = lerpPos(member.positions, memberIdx, memberFrac);
+                            const panelDist = commanderPos && !member.isCommander
+                                ? Math.round(Math.hypot(memberPos[0] - commanderPos[0], memberPos[1] - commanderPos[1]) / inchToPixel)
+                                : null;
                             return (
                                 <div key={member.account} className="flex flex-col gap-1.5 rounded-lg px-2.5 py-2" style={{ background: 'rgba(255,255,255,0.04)' }}>
                                     <div className="flex items-center gap-2">
@@ -328,6 +449,7 @@ export function MovementView() {
                                         <span className="text-xs font-medium truncate flex-1" style={{ color: 'var(--text-primary)' }}>
                                             {member.name}
                                         </span>
+                                        {panelDist != null && <span className="text-[9px] tabular-nums px-1 rounded font-semibold" style={{ background: panelDist > 600 ? 'rgba(239,68,68,0.25)' : panelDist > 300 ? 'rgba(245,158,11,0.25)' : 'rgba(34,197,94,0.2)', color: panelDist > 600 ? '#fca5a5' : panelDist > 300 ? '#fcd34d' : '#86efac' }}>{panelDist}</span>}
                                         {member.isCommander && <span className="text-[9px] px-1 rounded" style={{ background: 'rgba(16,185,129,0.2)', color: '#6ee7b7' }}>CMD</span>}
                                         {member.isLocal && <span className="text-[9px] px-1 rounded" style={{ background: 'rgba(16,185,129,0.2)', color: '#6ee7b7' }}>YOU</span>}
                                     </div>
@@ -369,6 +491,34 @@ export function MovementView() {
                                             })}
                                         </div>
                                     )}
+                                    {(() => {
+                                        const recent = getRecentSkills(member.skillCasts, timeMs, skillIcons);
+                                        if (recent.length === 0) return null;
+                                        return (
+                                            <div className="flex gap-1">
+                                                {recent.map((s, i) => {
+                                                    const skill = skillIcons![s.id];
+                                                    const isLatest = i === recent.length - 1;
+                                                    return (
+                                                        <div key={`${s.id}-${i}`} className="flex items-center gap-1" style={{ opacity: s.opacity, transition: 'opacity 0.15s ease' }}>
+                                                            <img
+                                                                src={skill.icon}
+                                                                alt=""
+                                                                title={skill.name}
+                                                                className="rounded-sm"
+                                                                style={{ width: 20, height: 20 }}
+                                                            />
+                                                            {isLatest && (
+                                                                <span className="text-[10px] font-medium truncate" style={{ color: 'var(--text-secondary)', maxWidth: 120 }}>
+                                                                    {skill.name}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             );
                         })}
@@ -469,7 +619,8 @@ export function MovementView() {
                         {enemies.map((member, i) => {
                             const maxIdx = member.positions.length - 1;
                             const currentIdx = Math.min(posIndex, maxIdx);
-                            const pos = member.positions[currentIdx];
+                            const currentFrac = posIndex < maxIdx ? posFrac : 0;
+                            const pos = lerpPos(member.positions, currentIdx, currentFrac);
                             if (!pos) return null;
                             const iconUrl = getClassIconUrl(member.eliteSpec, member.profession);
                             const enemyId = `enemy-${member.name}-${i}`;
@@ -522,7 +673,8 @@ export function MovementView() {
                             const visible = showSquad || isParty;
                             const maxIdx = member.positions.length - 1;
                             const currentIdx = Math.min(posIndex, maxIdx);
-                            const pos = member.positions[currentIdx];
+                            const currentFrac = posIndex < maxIdx ? posFrac : 0;
+                            const pos = lerpPos(member.positions, currentIdx, currentFrac);
                             if (!pos) return null;
 
                             const color = getProfessionColor(member.profession);
@@ -646,6 +798,24 @@ export function MovementView() {
             {/* Timeline slider */}
             <div className="shrink-0 px-2 pb-1">
                 <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => {
+                            if (timeMs >= durationMs) setTimeMs(0);
+                            setPlaying(v => !v);
+                        }}
+                        className="p-1 rounded hover:bg-white/10 transition-colors shrink-0"
+                        style={{ color: playing ? 'var(--brand-primary)' : 'var(--text-muted)' }}
+                    >
+                        {playing ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                    </button>
+                    <button
+                        onClick={() => setPlaySpeed(s => s === 1 ? 1.5 : s === 1.5 ? 2 : s === 2 ? 0.5 : 1)}
+                        className="px-1.5 py-0.5 rounded hover:bg-white/10 transition-colors shrink-0 text-[10px] tabular-nums font-semibold"
+                        style={{ color: playSpeed !== 1 ? 'var(--brand-primary)' : 'var(--text-muted)', minWidth: 28 }}
+                        title="Playback speed"
+                    >
+                        {playSpeed}x
+                    </button>
                     <span className="text-[10px] tabular-nums w-8 text-right" style={{ color: 'var(--text-muted)' }}>
                         {formatTime(timeMs)}
                     </span>
@@ -655,7 +825,10 @@ export function MovementView() {
                         max={durationMs}
                         step={pollingRate}
                         value={timeMs}
-                        onChange={(e) => setTimeMs(Number(e.target.value))}
+                        onChange={(e) => {
+                            setTimeMs(Number(e.target.value));
+                            setPlaying(false);
+                        }}
                         className="flex-1 h-1 accent-[var(--brand-primary)] cursor-pointer"
                         style={{ accentColor: 'var(--brand-primary)' }}
                     />

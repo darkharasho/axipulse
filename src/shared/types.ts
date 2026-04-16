@@ -92,6 +92,12 @@ export interface EiJson {
 
 // --- Movement replay data ---
 
+export interface SkillCast {
+    id: number;
+    time: number;
+    duration: number;
+}
+
 export interface SquadMemberMovement {
     name: string;
     account: string;
@@ -101,11 +107,13 @@ export interface SquadMemberMovement {
     isCommander: boolean;
     isLocal: boolean;
     isEnemy: boolean;
+    inSquad: boolean;
     positions: [number, number][];
     downRanges: [number, number][];
     deadRanges: [number, number][];
     boonStates?: Record<number, [number, number][]>;
     healthPercents?: [number, number][];
+    skillCasts?: SkillCast[];
 }
 
 export interface MovementData {
@@ -114,6 +122,7 @@ export interface MovementData {
     inchToPixel: number;
     members: SquadMemberMovement[];
     boonIcons?: Record<number, { name: string; icon: string }>;
+    skillIcons?: Record<number, { name: string; icon: string }>;
 }
 
 // --- Extracted player-focused data ---

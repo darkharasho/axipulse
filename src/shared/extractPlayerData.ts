@@ -135,20 +135,44 @@ function buildTimeline(json: EiJson, player: EiPlayer, bucketSizeMs: number): Ti
 function buildMovementData(json: EiJson, localPlayer: EiPlayer): MovementData | null {
     const pollingRate = json.combatReplayMetaData?.pollingRate ?? 300;
 
+    // Build skill icon map first so we can filter casts to only renderable, user-pressable skills
+    const skillIcons: Record<number, { name: string; icon: string }> = {};
+    for (const [key, val] of Object.entries(json.skillMap ?? {})) {
+        const id = Number(key.replace('s', ''));
+        if (val.icon && !val.autoAttack) {
+            skillIcons[id] = { name: val.name, icon: val.icon };
+        }
+    }
+
     const members: SquadMemberMovement[] = [];
 
-    const enemyNames = new Set<string>();
+    const allyNames = new Set<string>();
     for (const p of json.players) {
         if (p.isFake || !p.combatReplayData?.positions?.length) continue;
-        const isEnemy = p.notInSquad;
-        if (isEnemy) enemyNames.add(p.name);
+        // Everyone in json.players is an ally (squad or non-squad friendly).
+        // Enemies only come from json.targets with enemyPlayer=true.
+        allyNames.add(p.name);
         let boonStates: Record<number, [number, number][]> | undefined;
-        if (!isEnemy && p.buffUptimes) {
+        if (p.buffUptimes) {
             boonStates = {};
             for (const buff of p.buffUptimes) {
                 if (!ALL_TRACKED_BUFF_IDS.has(buff.id) || !buff.states?.length) continue;
                 boonStates[buff.id] = buff.states;
             }
+        }
+        let skillCasts: { id: number; time: number; duration: number }[] | undefined;
+        if (p.rotation?.length) {
+            skillCasts = [];
+            for (const entry of p.rotation) {
+                if (!skillIcons[entry.id]) continue;
+                for (const cast of entry.skills) {
+                    // Trait procs are instant (duration 0). User-pressed skills, even instant ones,
+                    // register an animation duration. Keep negative IDs (dodge, weapon swap).
+                    if (entry.id > 0 && cast.duration <= 0) continue;
+                    skillCasts.push({ id: entry.id, time: cast.castTime, duration: cast.duration });
+                }
+            }
+            skillCasts.sort((a, b) => a.time - b.time);
         }
         members.push({
             name: p.name,
@@ -156,20 +180,22 @@ function buildMovementData(json: EiJson, localPlayer: EiPlayer): MovementData | 
             profession: p.profession,
             eliteSpec: p.elite_spec,
             group: p.group,
-            isCommander: !isEnemy && p.hasCommanderTag,
+            isCommander: p.hasCommanderTag,
             isLocal: p === localPlayer,
-            isEnemy,
+            isEnemy: false,
+            inSquad: !p.notInSquad,
             positions: p.combatReplayData!.positions!,
             downRanges: p.combatReplayData?.down ?? [],
             deadRanges: p.combatReplayData?.dead ?? [],
             boonStates,
-            healthPercents: !isEnemy ? p.healthPercents : undefined,
+            healthPercents: p.healthPercents,
+            skillCasts,
         });
     }
 
     for (const t of json.targets) {
         if (!t.enemyPlayer || t.isFake || !t.combatReplayData?.positions?.length) continue;
-        if (enemyNames.has(t.name)) continue;
+        if (allyNames.has(t.name)) continue;
         const specMatch = t.name.match(/^(.+?) pl-\d+$/);
         const specName = specMatch?.[1] ?? '';
         members.push({
@@ -181,6 +207,7 @@ function buildMovementData(json: EiJson, localPlayer: EiPlayer): MovementData | 
             isCommander: false,
             isLocal: false,
             isEnemy: true,
+            inSquad: false,
             positions: t.combatReplayData.positions,
             downRanges: t.combatReplayData.down ?? [],
             deadRanges: t.combatReplayData.dead ?? [],
@@ -198,7 +225,7 @@ function buildMovementData(json: EiJson, localPlayer: EiPlayer): MovementData | 
     }
 
     const inchToPixel = json.combatReplayMetaData?.inchToPixel ?? 1;
-    return { pollingRate, durationMs: json.durationMS, inchToPixel, members, boonIcons };
+    return { pollingRate, durationMs: json.durationMS, inchToPixel, members, boonIcons, skillIcons };
 }
 
 export function extractPlayerFightData(json: EiJson, fightNumber: number, bucketSizeMs: number): PlayerFightData {
