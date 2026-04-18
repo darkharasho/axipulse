@@ -1,7 +1,7 @@
 # Release Notes
 
-Version v0.1.4 — April 17, 2026
+Version v0.1.5 — April 17, 2026
 
 ## Fixes
 
-Fixed the taskbar icon on Windows light theme. The black icon wasn't loading in packaged builds because the icon files live in `dist-react/img/` after the Vite build, not `public/img/` — so Electron was silently falling back to the white exe icon. Light-theme users would see an invisible icon on their taskbar.
+The Windows taskbar icon now updates correctly when you switch between light and dark mode while the app is running. Previously the icon was set once at startup and never changed, so switching themes left you with the wrong icon until a restart. Also fixed icon rendering quality on Windows by providing explicit multi-size image data the taskbar expects.

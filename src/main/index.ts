@@ -53,6 +53,20 @@ function getIconPath(): string {
     return path.join(imgDir, `axipulse-${variant}.png`);
 }
 
+function getAppIcon(): Electron.NativeImage {
+    const raw = nativeImage.createFromPath(getIconPath());
+    if (process.platform === 'win32') {
+        const sizes = [16, 32, 48, 64, 128, 256];
+        const buffers = sizes.map(s => raw.resize({ width: s, height: s }).toPNG());
+        const multi = nativeImage.createEmpty();
+        for (let i = 0; i < sizes.length; i++) {
+            multi.addRepresentation({ width: sizes[i], height: sizes[i], buffer: buffers[i], scaleFactor: 1.0 });
+        }
+        return multi;
+    }
+    return raw;
+}
+
 function createWindow(): void {
     const savedBounds = store.get('windowBounds') as { width: number; height: number; x: number; y: number } | undefined;
     mainWindow = new BrowserWindow({
@@ -65,13 +79,17 @@ function createWindow(): void {
         frame: false,
         titleBarStyle: 'hidden',
         backgroundColor: '#090b10',
-        icon: getIconPath(),
+        icon: getAppIcon(),
         webPreferences: {
             contextIsolation: true,
             nodeIntegration: false,
             preload: path.join(__dirname, '../preload/index.js'),
         },
     });
+
+    // Explicitly set icon after creation — the constructor `icon` alone doesn't
+    // update the taskbar icon for frameless windows on Windows.
+    mainWindow.setIcon(getAppIcon());
 
     mainWindow.on('ready-to-show', () => {
         mainWindow?.show();
@@ -315,6 +333,11 @@ app.whenReady().then(() => {
     });
 
     createWindow();
+
+    nativeTheme.on('updated', () => {
+        mainWindow?.setIcon(getAppIcon());
+    });
+
     setupLogWatcher();
 
     const savedLogDir = store.get('logDirectory') as string | undefined;
