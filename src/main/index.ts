@@ -47,7 +47,10 @@ function getIconPath(): string {
     } else {
         variant = nativeTheme.shouldUseDarkColors ? 'white' : 'black';
     }
-    return path.join(__dirname, `../../public/img/axipulse-${variant}.png`);
+    const imgDir = app.isPackaged
+        ? path.join(__dirname, '../../dist-react/img')
+        : path.join(__dirname, '../../public/img');
+    return path.join(imgDir, `axipulse-${variant}.png`);
 }
 
 function createWindow(): void {
