@@ -1,7 +1,7 @@
 # Release Notes
 
-Version v0.1.5 — April 17, 2026
+Version v0.1.6 — April 18, 2026
 
-## Fixes
+## Timeline Inspector always visible
 
-The Windows taskbar icon now updates correctly when you switch between light and dark mode while the app is running. Previously the icon was set once at startup and never changed, so switching themes left you with the wrong icon until a restart. Also fixed icon rendering quality on Windows by providing explicit multi-size image data the taskbar expects.
+The inspector panel below the timeline graph now shows up immediately when you open a fight — no need to make a selection first. It defaults to showing data across the full fight duration, labeled "FULL FIGHT." Select a window on the graph and it'll scope down to that range as usual.
