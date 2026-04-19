@@ -59,13 +59,12 @@ export function TimelineView() {
                 onSelectionChange={setSelection}
                 selection={selection}
             />
-            {selection && (
-                <TimelineInspector
-                    data={currentFight.timeline}
-                    selection={selection}
-                    topDamageTakenSkills={currentFight.defense.topDamageTakenSkills}
-                />
-            )}
+            <TimelineInspector
+                data={currentFight.timeline}
+                selection={selection ?? { startMs: 0, endMs: currentFight.duration }}
+                topDamageTakenSkills={currentFight.defense.topDamageTakenSkills}
+                isFullFight={!selection}
+            />
         </div>
     );
 }
