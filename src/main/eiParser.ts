@@ -337,9 +337,11 @@ export class EiManager {
                 this.activeProcess = null;
                 if (code === 0) resolve();
                 else {
-                    // 0x80008083 / 2147516547 = Windows "application exec failure", typically .NET runtime missing
-                    const isDotnetMissing = process.platform !== 'linux' && (code === 2147516547 || code === -2147450749);
-                    if (isDotnetMissing) {
+                    // HRESULT codes (high bit set, >= 0x80000000) on Windows indicate the process failed to
+                    // start at the OS level — the most common cause is a missing .NET runtime.
+                    // Normal EI exit codes are small positive integers (1, 2, ...).
+                    const isHresult = process.platform !== 'linux' && typeof code === 'number' && (code >= 0x80000000 || code < 0);
+                    if (isHresult) {
                         reject(new Error(
                             '.NET 8.0 Runtime is required but not installed. ' +
                             'Download it from: https://dotnet.microsoft.com/download/dotnet/8.0 ' +
