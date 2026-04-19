@@ -50,7 +50,20 @@ export function getDodges(player: EiPlayer): number {
 }
 
 export function getDownContribution(player: EiPlayer): number {
-    return player.statsAll[0]?.downContribution ?? 0;
+    // statsAll[0] is authoritative when populated. In WvW, EI may use an aggregate
+    // "Enemy Players" target that leaves this field at 0 — fall back to summing
+    // downContribution across all entries in totalDamageDist.
+    const fromStatsAll = player.statsAll[0]?.downContribution ?? 0;
+    if (fromStatsAll > 0) return fromStatsAll;
+
+    let total = 0;
+    for (const phase of player.totalDamageDist ?? []) {
+        if (!phase) continue;
+        for (const entry of phase) {
+            total += entry.downContribution ?? 0;
+        }
+    }
+    return total;
 }
 
 export function getIncomingCC(player: EiPlayer): number {
