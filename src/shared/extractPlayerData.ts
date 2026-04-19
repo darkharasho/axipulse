@@ -45,7 +45,39 @@ function computeDistanceToTagStats(
     if (player.hasCommanderTag) return null;
     const buckets = timeline.distanceToTag;
     if (buckets.length === 0) return null;
-    const values = buckets.map(b => b.value);
+
+    // Exclude dead periods and the subsequent runback. After respawn, keep
+    // excluding until the distance-to-tag returns to within 50% of the
+    // pre-death value (floor 400 units), so the runback leg doesn't inflate
+    // the average. dead[] entries are [startMs, endMs] pairs.
+    const deadRanges = player.combatReplayData?.dead ?? [];
+    let effective = buckets;
+    if (deadRanges.length > 0) {
+        const excluded = new Set<number>();
+        for (const [s, e] of deadRanges) {
+            const preDeathBucket = buckets.filter(b => b.time < s).at(-1);
+            const refDist = preDeathBucket?.value ?? 0;
+            const returnThreshold = Math.max(refDist * 1.5, 400);
+            let inExcluded = false;
+            for (let i = 0; i < buckets.length; i++) {
+                const b = buckets[i];
+                if (b.time >= s && b.time <= e) {
+                    excluded.add(i);
+                    inExcluded = true;
+                } else if (inExcluded && b.time > e) {
+                    if (b.value <= returnThreshold) {
+                        inExcluded = false;
+                    } else {
+                        excluded.add(i);
+                    }
+                }
+            }
+        }
+        const filtered = buckets.filter((_, i) => !excluded.has(i));
+        effective = filtered.length > 0 ? filtered : buckets;
+    }
+
+    const values = effective.map(b => b.value);
     const sum = values.reduce((a, b) => a + b, 0);
     const average = Math.round(sum / values.length);
     const sorted = [...values].sort((a, b) => a - b);
