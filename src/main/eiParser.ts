@@ -336,7 +336,19 @@ export class EiManager {
                 clearTimeout(timeout);
                 this.activeProcess = null;
                 if (code === 0) resolve();
-                else reject(new Error(`EI CLI exited with code ${code}`));
+                else {
+                    // 0x80008083 / 2147516547 = Windows "application exec failure", typically .NET runtime missing
+                    const isDotnetMissing = process.platform !== 'linux' && (code === 2147516547 || code === -2147450749);
+                    if (isDotnetMissing) {
+                        reject(new Error(
+                            '.NET 8.0 Runtime is required but not installed. ' +
+                            'Download it from: https://dotnet.microsoft.com/download/dotnet/8.0 ' +
+                            '(install the ".NET Runtime 8.0" or ".NET Desktop Runtime 8.0")'
+                        ));
+                    } else {
+                        reject(new Error(`EI CLI exited with code ${code}`));
+                    }
+                }
             });
             proc.on('error', (err) => {
                 clearTimeout(timeout);
