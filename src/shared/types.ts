@@ -12,6 +12,8 @@ export interface EiPlayer {
     hasCommanderTag: boolean;
     notInSquad: boolean;
     isFake: boolean;
+    teamID?: number;
+    teamId?: number;
     activeTimes: number[];
     dpsAll: { damage: number; dps: number; breakbarDamage: number }[];
     statsAll: { downContribution: number; distToCom: number; stackDist: number; appliedCrowdControl: number; appliedCrowdControlDuration: number }[];
@@ -58,6 +60,8 @@ export interface EiTarget {
     damage1S?: number[][];
     enemyPlayer: boolean;
     isFake: boolean;
+    teamID?: number;
+    teamId?: number;
     profession?: string;
     combatReplayData?: {
         positions?: [number, number][];
@@ -155,6 +159,7 @@ export interface PlayerFightData {
     movementData: MovementData | null;
     roleClassification: RoleClassification;
     distanceToTag: { average: number; median: number } | null;
+    fightComposition: FightComposition;
 }
 
 export interface DamageStats {
@@ -259,6 +264,19 @@ export interface SquadContext {
     cleanseRank: number;
     healingRank: number;
     damageTakenRank: number;
+}
+
+export interface FightComposition {
+    squadCount: number;
+    allyCount: number;
+    enemyCount: number;
+    /** Top 3 enemy teams sorted by count descending */
+    teamBreakdown: { teamId: string; count: number }[];
+    /** elite_spec or profession → count */
+    squadClassCounts: Record<string, number>;
+    allyClassCounts: Record<string, number>;
+    /** teamId → (elite_spec or profession → count) */
+    enemyClassCountsByTeam: Record<string, Record<string, number>>;
 }
 
 export interface FightHistoryEntry {
