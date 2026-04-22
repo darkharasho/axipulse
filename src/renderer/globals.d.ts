@@ -38,5 +38,8 @@ interface Window {
         eiCheckDotnet: () => Promise<{ available: boolean; managed: boolean; version?: string }>;
         eiInstallDotnet: () => Promise<{ available: boolean; managed: boolean; version?: string }>;
         onEiDotnetInstallOutput: (callback: (line: string) => void) => () => void;
+        troubleshootCheckLogDir: (dir: string) => Promise<{ configured: boolean; exists: boolean; count: number }>;
+        troubleshootCheckArcdps: () => Promise<{ found: boolean; wvwEnabled: boolean | null; configPath: string | null }>;
+        troubleshootParseTest: () => Promise<{ success: boolean; logPath?: string; error?: string }>;
     };
 }

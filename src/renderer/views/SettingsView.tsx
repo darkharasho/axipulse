@@ -1,7 +1,8 @@
 // src/renderer/views/SettingsView.tsx
 import { useEffect, useState } from 'react';
 import { useAppStore } from '../store';
-import { FolderOpen, Download, RefreshCw, Trash2, CheckCircle, AlertCircle, Loader2, Dices, ExternalLink } from 'lucide-react';
+import { FolderOpen, Download, RefreshCw, Trash2, CheckCircle, AlertCircle, Loader2, Dices, ExternalLink, Stethoscope } from 'lucide-react';
+import { TroubleshootModal } from './TroubleshootModal';
 
 const IS_DEV = import.meta.env.DEV;
 
@@ -76,6 +77,7 @@ export function SettingsView({ onOpenDotnetModal }: Props) {
     const [devMinFileSize, setDevMinFileSize] = useState<number>(0);
     const [debugParsing, setDebugParsing] = useState(false);
     const [debugResult, setDebugResult] = useState<{ ok: boolean; msg: string } | null>(null);
+    const [troubleshootOpen, setTroubleshootOpen] = useState(false);
     const [dotnetStatus, setDotnetStatus] = useState<{ available: boolean; managed: boolean; version?: string } | null>(null);
     useEffect(() => {
         window.electronAPI?.getSettings().then(s => {
@@ -238,19 +240,19 @@ export function SettingsView({ onOpenDotnetModal }: Props) {
                     </div>
                 </SectionCard>
 
-                {/* Debug */}
-                <SectionCard label="Debug">
+                {/* Troubleshooting */}
+                <SectionCard label="Troubleshooting">
                     <p className="text-[11px] mb-3" style={{ color: 'var(--text-secondary)' }}>
-                        Parse a random log from your directory to test the full pipeline — Elite Insights, .NET, and parsing output.
+                        Run a step-by-step check of your setup — log directory, arcdps WvW logging, Elite Insights, .NET, and a live parse test.
                     </p>
                     <div className="flex items-center gap-3">
+                        <Btn onClick={() => setTroubleshootOpen(true)} variant="primary">
+                            <Stethoscope className="w-3.5 h-3.5" /> Run Troubleshooter
+                        </Btn>
                         <Btn onClick={handleDebugParse} disabled={debugParsing || !logDirectory} variant="ghost">
                             {debugParsing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Dices className="w-3 h-3" />}
                             Parse Random Log
                         </Btn>
-                        {!logDirectory && (
-                            <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Set a log directory first</span>
-                        )}
                     </div>
                     {debugResult && (
                         <div className="mt-2.5 flex items-start gap-1.5 text-[11px]" style={{ color: debugResult.ok ? 'var(--status-success)' : 'var(--status-error)' }}>
@@ -261,6 +263,8 @@ export function SettingsView({ onOpenDotnetModal }: Props) {
                         </div>
                     )}
                 </SectionCard>
+
+                {troubleshootOpen && <TroubleshootModal onClose={() => setTroubleshootOpen(false)} />}
 
                 {/* Links */}
                 <SectionCard label="Links">

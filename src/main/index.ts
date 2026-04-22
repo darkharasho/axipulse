@@ -7,6 +7,7 @@ import Store from 'electron-store'
 import { LogWatcher } from './watcher'
 import { EiManager, DEFAULT_EI_SETTINGS, EiParserSettings } from './eiParser'
 import { registerEiHandlers } from './handlers/eiHandlers'
+import { checkArcdps } from './arcdpsDetect'
 
 for (const stream of [process.stdout, process.stderr]) {
     stream?.on?.('error', (err: NodeJS.ErrnoException) => { if (err.code !== 'EPIPE') throw err; });
@@ -200,6 +201,63 @@ function setupIpcHandlers(): void {
             mainWindow?.webContents.send('parse-error', { logId, logPath, error: err?.message || 'Parse failed' });
             return { error: err?.message || 'Parse failed' };
         }
+    });
+
+    ipcMain.handle('troubleshoot:check-log-dir', async (_event, dir: string) => {
+        if (!dir) return { configured: false, exists: false, count: 0 };
+        try { await fs.promises.access(dir); } catch { return { configured: true, exists: false, count: 0 }; }
+        let found = false;
+        const walk = async (d: string, depth: number) => {
+            if (depth > 4 || found) return;
+            try {
+                const entries = await fs.promises.readdir(d, { withFileTypes: true });
+                for (const entry of entries) {
+                    if (found) return;
+                    if (entry.isDirectory()) await walk(path.join(d, entry.name), depth + 1);
+                    else if (/\.(evtc|zevtc)$/i.test(entry.name)) { found = true; return; }
+                }
+            } catch {}
+        };
+        await walk(dir, 0);
+        return { configured: true, exists: true, count: found ? 1 : 0 };
+    });
+
+    ipcMain.handle('troubleshoot:parse-test', async () => {
+        const logDir = store.get('logDirectory') as string | undefined;
+        if (!logDir || !fs.existsSync(logDir)) return { success: false, error: 'No log directory configured' };
+        if (!eiManager.isInstalled()) return { success: false, error: 'EI not installed' };
+        const minBytes = (store.get('devMinFileSize', 0) as number) * 1024;
+        const allFiles: string[] = [];
+        const walk = (d: string, depth: number) => {
+            if (depth > 4) return;
+            try {
+                for (const entry of fs.readdirSync(d, { withFileTypes: true })) {
+                    if (entry.isDirectory()) walk(path.join(d, entry.name), depth + 1);
+                    else if (/\.(evtc|zevtc)$/i.test(entry.name)) {
+                        const full = path.join(d, entry.name);
+                        if (minBytes === 0 || fs.statSync(full).size >= minBytes) allFiles.push(full);
+                    }
+                }
+            } catch {}
+        };
+        walk(logDir, 0);
+        if (allFiles.length === 0) return { success: false, error: 'No logs found' };
+        const logPath = allFiles[Math.floor(Math.random() * allFiles.length)];
+        const logId = `ts_${path.basename(logPath, path.extname(logPath))}`;
+        eiManager.setParseProgressCallback(() => {});
+        try {
+            await eiManager.parseLog(logPath, logId);
+            return { success: true, logPath };
+        } catch (err: any) {
+            return { success: false, error: err?.message ?? 'Parse failed' };
+        }
+    });
+
+    ipcMain.handle('troubleshoot:check-arcdps', () => {
+        return checkArcdps(process.platform, app.getPath('home'), {
+            readFile: (p) => { try { return fs.readFileSync(p, 'utf-8'); } catch { return null; } },
+            listDir: (p) => { try { return fs.readdirSync(p) as string[]; } catch { return []; } },
+        });
     });
 
     ipcMain.handle('open-external', async (_event, url: string) => {

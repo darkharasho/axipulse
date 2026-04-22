@@ -75,6 +75,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Dev tools
     devParseRandom: () => ipcRenderer.invoke('dev:parse-random'),
 
+    // Troubleshoot
+    troubleshootCheckLogDir: (dir: string) => ipcRenderer.invoke('troubleshoot:check-log-dir', dir),
+    troubleshootCheckArcdps: () => ipcRenderer.invoke('troubleshoot:check-arcdps'),
+    troubleshootParseTest: () => ipcRenderer.invoke('troubleshoot:parse-test'),
+
     // EI Management
     eiGetStatus: () => ipcRenderer.invoke('ei:get-status'),
     eiInstall: () => ipcRenderer.invoke('ei:install'),
