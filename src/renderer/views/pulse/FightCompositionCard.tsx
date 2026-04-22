@@ -77,8 +77,8 @@ export function FightCompositionCard({ composition }: { composition: FightCompos
                         onClick={() => toggle(g.key)}
                         className="flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-full transition-colors"
                         style={{
-                            border: `1px solid ${activeKey === g.key ? '#2a3550' : 'transparent'}`,
-                            background: activeKey === g.key ? 'rgba(255,255,255,0.06)' : 'transparent',
+                            border: `1px solid ${activeKey === g.key ? g.color : 'transparent'}`,
+                            background: activeKey === g.key ? 'rgba(255,255,255,0.08)' : 'transparent',
                             cursor: 'pointer',
                         }}
                     >
