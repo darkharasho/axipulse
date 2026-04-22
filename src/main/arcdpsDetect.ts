@@ -39,21 +39,26 @@ export function buildArcdpsCandidates(platform: string, homeDir: string, ops: Ar
         const p = path.win32;
         candidates.push(p.join(homeDir, 'Documents', 'Guild Wars 2', 'addons', 'arcdps', 'arcdps.ini'));
 
-        const drives = ['C', 'D', 'E', 'F', 'G'];
+        const drives = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
         const programDirs = ['Program Files (x86)', 'Program Files', 'Games', 'game'];
         for (const drive of drives) {
             for (const prog of programDirs) {
-                const gw2Dir = `${drive}:\\${prog}\\Guild Wars 2`;
-                candidates.push(p.join(gw2Dir, 'arcdps.ini'));
-                candidates.push(p.join(gw2Dir, 'addons', 'arcdps', 'arcdps.ini'));
+                for (const gw2Dir of [
+                    `${drive}:\\${prog}\\Guild Wars 2`,
+                    `${drive}:\\${prog}\\Guild Wars 2\\Guild Wars 2`,
+                ]) {
+                    candidates.push(p.join(gw2Dir, 'arcdps.ini'));
+                    candidates.push(p.join(gw2Dir, 'addons', 'arcdps', 'arcdps.ini'));
+                }
             }
         }
 
         const envPf = [process.env['PROGRAMFILES(X86)'], process.env['PROGRAMFILES']].filter(Boolean) as string[];
         for (const base of envPf) {
-            const gw2Dir = p.join(base, 'Guild Wars 2');
-            candidates.push(p.join(gw2Dir, 'arcdps.ini'));
-            candidates.push(p.join(gw2Dir, 'addons', 'arcdps', 'arcdps.ini'));
+            for (const gw2Dir of [p.join(base, 'Guild Wars 2'), p.join(base, 'Guild Wars 2', 'Guild Wars 2')]) {
+                candidates.push(p.join(gw2Dir, 'arcdps.ini'));
+                candidates.push(p.join(gw2Dir, 'addons', 'arcdps', 'arcdps.ini'));
+            }
         }
 
         for (const steamRoot of [

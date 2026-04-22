@@ -97,10 +97,18 @@ describe('buildArcdpsCandidates — win32', () => {
         expect(candidates).toContain('C:\\Program Files\\Guild Wars 2\\arcdps.ini');
     });
 
-    it('includes alternative drives (D, E)', () => {
+    it('includes all drive letters including B, D, E, Z', () => {
         const candidates = buildArcdpsCandidates('win32', home, noFiles());
+        expect(candidates).toContain('B:\\Program Files (x86)\\Guild Wars 2\\arcdps.ini');
         expect(candidates).toContain('D:\\Program Files (x86)\\Guild Wars 2\\arcdps.ini');
         expect(candidates).toContain('E:\\Games\\Guild Wars 2\\arcdps.ini');
+        expect(candidates).toContain('Z:\\Games\\Guild Wars 2\\arcdps.ini');
+    });
+
+    it('includes nested Guild Wars 2\\Guild Wars 2 install structure', () => {
+        const candidates = buildArcdpsCandidates('win32', home, noFiles());
+        expect(candidates).toContain('B:\\Program Files\\Guild Wars 2\\Guild Wars 2\\arcdps.ini');
+        expect(candidates).toContain('B:\\Program Files\\Guild Wars 2\\Guild Wars 2\\addons\\arcdps\\arcdps.ini');
     });
 
     it('includes addons subfolder variant', () => {
