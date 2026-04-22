@@ -1,5 +1,5 @@
 // src/shared/extractPlayerData.ts
-import type { EiJson, EiPlayer, PlayerFightData, TimelineData, TimelineBucket, SquadContext, MovementData, SquadMemberMovement, BuffStateEntry } from './types';
+import type { EiJson, EiPlayer, PlayerFightData, TimelineData, TimelineBucket, SquadContext, MovementData, SquadMemberMovement, BuffStateEntry, FightComposition } from './types';
 import { getDamage, getDps, getBreakbarDamage, getCleanses, getCleanseSelf, getStrips, getDamageTaken, getDeaths, getDowns, getDodges, getDownContribution, getIncomingCC, getIncomingStrips, getBlocked, getEvaded, getMissed, getInvulned, getInterrupted } from './dashboardMetrics';
 import { getHealingOutput, getBarrierOutput, getStabilityGeneration, getTopSkillDamage, getTopHealingSkills, getTopBarrierSkills, getTopDamageTakenSkills, getSquadRank, getDeathTimes, getDownTimes } from './combatMetrics';
 import { classifySquadRoles } from './classifyRole';
@@ -260,6 +260,62 @@ function buildMovementData(json: EiJson, localPlayer: EiPlayer): MovementData | 
     return { pollingRate, durationMs: json.durationMS, inchToPixel, members, boonIcons, skillIcons };
 }
 
+function buildFightComposition(json: EiJson): FightComposition {
+    const squadPlayers = json.players.filter(p => !p.notInSquad && !p.isFake);
+    const allyPlayers  = json.players.filter(p =>  p.notInSquad && !p.isFake);
+    const enemies      = json.targets.filter(t => t.enemyPlayer && !t.isFake);
+
+    const allyTeamIds = new Set<number>();
+    for (const p of squadPlayers) {
+        const id = p.teamID ?? p.teamId;
+        if (id != null) allyTeamIds.add(id);
+    }
+
+    const classKey = (spec: string, prof: string) => spec || prof;
+
+    const squadClassCounts: Record<string, number> = {};
+    for (const p of squadPlayers) {
+        const k = classKey(p.elite_spec, p.profession);
+        squadClassCounts[k] = (squadClassCounts[k] ?? 0) + 1;
+    }
+
+    const allyClassCounts: Record<string, number> = {};
+    for (const p of allyPlayers) {
+        const k = classKey(p.elite_spec, p.profession);
+        allyClassCounts[k] = (allyClassCounts[k] ?? 0) + 1;
+    }
+
+    const teamCountMap = new Map<string, number>();
+    const enemyClassCountsByTeam: Record<string, Record<string, number>> = {};
+    let filteredEnemyCount = 0;
+
+    for (const t of enemies) {
+        const rawId = t.teamID ?? t.teamId;
+        if (rawId != null && allyTeamIds.has(rawId)) continue;
+        filteredEnemyCount++;
+        const teamId = rawId != null ? String(rawId) : 'unknown';
+        teamCountMap.set(teamId, (teamCountMap.get(teamId) ?? 0) + 1);
+        if (!enemyClassCountsByTeam[teamId]) enemyClassCountsByTeam[teamId] = {};
+        const k = t.profession ?? 'Unknown';
+        enemyClassCountsByTeam[teamId][k] = (enemyClassCountsByTeam[teamId][k] ?? 0) + 1;
+    }
+
+    const teamBreakdown = Array.from(teamCountMap.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([teamId, count]) => ({ teamId, count }));
+
+    return {
+        squadCount: squadPlayers.length,
+        allyCount: allyPlayers.length,
+        enemyCount: filteredEnemyCount,
+        teamBreakdown,
+        squadClassCounts,
+        allyClassCounts,
+        enemyClassCountsByTeam,
+    };
+}
+
 export function extractPlayerFightData(json: EiJson, fightNumber: number, bucketSizeMs: number): PlayerFightData {
     const player = findLocalPlayer(json);
     const zone = json.fightName ?? json.zone ?? json.mapName ?? json.map ?? '';
@@ -359,5 +415,6 @@ export function extractPlayerFightData(json: EiJson, fightNumber: number, bucket
         movementData: buildMovementData(json, player),
         roleClassification,
         distanceToTag: distanceToTagStats,
+        fightComposition: buildFightComposition(json),
     };
 }
