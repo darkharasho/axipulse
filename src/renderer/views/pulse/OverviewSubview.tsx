@@ -108,7 +108,7 @@ export function OverviewSubview({ data }: { data: PlayerFightData }) {
                     index={5}
                 />
                 <DistanceToTagCard distanceToTag={distanceToTag} index={6} />
-                <FightCompositionCard composition={data.fightComposition} />
+                <FightCompositionCard composition={data.fightComposition} isSupport={isSupport} />
             </div>
         </div>
     );
@@ -154,7 +154,7 @@ function HeroBanner({ label, primaryValue, secondaryValue, secondaryLabel, rank,
                     </div>
                     <div
                         className="font-stat font-bold text-4xl leading-none mt-1"
-                        style={{ background: t.valueGradient, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
+                        style={{ background: t.valueGradient, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', WebkitTransform: 'translateZ(0)' }}
                     >
                         {primaryValue.toLocaleString()}
                     </div>

@@ -14,7 +14,13 @@ interface Group {
     classCounts: Record<string, number>;
 }
 
-export function FightCompositionCard({ composition }: { composition: FightComposition }) {
+const CARD_THEMES = {
+    support: { bg: 'rgba(16,185,129,0.04)', border: 'rgba(16,185,129,0.2)', label: '#34d399' },
+    damage:  { bg: 'rgba(239,68,68,0.04)',  border: 'rgba(239,68,68,0.2)',  label: '#f87171' },
+} as const;
+
+export function FightCompositionCard({ composition, isSupport }: { composition: FightComposition; isSupport?: boolean }) {
+    const theme = CARD_THEMES[isSupport ? 'support' : 'damage'];
     const [activeKey, setActiveKey] = useState<string | null>(null);
 
     const { squadCount, allyCount, enemyCount, teamBreakdown, squadClassCounts, allyClassCounts, enemyClassCountsByTeam } = composition;
@@ -46,11 +52,11 @@ export function FightCompositionCard({ composition }: { composition: FightCompos
             className="rounded-md p-2.5"
             style={{
                 gridColumn: '1 / -1',
-                background: 'rgba(239,68,68,0.04)',
-                border: '1px solid rgba(239,68,68,0.2)',
+                background: theme.bg,
+                border: `1px solid ${theme.border}`,
             }}
         >
-            <div className="text-[9px] uppercase tracking-[0.07em] mb-2" style={{ color: '#f87171' }}>
+            <div className="text-[9px] uppercase tracking-[0.07em] mb-2" style={{ color: theme.label }}>
                 Fight Composition
             </div>
 
