@@ -1,7 +1,7 @@
 // src/renderer/views/SettingsView.tsx
 import { useEffect, useState } from 'react';
 import { useAppStore } from '../store';
-import { FolderOpen, Download, RefreshCw, Trash2, CheckCircle, AlertCircle, Loader2, Dices, ExternalLink } from 'lucide-react';
+import { FolderOpen, Download, RefreshCw, Trash2, CheckCircle, AlertCircle, Loader2, Dices, ExternalLink, Bug } from 'lucide-react';
 
 const IS_DEV = import.meta.env.DEV;
 
@@ -14,6 +14,8 @@ export function SettingsView() {
     const setBucketSizeMs = useAppStore(s => s.setBucketSizeMs);
     const [eiProgress, setEiProgress] = useState<string>('');
     const [devMinFileSize, setDevMinFileSize] = useState<number>(0);
+    const [debugParsing, setDebugParsing] = useState(false);
+    const [debugResult, setDebugResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
     useEffect(() => {
         window.electronAPI?.getSettings().then(s => {
@@ -29,6 +31,22 @@ export function SettingsView() {
 
         return () => { cleanupProgress?.(); cleanupStatus?.(); };
     }, []);
+
+    const handleDebugParse = async () => {
+        setDebugParsing(true);
+        setDebugResult(null);
+        try {
+            const result = await window.electronAPI?.devParseRandom();
+            if (result?.success) {
+                setDebugResult({ ok: true, msg: `Parsed: ${result.logPath?.split(/[\\/]/).pop()}` });
+            } else {
+                setDebugResult({ ok: false, msg: result?.error ?? 'Unknown error' });
+            }
+        } catch (err: any) {
+            setDebugResult({ ok: false, msg: err?.message ?? 'Failed' });
+        }
+        setDebugParsing(false);
+    };
 
     const handleBrowse = async () => {
         const dir = await window.electronAPI?.selectDirectory();
@@ -136,6 +154,37 @@ export function SettingsView() {
                         </button>
                     ))}
                 </div>
+            </section>
+
+            {/* Debug */}
+            <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-[color:var(--text-muted)] mb-2 flex items-center gap-1.5">
+                    <Bug className="w-3.5 h-3.5" /> Debug
+                </h3>
+                <p className="text-[11px] text-[color:var(--text-secondary)] mb-2">
+                    Parse a random log from your log directory to test the full pipeline (Elite Insights, .NET, etc.).
+                </p>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={handleDebugParse}
+                        disabled={debugParsing || !logDirectory}
+                        className="flex items-center gap-1.5 px-3 py-1 text-[11px] rounded transition-colors bg-white/5 border border-white/10 text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:border-white/20 disabled:opacity-40"
+                    >
+                        {debugParsing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Dices className="w-3 h-3" />}
+                        Parse Random Log
+                    </button>
+                    {!logDirectory && (
+                        <span className="text-[11px] text-[color:var(--text-muted)]">Set a log directory first</span>
+                    )}
+                </div>
+                {debugResult && (
+                    <div className={`mt-2 flex items-start gap-1.5 text-[11px] ${debugResult.ok ? 'text-[color:var(--status-success)]' : 'text-[color:var(--status-error)]'}`}>
+                        {debugResult.ok
+                            ? <CheckCircle className="w-3 h-3 mt-0.5 shrink-0" />
+                            : <AlertCircle className="w-3 h-3 mt-0.5 shrink-0" />}
+                        <span className="break-all">{debugResult.msg}</span>
+                    </div>
+                )}
             </section>
 
             {/* Links */}

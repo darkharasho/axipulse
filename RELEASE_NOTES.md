@@ -1,7 +1,7 @@
 # Release Notes
 
-Version v0.1.9 — April 18, 2026
+Version v0.1.10 — April 19, 2026
 
-## Fix for Windows Parse Failures
+## Debug Tools in Settings
 
-If the EI CLI couldn't start because .NET 8.0 wasn't installed, you'd see a cryptic error code instead of anything useful. Now it tells you what's wrong and links you directly to the .NET 8.0 download page. The previous fix (v0.1.8) only caught one specific error code — this one covers the full range of Windows startup failures so it should fire reliably.
+There's now a **Debug** section in Settings with a "Parse Random Log" button. It runs a random log from your configured directory through the full pipeline — Elite Insights, .NET, the works — and shows you exactly what happens. Useful if you're setting up for the first time and something isn't working (missing .NET, bad EI install, etc.) and you want a quick way to surface the error without having to wait for a real log.

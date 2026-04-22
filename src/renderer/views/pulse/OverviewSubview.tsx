@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import type { PlayerFightData } from '../../../shared/types';
 import { StatCard } from '../StatCard';
+import { FightCompositionCard } from './FightCompositionCard';
 
 export function OverviewSubview({ data }: { data: PlayerFightData }) {
     const { damage, defense, support, squadContext, roleClassification, distanceToTag } = data;
@@ -107,6 +108,7 @@ export function OverviewSubview({ data }: { data: PlayerFightData }) {
                     index={5}
                 />
                 <DistanceToTagCard distanceToTag={distanceToTag} index={6} />
+                <FightCompositionCard composition={data.fightComposition} isSupport={isSupport} />
             </div>
         </div>
     );
@@ -138,9 +140,9 @@ function HeroBanner({ label, primaryValue, secondaryValue, secondaryLabel, rank,
     const t = BANNER_THEMES[theme];
     return (
         <motion.div
-            initial={{ opacity: 0, scale: 0.97 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
             className="rounded-lg p-4 relative overflow-hidden"
             style={{ background: t.gradient }}
         >
