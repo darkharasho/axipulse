@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import type { PlayerFightData } from '../../../shared/types';
 import { StatCard } from '../StatCard';
+import { FightCompositionCard } from './FightCompositionCard';
 
 export function OverviewSubview({ data }: { data: PlayerFightData }) {
     const { damage, defense, support, squadContext, roleClassification, distanceToTag } = data;
@@ -107,6 +108,7 @@ export function OverviewSubview({ data }: { data: PlayerFightData }) {
                     index={5}
                 />
                 <DistanceToTagCard distanceToTag={distanceToTag} index={6} />
+                <FightCompositionCard composition={data.fightComposition} />
             </div>
         </div>
     );
