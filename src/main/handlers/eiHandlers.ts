@@ -104,4 +104,27 @@ export function registerEiHandlers(opts: EiHandlerOptions) {
     ipcMain.on('ei:set-auto-manage', (_event, enabled: boolean) => {
         store.set('autoManageEi', enabled);
     });
+
+    ipcMain.handle('ei:check-dotnet', async () => {
+        const mgr = getEiManager();
+        return mgr.checkDotnet();
+    });
+
+    ipcMain.handle('ei:install-dotnet', async () => {
+        const mgr = getEiManager();
+        const win = getWindow();
+        mgr.setProgressCallback((progress) => {
+            win?.webContents.send('ei:download-progress', progress);
+        });
+        mgr.setParseProgressCallback((line) => {
+            win?.webContents.send('ei:dotnet-install-output', line);
+        });
+        try {
+            await mgr.ensureDotnet();
+            const result = await mgr.checkDotnet();
+            return result;
+        } catch (err: any) {
+            throw new Error(err?.message || 'Failed to install .NET');
+        }
+    });
 }

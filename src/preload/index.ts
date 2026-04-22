@@ -94,4 +94,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('ei:status-changed', (_event, value) => callback(value))
         return () => ipcRenderer.removeAllListeners('ei:status-changed')
     },
+    eiCheckDotnet: () => ipcRenderer.invoke('ei:check-dotnet'),
+    eiInstallDotnet: () => ipcRenderer.invoke('ei:install-dotnet'),
+    onEiDotnetInstallOutput: (callback: (line: string) => void) => {
+        ipcRenderer.on('ei:dotnet-install-output', (_event, value) => callback(value))
+        return () => ipcRenderer.removeAllListeners('ei:dotnet-install-output')
+    },
 })

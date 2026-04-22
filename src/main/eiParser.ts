@@ -91,12 +91,17 @@ interface VersionsJson {
 
 const GITHUB_RELEASES_API = 'https://api.github.com/repos/baaron4/GW2-Elite-Insights-Parser/releases/latest';
 const DOTNET_INSTALL_URL = 'https://dot.net/v1/dotnet-install.sh';
+const DOTNET_INSTALL_PS1_URL = 'https://dot.net/v1/dotnet-install.ps1';
 const CLI_ZIP_ASSET = 'GW2EICLI.zip';
 const EI_CLI_DLL = 'GuildWars2EliteInsights-CLI.dll';
 const EI_CLI_EXE = 'GuildWars2EliteInsights-CLI.exe';
 
 type ProgressCallback = (progress: { stage: string; percent?: number }) => void;
 type ParseProgressCallback = (line: string) => void;
+
+function getPlatform(): NodeJS.Platform {
+    return (process.env.MOCK_PLATFORM as NodeJS.Platform) || process.platform;
+}
 
 export class EiManager {
     private baseDir: string;
@@ -119,7 +124,7 @@ export class EiManager {
     }
 
     isInstalled(): boolean {
-        const isLinux = process.platform === 'linux';
+        const isLinux = getPlatform() === 'linux';
         const binaryExists = isLinux
             ? fs.existsSync(path.join(this.cliDir, EI_CLI_DLL))
             : fs.existsSync(path.join(this.cliDir, EI_CLI_EXE));
@@ -167,11 +172,67 @@ export class EiManager {
         }
     }
 
+    async checkDotnet(): Promise<{ available: boolean; managed: boolean; version?: string }> {
+        if (process.env.MOCK_DOTNET_MISSING === '1') return { available: false, managed: false };
+
+        // Managed dotnet bundled by EI install — binary existence is sufficient,
+        // since dotnet-install.sh installs runtime-only (no SDK), so --version would fail.
+        const localExe = path.join(this.dotnetDir, getPlatform() === 'win32' ? 'dotnet.exe' : 'dotnet');
+        if (fs.existsSync(localExe)) {
+            const version = this.readVersions().dotnet || undefined;
+            return { available: true, managed: true, version };
+        }
+
+        // System dotnet: use --list-runtimes which works with runtime-only installs.
+        // dotnet --version requires the SDK and fails on runtime-only setups.
+        const systemCandidates = [
+            'dotnet',
+            '/usr/bin/dotnet',
+            '/usr/local/bin/dotnet',
+            '/usr/share/dotnet/dotnet',
+            path.join(os.homedir(), '.dotnet', 'dotnet'),
+        ];
+        for (const candidate of systemCandidates) {
+            try {
+                const version = await this.runDotnetListRuntimes(candidate);
+                if (version) return { available: true, managed: false, version };
+            } catch { /* try next */ }
+        }
+        return { available: false, managed: false };
+    }
+
+    private runDotnetListRuntimes(cmd: string): Promise<string | null> {
+        return new Promise((resolve, reject) => {
+            const proc = spawn(cmd, ['--list-runtimes'], { stdio: ['ignore', 'pipe', 'pipe'] });
+            let out = '';
+            proc.stdout?.on('data', (d: Buffer) => { out += d.toString(); });
+            proc.on('close', (code) => {
+                if (code !== 0) { reject(new Error('--list-runtimes failed')); return; }
+                // Lines look like: "Microsoft.NETCore.App 8.0.16 [/usr/share/dotnet/shared/...]"
+                const match = out.split('\n')
+                    .map(l => l.match(/^Microsoft\.NETCore\.App (\d+\.\S+)/))
+                    .find(m => m && parseInt(m[1], 10) >= 8);
+                resolve(match ? match[1] : null);
+            });
+            proc.on('error', reject);
+        });
+    }
+
+    async ensureDotnet(): Promise<void> {
+        fs.mkdirSync(this.baseDir, { recursive: true });
+        fs.mkdirSync(this.dotnetDir, { recursive: true });
+        if (getPlatform() === 'linux') {
+            await this.installDotnetLinux();
+        } else {
+            await this.installDotnetWindows();
+        }
+    }
+
     async install(): Promise<void> {
         fs.mkdirSync(this.baseDir, { recursive: true });
         fs.mkdirSync(this.cliDir, { recursive: true });
         await this.installCli();
-        if (process.platform === 'linux') {
+        if (getPlatform() === 'linux') {
             fs.mkdirSync(this.dotnetDir, { recursive: true });
             await this.installDotnetLinux();
         }
@@ -225,11 +286,68 @@ export class EiManager {
         this.emitProgress('.NET installed');
     }
 
+    async installDotnetWindows(): Promise<void> {
+        if (process.platform !== 'win32') {
+            await this.mockInstallDotnetWindows();
+            return;
+        }
+        this.emitProgress('Downloading .NET install script');
+        const scriptPath = path.join(this.baseDir, 'dotnet-install.ps1');
+        await this.downloadFile(DOTNET_INSTALL_PS1_URL, scriptPath);
+        this.emitProgress('Installing .NET 8.0 runtime');
+        await new Promise<void>((resolve, reject) => {
+            const proc = spawn('powershell', [
+                '-ExecutionPolicy', 'Bypass',
+                '-File', scriptPath,
+                '-Channel', '8.0',
+                '-Runtime', 'dotnet',
+                '-InstallDir', this.dotnetDir,
+            ], { stdio: ['ignore', 'pipe', 'pipe'] });
+            proc.stdout?.on('data', (data: Buffer) => {
+                if (this.parseProgressCallback) this.parseProgressCallback(data.toString());
+            });
+            proc.stderr?.on('data', (data: Buffer) => {
+                if (this.parseProgressCallback) this.parseProgressCallback(data.toString());
+            });
+            proc.on('close', (code) => {
+                if (code === 0) resolve();
+                else reject(new Error(`dotnet-install.ps1 exited with code ${code}`));
+            });
+            proc.on('error', reject);
+        });
+        try { fs.unlinkSync(scriptPath); } catch { /* ignore */ }
+        const versions = this.readVersions();
+        this.saveVersions({ ...versions, dotnet: '8.0', lastChecked: Date.now() });
+        this.emitProgress('.NET installed');
+    }
+
+    private async mockInstallDotnetWindows(): Promise<void> {
+        const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
+        this.emitProgress('Downloading .NET install script');
+        await delay(700);
+        this.emitProgress('Installing .NET 8.0 runtime');
+        const lines = [
+            'dotnet-install: Determining latest release channel 8.0.',
+            'dotnet-install: Latest version resolved: 8.0.16',
+            'dotnet-install: Downloading link: https://builds.dotnet.microsoft.com/dotnet/Runtime/8.0.16/dotnet-runtime-8.0.16-win-x64.zip',
+            'dotnet-install: Extracting zip...',
+            'dotnet-install: Adding to current process PATH: C:\\Users\\user\\AppData\\Local\\Microsoft\\dotnet',
+            'dotnet-install: Installation finished successfully.',
+        ];
+        for (const line of lines) {
+            if (this.parseProgressCallback) this.parseProgressCallback(line + '\n');
+            await delay(500);
+        }
+        const versions = this.readVersions();
+        this.saveVersions({ ...versions, dotnet: '8.0', lastChecked: Date.now() });
+        this.emitProgress('.NET installed');
+    }
+
     async reinstall(): Promise<void> {
         if (fs.existsSync(this.cliDir)) {
             fs.rmSync(this.cliDir, { recursive: true, force: true });
         }
-        if (process.platform === 'linux' && fs.existsSync(this.dotnetDir)) {
+        if (getPlatform() === 'linux' && fs.existsSync(this.dotnetDir)) {
             fs.rmSync(this.dotnetDir, { recursive: true, force: true });
         }
         if (fs.existsSync(this.versionsPath)) {
@@ -307,18 +425,23 @@ export class EiManager {
 
     private runCli(confPath: string, logPath: string): Promise<void> {
         return new Promise((resolve, reject) => {
-            const isLinux = process.platform === 'linux';
+            const isLinux = getPlatform() === 'linux';
             let cmd: string;
             let args: string[];
+            let spawnEnv: NodeJS.ProcessEnv | undefined;
             if (isLinux) {
                 cmd = path.join(this.dotnetDir, 'dotnet');
                 args = [path.join(this.cliDir, EI_CLI_DLL), '-c', confPath, logPath];
             } else {
                 cmd = path.join(this.cliDir, EI_CLI_EXE);
                 args = ['-c', confPath, logPath];
+                const localDotnet = path.join(this.dotnetDir, 'dotnet.exe');
+                if (fs.existsSync(localDotnet)) {
+                    spawnEnv = { ...process.env, DOTNET_ROOT: this.dotnetDir };
+                }
             }
 
-            const proc = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+            const proc = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], env: spawnEnv });
             this.activeProcess = proc;
 
             const timeout = setTimeout(() => {

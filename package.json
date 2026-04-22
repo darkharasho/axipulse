@@ -13,6 +13,8 @@
         "dev": "concurrently \"npm run dev:electron\" \"npm run dev:react\"",
         "dev:react": "cross-env NODE_OPTIONS=--max-old-space-size=6144 vite",
         "dev:electron": "cross-env NODE_OPTIONS=--max-old-space-size=6144 VITE_DEV_SERVER_URL=http://localhost:5173 wait-on tcp:5173 && tsc -p electron/tsconfig.json && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
+        "dev:dotnet-missing": "cross-env MOCK_DOTNET_MISSING=1 npm run dev",
+        "dev:mock-win": "cross-env MOCK_PLATFORM=win32 MOCK_DOTNET_MISSING=1 npm run dev",
         "dev:update": "cross-env FAKE_UPDATE=none npm run dev",
         "dev:update:available": "cross-env FAKE_UPDATE=available npm run dev",
         "dev:update:error": "cross-env FAKE_UPDATE=error npm run dev",

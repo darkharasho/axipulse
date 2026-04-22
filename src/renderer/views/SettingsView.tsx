@@ -5,7 +5,11 @@ import { FolderOpen, Download, RefreshCw, Trash2, CheckCircle, AlertCircle, Load
 
 const IS_DEV = import.meta.env.DEV;
 
-export function SettingsView() {
+interface Props {
+    onOpenDotnetModal?: () => void;
+}
+
+export function SettingsView({ onOpenDotnetModal }: Props) {
     const logDirectory = useAppStore(s => s.logDirectory);
     const setLogDirectory = useAppStore(s => s.setLogDirectory);
     const eiStatus = useAppStore(s => s.eiStatus);
@@ -16,6 +20,7 @@ export function SettingsView() {
     const [devMinFileSize, setDevMinFileSize] = useState<number>(0);
     const [debugParsing, setDebugParsing] = useState(false);
     const [debugResult, setDebugResult] = useState<{ ok: boolean; msg: string } | null>(null);
+    const [dotnetStatus, setDotnetStatus] = useState<{ available: boolean; managed: boolean; version?: string } | null>(null);
 
     useEffect(() => {
         window.electronAPI?.getSettings().then(s => {
@@ -23,6 +28,7 @@ export function SettingsView() {
             if (s.devMinFileSize) setDevMinFileSize(s.devMinFileSize);
         });
         window.electronAPI?.eiGetStatus().then(setEiStatus);
+        window.electronAPI?.eiCheckDotnet().then(setDotnetStatus).catch(() => {});
 
         const cleanupProgress = window.electronAPI?.onEiDownloadProgress((p) => {
             setEiProgress(p.stage + (p.percent != null ? ` (${p.percent}%)` : ''));
@@ -131,6 +137,46 @@ export function SettingsView() {
                                 <Trash2 className="w-3 h-3" /> Uninstall
                             </button>
                         </>
+                    )}
+                </div>
+
+                <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: 'var(--border-subtle)' }}>
+                    <div>
+                        <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>.NET Runtime</span>
+                        {dotnetStatus === null && (
+                            <div className="flex items-center gap-1 mt-0.5 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                                <Loader2 className="w-3 h-3 animate-spin" /> Checking...
+                            </div>
+                        )}
+                        {dotnetStatus?.available && (
+                            <div className="flex items-center gap-1 mt-0.5 text-[11px]" style={{ color: 'var(--status-success)' }}>
+                                <CheckCircle className="w-3 h-3" />
+                                {dotnetStatus.version ? `v${dotnetStatus.version}` : 'Available'}
+                                {dotnetStatus.managed && <span style={{ color: 'var(--text-muted)' }}> — managed</span>}
+                            </div>
+                        )}
+                        {dotnetStatus && !dotnetStatus.available && (
+                            <div className="flex items-center gap-1 mt-0.5 text-[11px]" style={{ color: 'var(--status-warning)' }}>
+                                <AlertCircle className="w-3 h-3" /> Not found
+                            </div>
+                        )}
+                    </div>
+                    {dotnetStatus && !dotnetStatus.available && onOpenDotnetModal && (
+                        <button
+                            onClick={onOpenDotnetModal}
+                            className="flex items-center gap-1 px-2.5 py-1 text-[11px] rounded transition-colors bg-[color:var(--accent-bg)] text-[color:var(--brand-primary)] hover:bg-[color:var(--accent-bg-strong)]"
+                        >
+                            <Download className="w-3 h-3" /> Setup .NET
+                        </button>
+                    )}
+                    {dotnetStatus?.available && (
+                        <button
+                            onClick={() => window.electronAPI?.eiCheckDotnet().then(setDotnetStatus).catch(() => {})}
+                            className="flex items-center gap-1 px-2.5 py-1 text-[11px] rounded transition-colors hover:bg-white/5 text-[color:var(--text-muted)]"
+                            title="Re-check"
+                        >
+                            <RefreshCw className="w-3 h-3" />
+                        </button>
                     )}
                 </div>
             </section>

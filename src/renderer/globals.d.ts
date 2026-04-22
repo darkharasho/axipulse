@@ -35,5 +35,8 @@ interface Window {
         eiSetAutoManage: (enabled: boolean) => void;
         onEiDownloadProgress: (callback: (progress: any) => void) => () => void;
         onEiStatusChanged: (callback: (status: any) => void) => () => void;
+        eiCheckDotnet: () => Promise<{ available: boolean; managed: boolean; version?: string }>;
+        eiInstallDotnet: () => Promise<{ available: boolean; managed: boolean; version?: string }>;
+        onEiDotnetInstallOutput: (callback: (line: string) => void) => () => void;
     };
 }
