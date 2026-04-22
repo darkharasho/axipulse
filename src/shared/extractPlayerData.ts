@@ -271,7 +271,7 @@ function buildFightComposition(json: EiJson): FightComposition {
         if (id != null) allyTeamIds.add(id);
     }
 
-    const classKey = (spec: string, prof: string) => spec || prof;
+    const classKey = (spec: string | undefined, prof: string) => spec || prof;
 
     const squadClassCounts: Record<string, number> = {};
     for (const p of squadPlayers) {
