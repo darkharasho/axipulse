@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import type { FightComposition } from '../../../shared/types';
 import { getProfessionIconPath } from '../../classIconUtils';
+import { getProfessionColor } from '../../../shared/professionUtils';
 
 const SEGMENT_COLORS = ['#ef4444', '#f97316', '#dc2626'] as const;
 
@@ -104,12 +105,13 @@ export function FightCompositionCard({ composition }: { composition: FightCompos
                                     <div
                                         key={spec}
                                         className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded"
-                                        style={{ background: '#0f1520', border: '1px solid #1a2535' }}
+                                        style={{ background: '#0f1520', border: `1px solid ${getProfessionColor(spec)}40` }}
                                     >
-                                        {iconUrl && (
-                                            <img src={iconUrl} alt={spec} width={14} height={14} className="rounded-sm" />
-                                        )}
-                                        <span style={{ color: '#94a3b8' }}>{spec}</span>
+                                        {iconUrl
+                                            ? <img src={iconUrl} alt={spec} width={14} height={14} className="rounded-sm" />
+                                            : <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ background: getProfessionColor(spec) }} />
+                                        }
+                                        <span style={{ color: getProfessionColor(spec) }}>{spec}</span>
                                         <span style={{ color: '#e2e8f0', fontWeight: 700 }}>{count}</span>
                                     </div>
                                 );
