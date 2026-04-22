@@ -5,6 +5,8 @@ import { WVW_LANDMARKS, WvwMap, type WvwLandmark } from '../../../shared/wvwLand
 import { resolveMapFromZone } from '../../../shared/mapUtils';
 import { getMapTiles, hasTileData } from '../../../shared/wvwTiles';
 import type { SkillCast, SquadMemberMovement } from '../../../shared/types';
+import { getProfessionIconPath } from '../../classIconUtils';
+import { getProfessionColor } from '../../../shared/professionUtils';
 
 const TYPE_COLORS: Record<WvwLandmark['type'], string> = {
     keep: '#ef4444',
@@ -25,43 +27,11 @@ const TYPE_SCALES: Record<WvwLandmark['type'], number> = {
 const PIN_PATH = 'M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0';
 const SKULL_PATH = 'M12 2a8 8 0 0 0-8 8c0 2.5 1.2 4.7 3 6.2V18a1 1 0 0 0 1 1h1v1a1 1 0 0 0 2 0v-1h2v1a1 1 0 0 0 2 0v-1h1a1 1 0 0 0 1-1v-1.8c1.8-1.5 3-3.7 3-6.2a8 8 0 0 0-8-8zm-2.5 9a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z';
 
-const PROFESSION_COLORS: Record<string, string> = {
-    Guardian: '#72c1d9',
-    Warrior: '#ffd166',
-    Engineer: '#d09c59',
-    Ranger: '#8cdc82',
-    Thief: '#c08f95',
-    Elementalist: '#f68a87',
-    Mesmer: '#b679d0',
-    Necromancer: '#52a76f',
-    Revenant: '#d16e5a',
-};
-
 const TRAIL_LENGTH = 15;
 
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 50;
 const ZOOM_STEP = 0.15;
-
-const ICON_NAMES = new Set([
-    'Amalgam', 'Antiquary', 'Berserker', 'Bladesworn', 'Catalyst', 'Chronomancer',
-    'Conduit', 'Daredevil', 'Deadeye', 'Dragonhunter', 'Druid', 'Elementalist',
-    'Engineer', 'Evoker', 'Firebrand', 'Galeshot', 'Guardian', 'Harbinger', 'Herald',
-    'Holosmith', 'Luminary', 'Mechanist', 'Mesmer', 'Mirage', 'Necromancer', 'Paragon',
-    'Ranger', 'Reaper', 'Renegade', 'Revenant', 'Ritualist', 'Scourge', 'Scrapper',
-    'Soulbeast', 'Specter', 'Spellbreaker', 'Tempest', 'Thief', 'Troubadour',
-    'Untamed', 'Vindicator', 'Virtuoso', 'Warrior', 'Weaver', 'Willbender',
-]);
-
-function getClassIconUrl(eliteSpec: string, profession: string): string {
-    if (eliteSpec && ICON_NAMES.has(eliteSpec)) return `./img/professions/${eliteSpec}.svg`;
-    if (ICON_NAMES.has(profession)) return `./img/professions/${profession}.svg`;
-    return '';
-}
-
-function getProfessionColor(profession: string): string {
-    return PROFESSION_COLORS[profession] ?? '#9ca3af';
-}
 
 function getMemberStatus(member: SquadMemberMovement, timeMs: number): 'alive' | 'down' | 'dead' {
     for (const [start, end] of member.deadRanges) {
@@ -428,7 +398,7 @@ export function MovementView() {
                         <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Party</span>
                         {allies.filter(m => m.group === localGroup).map((member) => {
                             const status = getMemberStatus(member, timeMs);
-                            const iconUrl = getClassIconUrl(member.eliteSpec, member.profession);
+                            const iconUrl = getProfessionIconPath(member.eliteSpec) ?? getProfessionIconPath(member.profession) ?? '';
                             const health = getHealthPercent(member, timeMs);
                             const healthColor = status === 'dead' ? '#ef4444' : status === 'down' ? '#3b82f6' : health > 50 ? '#22c55e' : health > 25 ? '#f59e0b' : '#ef4444';
                             const memberMaxIdx = member.positions.length - 1;
@@ -622,7 +592,7 @@ export function MovementView() {
                             const currentFrac = posIndex < maxIdx ? posFrac : 0;
                             const pos = lerpPos(member.positions, currentIdx, currentFrac);
                             if (!pos) return null;
-                            const iconUrl = getClassIconUrl(member.eliteSpec, member.profession);
+                            const iconUrl = getProfessionIconPath(member.eliteSpec) ?? getProfessionIconPath(member.profession) ?? '';
                             const enemyId = `enemy-${member.name}-${i}`;
                             const sz = 14;
                             const status = getMemberStatus(member, timeMs);
@@ -741,7 +711,7 @@ export function MovementView() {
                                                 const tagSz = 20;
                                                 return <image href="./img/commander_tag.svg" x={-tagSz / 2} y={-tagSz / 2} width={tagSz} height={tagSz} />;
                                             }
-                                            const iconUrl = getClassIconUrl(member.eliteSpec, member.profession);
+                                            const iconUrl = getProfessionIconPath(member.eliteSpec) ?? getProfessionIconPath(member.profession) ?? '';
                                             const sz = member.isLocal ? 24 : 20;
                                             if (iconUrl) {
                                                 return (
