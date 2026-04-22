@@ -373,6 +373,8 @@ function setupLogWatcher(): void {
 }
 
 app.whenReady().then(() => {
+    fs.writeFileSync(path.join(app.getPath('userData'), 'axiom-version'), app.getVersion(), 'utf8')
+
     eiManager = new EiManager(app.getPath('userData'));
     const AXIPULSE_EI_DEFAULTS = { ...DEFAULT_EI_SETTINGS, parseCombatReplay: true };
     const savedEiSettings = store.get('eiParserSettings') as EiParserSettings | undefined;
