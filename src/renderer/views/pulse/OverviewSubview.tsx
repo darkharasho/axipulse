@@ -140,9 +140,9 @@ function HeroBanner({ label, primaryValue, secondaryValue, secondaryLabel, rank,
     const t = BANNER_THEMES[theme];
     return (
         <motion.div
-            initial={{ opacity: 0, scale: 0.97 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
             className="rounded-lg p-4 relative overflow-hidden"
             style={{ background: t.gradient }}
         >
@@ -154,7 +154,7 @@ function HeroBanner({ label, primaryValue, secondaryValue, secondaryLabel, rank,
                     </div>
                     <div
                         className="font-stat font-bold text-4xl leading-none mt-1"
-                        style={{ background: t.valueGradient, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', WebkitTransform: 'translateZ(0)' }}
+                        style={{ background: t.valueGradient, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
                     >
                         {primaryValue.toLocaleString()}
                     </div>
