@@ -296,7 +296,8 @@ function buildFightComposition(json: EiJson): FightComposition {
         const teamId = rawId != null ? String(rawId) : 'unknown';
         teamCountMap.set(teamId, (teamCountMap.get(teamId) ?? 0) + 1);
         if (!enemyClassCountsByTeam[teamId]) enemyClassCountsByTeam[teamId] = {};
-        const k = t.profession ?? 'Unknown';
+        const nameMatch = t.name.match(/^(.+?)\s+pl-\d+$/);
+        const k = t.profession || nameMatch?.[1] || 'Unknown';
         enemyClassCountsByTeam[teamId][k] = (enemyClassCountsByTeam[teamId][k] ?? 0) + 1;
     }
 
