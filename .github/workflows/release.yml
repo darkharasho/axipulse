@@ -27,8 +27,24 @@ jobs:
       - name: Unit tests
         run: npm run test:unit
 
-  build:
+  prepare-release:
     needs: [test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          # If a non-draft release already exists, delete it so electron-builder can create and upload to a draft
+          existing=$(gh release view "$tag" --repo ${{ github.repository }} --json isDraft --jq '.isDraft' 2>/dev/null || echo "none")
+          if [ "$existing" = "false" ]; then
+            gh release delete "$tag" --repo ${{ github.repository }} --yes
+          fi
+          gh release create "$tag" --draft --title "$tag" --notes "" --repo ${{ github.repository }} 2>/dev/null || true
+
+  build:
+    needs: [prepare-release]
     strategy:
       matrix:
         include:
