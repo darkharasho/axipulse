@@ -56,3 +56,29 @@ describe('computeStabPerformance', () => {
         expect(result!.bucketCount).toBe(6); // ceil(10500/2000)
     });
 });
+
+describe('party identification', () => {
+    it('returns group-mates excluding local player and excluding notInSquad/isFake', () => {
+        const local = makePlayer({ name: 'Local', account: 'Local.1', group: 2 });
+        const mate1 = makePlayer({ name: 'Mate1', account: 'Mate1.2', group: 2, profession: 'Warrior' });
+        const mate2 = makePlayer({ name: 'Mate2', account: 'Mate2.3', group: 2, profession: 'Engineer' });
+        const otherGroup = makePlayer({ name: 'Other', account: 'Other.4', group: 3 });
+        const notInSquad = makePlayer({ name: 'Pug', account: 'Pug.5', group: 2, notInSquad: true });
+        const fake = makePlayer({ name: 'Fake', account: 'Fake.6', group: 2, isFake: true });
+        const json = makeJson({ players: [local, mate1, mate2, otherGroup, notInSquad, fake] });
+
+        const result = computeStabPerformance(json, local, 1000);
+        const keys = result!.partyMembers.map(m => m.key).sort();
+        expect(keys).toEqual(['Mate1.2', 'Mate2.3']);
+        expect(result!.partyMembers[0].displayName).toBe('Mate1');
+        expect(result!.partyMembers[0].profession).toBe('Warrior');
+    });
+
+    it('returns empty partyMembers when local player has group 0', () => {
+        const local = makePlayer({ group: 0 });
+        const mate = makePlayer({ name: 'Mate', account: 'Mate.2', group: 0 });
+        const json = makeJson({ players: [local, mate] });
+        const result = computeStabPerformance(json, local, 1000);
+        expect(result!.partyMembers).toEqual([]);
+    });
+});

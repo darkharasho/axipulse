@@ -19,12 +19,29 @@ export function computeStabPerformance(
         label: `${Math.round((i * effectiveBucketMs) / 1000)}s`,
     }));
 
+    const localGroup = Number(localPlayer?.group || 0);
+    const partyPlayers = localGroup > 0
+        ? json.players.filter(p =>
+            p && !p.notInSquad && !p.isFake
+            && Number(p.group || 0) === localGroup
+            && p.account !== localPlayer.account)
+        : [];
+
+    const partyMembers: StabPerfPartyMember[] = partyPlayers.map(p => ({
+        key: p.account,
+        displayName: p.account.split('.')[0],
+        profession: p.profession,
+        stacks: new Array(bucketCount).fill(0),
+        deaths: new Array(bucketCount).fill(0),
+        distances: new Array(bucketCount).fill(0),
+    }));
+
     return {
         bucketSizeMs: effectiveBucketMs,
         bucketCount,
         buckets,
         selfGeneration: new Array(bucketCount).fill(0),
         partyIncomingDamage: new Array(bucketCount).fill(0),
-        partyMembers: [],
+        partyMembers,
     };
 }
