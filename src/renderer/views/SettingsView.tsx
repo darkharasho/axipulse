@@ -73,6 +73,7 @@ export function SettingsView({ onOpenDotnetModal }: Props) {
     const setEiStatus = useAppStore(s => s.setEiStatus);
     const bucketSizeMs = useAppStore(s => s.bucketSizeMs);
     const setBucketSizeMs = useAppStore(s => s.setBucketSizeMs);
+    const setView = useAppStore(s => s.setView);
     const [eiProgress, setEiProgress] = useState<string>('');
     const [devMinFileSize, setDevMinFileSize] = useState<number>(0);
     const [debugParsing, setDebugParsing] = useState(false);
@@ -102,6 +103,7 @@ export function SettingsView({ onOpenDotnetModal }: Props) {
             const result = await window.electronAPI?.devParseRandom();
             if (result?.success) {
                 setDebugResult({ ok: true, msg: `Parsed: ${result.logPath?.split(/[\\/]/).pop()}` });
+                setView('pulse');
             } else {
                 setDebugResult({ ok: false, msg: result?.error ?? 'Unknown error' });
             }
