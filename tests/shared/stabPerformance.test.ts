@@ -82,3 +82,51 @@ describe('party identification', () => {
         expect(result!.partyMembers).toEqual([]);
     });
 });
+
+describe('party member stab stacks', () => {
+    it('integrates stack-states into bucket averages', () => {
+        // Mate has 5 stacks for first 2s, 0 for next 1s, 3 for next 1s, 0 thereafter, fight 5s
+        const mate = makePlayer({
+            name: 'M', account: 'M.2', group: 1,
+            buffUptimes: [{
+                id: 1122,
+                buffData: [{ uptime: 0, generation: 0, overstack: 0, wasted: 0 }],
+                states: [[0, 5], [2000, 0], [3000, 3], [4000, 0]],
+            }],
+        });
+        const local = makePlayer({ group: 1 });
+        const json = makeJson({ durationMS: 5000, players: [local, mate] });
+        const result = computeStabPerformance(json, local, 1000);
+        const stacks = result!.partyMembers[0].stacks;
+        // Bucket 0 [0,1000): all at 5 → avg 5
+        // Bucket 1 [1000,2000): all at 5 → avg 5
+        // Bucket 2 [2000,3000): all at 0 → avg 0
+        // Bucket 3 [3000,4000): all at 3 → avg 3
+        // Bucket 4 [4000,5000): all at 0 → avg 0
+        expect(stacks).toEqual([5, 5, 0, 3, 0]);
+    });
+
+    it('handles state changes that span bucket boundaries', () => {
+        // 5 stacks for 500ms, then 0 — bucket 0 [0,1000) avg = (5*500 + 0*500)/1000 = 2.5
+        const mate = makePlayer({
+            name: 'M', account: 'M.2', group: 1,
+            buffUptimes: [{
+                id: 1122,
+                buffData: [{ uptime: 0, generation: 0, overstack: 0, wasted: 0 }],
+                states: [[0, 5], [500, 0]],
+            }],
+        });
+        const local = makePlayer({ group: 1 });
+        const json = makeJson({ durationMS: 1000, players: [local, mate] });
+        const result = computeStabPerformance(json, local, 1000);
+        expect(result!.partyMembers[0].stacks).toEqual([2.5]);
+    });
+
+    it('returns zero stacks when buff never appears', () => {
+        const mate = makePlayer({ name: 'M', account: 'M.2', group: 1, buffUptimes: [] });
+        const local = makePlayer({ group: 1 });
+        const json = makeJson({ durationMS: 3000, players: [local, mate] });
+        const result = computeStabPerformance(json, local, 1000);
+        expect(result!.partyMembers[0].stacks).toEqual([0, 0, 0]);
+    });
+});

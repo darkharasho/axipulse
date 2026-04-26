@@ -4,6 +4,42 @@ const STABILITY_BUFF_ID = 1122;
 const DEATH_SKILL_ID = -28;
 const DISTANCE_THRESHOLD_UNITS = 600;
 
+function integrateStatesPerBucket(
+    states: Array<[number, number]>,
+    bucketCount: number,
+    bucketSizeMs: number,
+): number[] {
+    const out = new Array<number>(bucketCount).fill(0);
+    if (!states || states.length === 0) return out;
+    const sorted = [...states].sort((a, b) => Number(a[0]) - Number(b[0]));
+    for (let b = 0; b < bucketCount; b++) {
+        const bucketStart = b * bucketSizeMs;
+        const bucketEnd = bucketStart + bucketSizeMs;
+        // Find stack value at bucketStart (last state at or before it)
+        let curStacks = 0;
+        for (let i = sorted.length - 1; i >= 0; i--) {
+            if (Number(sorted[i][0]) <= bucketStart) { curStacks = Number(sorted[i][1]); break; }
+        }
+        let weightedSum = 0;
+        let prevTime = bucketStart;
+        for (const [tRaw, sRaw] of sorted) {
+            const t = Number(tRaw);
+            if (t <= bucketStart) continue;
+            if (t >= bucketEnd) break;
+            weightedSum += curStacks * (t - prevTime);
+            prevTime = t;
+            curStacks = Number(sRaw);
+        }
+        weightedSum += curStacks * (bucketEnd - prevTime);
+        out[b] = weightedSum / bucketSizeMs;
+    }
+    return out;
+}
+
+function getStabilityBuff(player: EiPlayer) {
+    return (player.buffUptimes ?? []).find(b => Number(b?.id) === STABILITY_BUFF_ID);
+}
+
 export function computeStabPerformance(
     json: EiJson,
     localPlayer: EiPlayer,
@@ -27,14 +63,18 @@ export function computeStabPerformance(
             && p.account !== localPlayer.account)
         : [];
 
-    const partyMembers: StabPerfPartyMember[] = partyPlayers.map(p => ({
-        key: p.account,
-        displayName: p.account.split('.')[0],
-        profession: p.profession,
-        stacks: new Array(bucketCount).fill(0),
-        deaths: new Array(bucketCount).fill(0),
-        distances: new Array(bucketCount).fill(0),
-    }));
+    const partyMembers: StabPerfPartyMember[] = partyPlayers.map(p => {
+        const stabBuff = getStabilityBuff(p);
+        const states = (stabBuff?.states ?? []).map(s => [Number(s[0]), Number(s[1])] as [number, number]);
+        return {
+            key: p.account,
+            displayName: p.account.split('.')[0],
+            profession: p.profession,
+            stacks: integrateStatesPerBucket(states, bucketCount, effectiveBucketMs),
+            deaths: new Array(bucketCount).fill(0),
+            distances: new Array(bucketCount).fill(0),
+        };
+    });
 
     return {
         bucketSizeMs: effectiveBucketMs,
