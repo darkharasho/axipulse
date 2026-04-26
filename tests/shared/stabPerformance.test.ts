@@ -226,6 +226,15 @@ describe('party incoming damage', () => {
         const result = computeStabPerformance(json, local, 1000);
         expect(result!.partyIncomingDamage).toEqual([0, 0, 0]);
     });
+
+    it('treats the first cumulative value as the starting baseline (not as a delta)', () => {
+        // Cumulative starts mid-fight at 500; deltas should be [0, 100, 100], not [500, 100, 100].
+        const local = makePlayer({ group: 1 });
+        const mate = makePlayer({ name: 'M', account: 'M.2', group: 1, damageTaken1S: [[500, 600, 700]] });
+        const json = makeJson({ durationMS: 3000, players: [local, mate] });
+        const result = computeStabPerformance(json, local, 1000);
+        expect(result!.partyIncomingDamage).toEqual([0, 100, 100]);
+    });
 });
 
 describe('local player stab generation', () => {

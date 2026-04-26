@@ -51,7 +51,7 @@ function computeDeathsPerBucket(player: EiPlayer, bucketCount: number, bucketSiz
 }
 
 function cumulativeToDeltas(cum: number[]): number[] {
-    return cum.map((v, i) => Math.max(0, Number(v || 0) - Number(cum[i - 1] || 0)));
+    return cum.map((v, i) => i === 0 ? 0 : Math.max(0, Number(v || 0) - Number(cum[i - 1] || 0)));
 }
 
 function computePartyIncomingDamage(
