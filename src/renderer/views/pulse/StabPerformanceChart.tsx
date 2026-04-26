@@ -116,7 +116,11 @@ export function StabPerformanceChart({ breakdown, localProfession }: Props) {
                             axisLine={{ stroke: 'rgba(255,255,255,0.08)' }} tickLine={false}
                             tickFormatter={(v: number) => v.toFixed(1)} width={36} />
                         <YAxis yAxisId="incomingHeat" hide domain={[0, 1]} />
-                        <YAxis yAxisId="stabStacks" hide domain={[0, 25]} />
+                        <YAxis yAxisId="stabStacks" orientation="right"
+                            domain={[0, 25]} ticks={[0, 5, 10, 15, 20, 25]}
+                            tick={{ fontSize: 10, fill: '#64748b' }}
+                            axisLine={{ stroke: 'rgba(255,255,255,0.08)' }} tickLine={false}
+                            width={32} />
                         <Tooltip content={(props: any) => (
                             <StabTooltip {...props} breakdown={breakdown}
                                 partyColorByKey={partyColorByKey}
