@@ -224,9 +224,36 @@ export interface BoonGenerationEntry {
     squadGeneration: number;
 }
 
+export interface StabPerfPartyMember {
+    /** Account name, e.g. "Player.1234" */
+    key: string;
+    /** Name shown in the UI; account.split('.')[0] */
+    displayName: string;
+    profession: string;
+    /** Avg stab stacks during each bucket (0–25). */
+    stacks: number[];
+    /** Death count per bucket (typically 0 or 1). */
+    deaths: number[];
+    /** Average inches to commander per bucket. */
+    distances: number[];
+}
+
+export interface StabPerfBreakdown {
+    bucketSizeMs: number;
+    bucketCount: number;
+    buckets: { startMs: number; label: string }[];
+    /** Local player's avg stab stacks generated per bucket, summed across the party (can exceed 25). */
+    selfGeneration: number[];
+    /** Sum of party members' incoming damage per bucket. */
+    partyIncomingDamage: number[];
+    /** Group-mates of the local player; excludes the local player themselves. */
+    partyMembers: StabPerfPartyMember[];
+}
+
 export interface BoonStats {
     uptimes: BoonUptimeEntry[];
     generation: BoonGenerationEntry[];
+    stabPerformance: StabPerfBreakdown | null;
 }
 
 export interface TimelineBucket {
