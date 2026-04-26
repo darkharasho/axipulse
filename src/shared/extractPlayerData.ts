@@ -4,7 +4,7 @@ import { getDamage, getDps, getBreakbarDamage, getCleanses, getCleanseSelf, getS
 import { getHealingOutput, getBarrierOutput, getStabilityGeneration, getTopSkillDamage, getTopHealingSkills, getTopBarrierSkills, getTopDamageTakenSkills, getSquadRank, getDeathTimes, getDownTimes } from './combatMetrics';
 import { classifySquadRoles } from './classifyRole';
 import { extractBoonUptimes, extractBoonGeneration } from './boonData';
-import { computeStabPerformance } from './stabPerformance';
+import { computeBoonPerformance, STABILITY_BUFF_ID, MIGHT_BUFF_ID } from './boonPerformance';
 import { extractDamageTimeline, extractDistanceToTagTimeline } from './timelineData';
 import { OFFENSIVE_BOON_IDS, DEFENSIVE_BOON_IDS, HARD_CC_IDS, SOFT_CC_IDS, ALL_TRACKED_BUFF_IDS } from './boonData';
 import { resolveMapFromZone, normalizeMapName, formatDuration } from './mapUtils';
@@ -411,7 +411,10 @@ export function extractPlayerFightData(json: EiJson, fightNumber: number, bucket
         boons: {
             uptimes: extractBoonUptimes(player),
             generation: extractBoonGeneration(player),
-            stabPerformance: computeStabPerformance(json, player, bucketSizeMs),
+            boonPerformance: {
+                stability: computeBoonPerformance(json, player, bucketSizeMs, STABILITY_BUFF_ID),
+                might: computeBoonPerformance(json, player, bucketSizeMs, MIGHT_BUFF_ID),
+            },
         },
         timeline,
         squadContext: buildSquadContext(squadPlayers, player),

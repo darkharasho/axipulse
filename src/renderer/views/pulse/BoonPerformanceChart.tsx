@@ -4,7 +4,7 @@ import {
     Bar, Brush, CartesianGrid, Cell, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import { MapPin, Shield, Skull } from 'lucide-react';
-import type { StabPerfBreakdown } from '../../../shared/types';
+import type { BoonPerfBreakdown, BoonPerformanceData } from '../../../shared/types';
 import { getProfessionColor } from '../../../shared/professionUtils';
 
 const PARTY_MEMBER_COLORS = [
@@ -15,8 +15,15 @@ const PARTY_MEMBER_COLORS = [
 const FALLBACK_SELF_COLOR = '#10b981';
 const DISTANCE_THRESHOLD = 600;
 
+type BoonKey = 'stability' | 'might';
+
+const BOON_LABELS: Record<BoonKey, string> = {
+    stability: 'Stab',
+    might: 'Might',
+};
+
 type Props = {
-    breakdown: StabPerfBreakdown;
+    performance: BoonPerformanceData;
     localProfession: string;
 };
 
@@ -29,13 +36,88 @@ type ChartPoint = {
     [memberKey: string]: any; // pm_<key>, deaths_<key>, distance_<key>
 };
 
-export function StabPerformanceChart({ breakdown, localProfession }: Props) {
+export function BoonPerformanceChart({ performance, localProfession }: Props) {
+    const [activeBoon, setActiveBoon] = useState<BoonKey>('stability');
     const [showHeatmap, setShowHeatmap] = useState(true);
     const [showDeaths, setShowDeaths] = useState(true);
     const [showDistance, setShowDistance] = useState(true);
 
+    const breakdown = performance[activeBoon];
     const selfColor = getProfessionColor(localProfession) || FALLBACK_SELF_COLOR;
 
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3, duration: 0.3 }}
+        >
+            <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+                <div className="flex items-center gap-3">
+                    <div className="text-xs uppercase tracking-[0.08em] font-medium flex items-center gap-1.5"
+                        style={{ color: 'var(--text-muted)' }}>
+                        <Shield className="w-3.5 h-3.5 text-violet-300" />
+                        Boon Performance
+                    </div>
+                    <div className="flex rounded-md overflow-hidden border" style={{ borderColor: 'var(--border-subtle)' }}>
+                        {(['stability', 'might'] as const).map(key => (
+                            <button
+                                key={key}
+                                onClick={() => setActiveBoon(key)}
+                                className={`px-2.5 py-1 text-[10px] uppercase tracking-wider transition-colors ${
+                                    activeBoon === key
+                                        ? 'bg-white/10 text-slate-100'
+                                        : 'text-slate-500 hover:text-slate-300 hover:bg-white/[0.03]'
+                                }`}
+                            >
+                                {BOON_LABELS[key]}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                <div className="flex gap-3">
+                    <ToggleButton active={showHeatmap} onClick={() => setShowHeatmap(v => !v)}
+                        activeColor="text-red-300" hoverActive="hover:text-red-200">
+                        Party Damage
+                    </ToggleButton>
+                    <ToggleButton active={showDeaths} onClick={() => setShowDeaths(v => !v)}
+                        activeColor="text-red-400" hoverActive="hover:text-red-300">
+                        Deaths
+                    </ToggleButton>
+                    <ToggleButton active={showDistance} onClick={() => setShowDistance(v => !v)}
+                        activeColor="text-yellow-300" hoverActive="hover:text-yellow-200"
+                        title={`Flags party members averaging more than ${DISTANCE_THRESHOLD} units from the commander`}>
+                        Distance
+                    </ToggleButton>
+                </div>
+            </div>
+
+            {breakdown ? (
+                <ChartBody
+                    breakdown={breakdown}
+                    selfColor={selfColor}
+                    showHeatmap={showHeatmap}
+                    showDeaths={showDeaths}
+                    showDistance={showDistance}
+                />
+            ) : (
+                <div className="h-[260px] rounded-md p-2 flex items-center justify-center text-xs italic"
+                    style={{ background: 'var(--bg-card)', color: 'var(--text-muted)' }}>
+                    No {BOON_LABELS[activeBoon].toLowerCase()} data for this fight
+                </div>
+            )}
+        </motion.div>
+    );
+}
+
+function ChartBody({
+    breakdown, selfColor, showHeatmap, showDeaths, showDistance,
+}: {
+    breakdown: BoonPerfBreakdown;
+    selfColor: string;
+    showHeatmap: boolean;
+    showDeaths: boolean;
+    showDistance: boolean;
+}) {
     const { data, hasIncomingHeat, partyColorByKey } = useMemo(() => {
         const incomingMax = breakdown.partyIncomingDamage.reduce((m, v) => Math.max(m, v), 0);
         const colorByKey = Object.fromEntries(
@@ -62,34 +144,7 @@ export function StabPerformanceChart({ breakdown, localProfession }: Props) {
     }, [breakdown]);
 
     return (
-        <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3, duration: 0.3 }}
-        >
-            <div className="flex items-center justify-between mb-3">
-                <div className="text-xs uppercase tracking-[0.08em] font-medium flex items-center gap-1.5"
-                    style={{ color: 'var(--text-muted)' }}>
-                    <Shield className="w-3.5 h-3.5 text-violet-300" />
-                    Stab Performance
-                </div>
-                <div className="flex gap-3">
-                    <ToggleButton active={showHeatmap} onClick={() => setShowHeatmap(v => !v)}
-                        activeColor="text-red-300" hoverActive="hover:text-red-200">
-                        Party Damage
-                    </ToggleButton>
-                    <ToggleButton active={showDeaths} onClick={() => setShowDeaths(v => !v)}
-                        activeColor="text-red-400" hoverActive="hover:text-red-300">
-                        Deaths
-                    </ToggleButton>
-                    <ToggleButton active={showDistance} onClick={() => setShowDistance(v => !v)}
-                        activeColor="text-yellow-300" hoverActive="hover:text-yellow-200"
-                        title={`Flags party members averaging more than ${DISTANCE_THRESHOLD} units from the commander`}>
-                        Distance
-                    </ToggleButton>
-                </div>
-            </div>
-
+        <>
             {breakdown.partyMembers.length > 0 ? (
                 <div className="flex flex-wrap gap-x-4 gap-y-1 mb-2">
                     {breakdown.partyMembers.map(m => (
@@ -116,13 +171,13 @@ export function StabPerformanceChart({ breakdown, localProfession }: Props) {
                             axisLine={{ stroke: 'rgba(255,255,255,0.08)' }} tickLine={false}
                             tickFormatter={(v: number) => v.toFixed(1)} width={36} />
                         <YAxis yAxisId="incomingHeat" hide domain={[0, 1]} />
-                        <YAxis yAxisId="stabStacks" orientation="right"
+                        <YAxis yAxisId="boonStacks" orientation="right"
                             domain={[0, 25]} ticks={[0, 5, 10, 15, 20, 25]}
                             tick={{ fontSize: 10, fill: '#64748b' }}
                             axisLine={{ stroke: 'rgba(255,255,255,0.08)' }} tickLine={false}
                             width={32} />
                         <Tooltip content={(props: any) => (
-                            <StabTooltip {...props} breakdown={breakdown}
+                            <BoonTooltip {...props} breakdown={breakdown}
                                 partyColorByKey={partyColorByKey}
                                 selfColor={selfColor}
                                 showHeatmap={showHeatmap}
@@ -145,7 +200,7 @@ export function StabPerformanceChart({ breakdown, localProfession }: Props) {
                             </Bar>
                         )}
                         <Line type="monotone" dataKey="value"
-                            name="Self Stab Generation"
+                            name="Self Generation"
                             stroke={selfColor} strokeWidth={2}
                             dot={{ r: 2, fill: selfColor }}
                             activeDot={{ r: 4 }}
@@ -154,7 +209,7 @@ export function StabPerformanceChart({ breakdown, localProfession }: Props) {
                             const color = partyColorByKey[m.key];
                             return (
                                 <Line key={m.key}
-                                    yAxisId="stabStacks"
+                                    yAxisId="boonStacks"
                                     type="monotone"
                                     dataKey={`pm_${m.key}`}
                                     name={m.displayName}
@@ -188,7 +243,7 @@ export function StabPerformanceChart({ breakdown, localProfession }: Props) {
                     </ComposedChart>
                 </ResponsiveContainer>
             </div>
-        </motion.div>
+        </>
     );
 }
 
@@ -215,12 +270,12 @@ function ToggleButton({
     );
 }
 
-function StabTooltip({
+function BoonTooltip({
     payload, label, breakdown, partyColorByKey, selfColor, showHeatmap, showDeaths, showDistance,
 }: {
     payload?: any[];
     label?: string;
-    breakdown: StabPerfBreakdown;
+    breakdown: BoonPerfBreakdown;
     partyColorByKey: Record<string, string>;
     selfColor: string;
     showHeatmap: boolean;
@@ -256,7 +311,7 @@ function StabTooltip({
                 return (
                     <div key={m.key} style={{ color }} className="py-px flex items-center gap-1">
                         <span>{m.displayName}</span>
-                        <span>: {stacks === 0 ? 'No stab' : `${stacks.toFixed(1)} stacks`}</span>
+                        <span>: {stacks === 0 ? 'None' : `${stacks.toFixed(1)} stacks`}</span>
                         {showDistance && distance > 0 && (
                             <span className={`flex items-center gap-0.5 ${hasFar ? 'text-yellow-400' : 'text-slate-400'}`}>
                                 <MapPin className="inline w-3 h-3" />

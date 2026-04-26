@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import type { PlayerFightData } from '../../../shared/types';
 import { MAX_BOON_STACKS } from '../../../shared/boonData';
-import { StabPerformanceChart } from './StabPerformanceChart';
+import { BoonPerformanceChart } from './BoonPerformanceChart';
 
 const BOON_COLORS: Record<string, string> = {
     Might: '#e85d3a',
@@ -143,9 +143,9 @@ export function BoonsSubview({ data }: { data: PlayerFightData }) {
                 </motion.div>
             )}
 
-            {boons.stabPerformance && (
-                <StabPerformanceChart
-                    breakdown={boons.stabPerformance}
+            {boons.boonPerformance && (
+                <BoonPerformanceChart
+                    performance={boons.boonPerformance}
                     localProfession={eliteSpec || profession}
                 />
             )}

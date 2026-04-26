@@ -1,6 +1,8 @@
-import type { EiJson, EiPlayer, StabPerfBreakdown, StabPerfPartyMember } from './types';
+import type { EiJson, EiPlayer, BoonPerfBreakdown, BoonPerfPartyMember } from './types';
 
-const STABILITY_BUFF_ID = 1122;
+export const STABILITY_BUFF_ID = 1122;
+export const MIGHT_BUFF_ID = 740;
+
 const DEATH_SKILL_ID = -28;
 
 function integrateStatesPerBucket(
@@ -14,7 +16,6 @@ function integrateStatesPerBucket(
     for (let b = 0; b < bucketCount; b++) {
         const bucketStart = b * bucketSizeMs;
         const bucketEnd = bucketStart + bucketSizeMs;
-        // Find stack value at bucketStart (last state at or before it)
         let curStacks = 0;
         for (let i = sorted.length - 1; i >= 0; i--) {
             if (Number(sorted[i][0]) <= bucketStart) { curStacks = Number(sorted[i][1]); break; }
@@ -35,8 +36,8 @@ function integrateStatesPerBucket(
     return out;
 }
 
-function getStabilityBuff(player: EiPlayer) {
-    return (player.buffUptimes ?? []).find(b => Number(b?.id) === STABILITY_BUFF_ID);
+function getBuffUptime(player: EiPlayer, buffId: number) {
+    return (player.buffUptimes ?? []).find(b => Number(b?.id) === buffId);
 }
 
 function computeDeathsPerBucket(player: EiPlayer, bucketCount: number, bucketSizeMs: number): number[] {
@@ -76,6 +77,7 @@ function computePartyIncomingDamage(
 function computeSelfGenerationPerBucket(
     json: EiJson,
     localPlayer: EiPlayer,
+    buffId: number,
     bucketCount: number,
     bucketSizeMs: number,
     durationMs: number,
@@ -85,8 +87,8 @@ function computeSelfGenerationPerBucket(
     let anyStatesPerSource = false;
     const summed = new Array<number>(bucketCount).fill(0);
     for (const member of squadMembers) {
-        const stab = (member.buffUptimes ?? []).find(b => Number(b?.id) === STABILITY_BUFF_ID);
-        const sps = stab?.statesPerSource;
+        const buff = getBuffUptime(member, buffId);
+        const sps = buff?.statesPerSource;
         if (!sps || typeof sps !== 'object') continue;
         const sourceStates = sps[localName];
         if (!Array.isArray(sourceStates) || sourceStates.length === 0) continue;
@@ -100,13 +102,13 @@ function computeSelfGenerationPerBucket(
     // Fallback: distribute total generation evenly. Less accurate; statesPerSource is preferred.
     let totalGenMs = 0;
     for (const buff of localPlayer.selfBuffs ?? []) {
-        if (Number(buff?.id) === STABILITY_BUFF_ID) totalGenMs += Number(buff.buffData?.[0]?.generation || 0);
+        if (Number(buff?.id) === buffId) totalGenMs += Number(buff.buffData?.[0]?.generation || 0);
     }
     for (const buff of localPlayer.groupBuffs ?? []) {
-        if (Number(buff?.id) === STABILITY_BUFF_ID) totalGenMs += Number(buff.buffData?.[0]?.generation || 0);
+        if (Number(buff?.id) === buffId) totalGenMs += Number(buff.buffData?.[0]?.generation || 0);
     }
     for (const buff of localPlayer.squadBuffs ?? []) {
-        if (Number(buff?.id) === STABILITY_BUFF_ID) totalGenMs += Number(buff.buffData?.[0]?.generation || 0);
+        if (Number(buff?.id) === buffId) totalGenMs += Number(buff.buffData?.[0]?.generation || 0);
     }
     if (totalGenMs <= 0 || durationMs <= 0) return summed;
     const uptimeFraction = totalGenMs / durationMs;
@@ -155,11 +157,12 @@ function computeDistancesPerBucket(
     });
 }
 
-export function computeStabPerformance(
+export function computeBoonPerformance(
     json: EiJson,
     localPlayer: EiPlayer,
     bucketSizeMs: number,
-): StabPerfBreakdown | null {
+    buffId: number,
+): BoonPerfBreakdown | null {
     const durationMs = Number(json?.durationMS || 0);
     if (durationMs <= 0) return null;
 
@@ -185,9 +188,9 @@ export function computeStabPerformance(
     const cmdPositions = (commander.combatReplayData?.positions ?? []) as Array<[number, number]>;
     const cmdStartMs = Number(commander.combatReplayData?.start ?? 0);
 
-    const partyMembers: StabPerfPartyMember[] = partyPlayers.map(p => {
-        const stabBuff = getStabilityBuff(p);
-        const states = (stabBuff?.states ?? []).map(s => [Number(s[0]), Number(s[1])] as [number, number]);
+    const partyMembers: BoonPerfPartyMember[] = partyPlayers.map(p => {
+        const buff = getBuffUptime(p, buffId);
+        const states = (buff?.states ?? []).map(s => [Number(s[0]), Number(s[1])] as [number, number]);
         return {
             key: p.account,
             displayName: p.account.split('.')[0],
@@ -211,7 +214,7 @@ export function computeStabPerformance(
         bucketSizeMs: effectiveBucketMs,
         bucketCount,
         buckets,
-        selfGeneration: computeSelfGenerationPerBucket(json, localPlayer, bucketCount, effectiveBucketMs, durationMs),
+        selfGeneration: computeSelfGenerationPerBucket(json, localPlayer, buffId, bucketCount, effectiveBucketMs, durationMs),
         partyIncomingDamage: computePartyIncomingDamage(partyPlayers, bucketCount, effectiveBucketMs),
         partyMembers,
     };

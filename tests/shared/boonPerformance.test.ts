@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { computeStabPerformance } from '../../src/shared/stabPerformance';
+import { computeBoonPerformance, STABILITY_BUFF_ID } from '../../src/shared/boonPerformance';
 import type { EiJson, EiPlayer } from '../../src/shared/types';
+
+const stab = (json: EiJson, local: EiPlayer, bucketSizeMs: number) =>
+    computeBoonPerformance(json, local, bucketSizeMs, STABILITY_BUFF_ID);
 
 function makePlayer(overrides: Partial<EiPlayer> = {}): EiPlayer {
     return {
@@ -24,17 +27,17 @@ function makeJson(overrides: Partial<EiJson> = {}): EiJson {
     } as EiJson;
 }
 
-describe('computeStabPerformance', () => {
+describe('computeBoonPerformance', () => {
     it('returns null when fight duration is zero', () => {
         const local = makePlayer();
         const json = makeJson({ durationMS: 0, players: [local] });
-        expect(computeStabPerformance(json, local, 1000)).toBeNull();
+        expect(stab(json, local, 1000)).toBeNull();
     });
 
     it('produces correct bucket count and labels for 1s buckets over 10s', () => {
         const local = makePlayer();
         const json = makeJson({ players: [local] });
-        const result = computeStabPerformance(json, local, 1000);
+        const result = stab(json, local, 1000);
         expect(result).not.toBeNull();
         expect(result!.bucketSizeMs).toBe(1000);
         expect(result!.bucketCount).toBe(10);
@@ -45,14 +48,14 @@ describe('computeStabPerformance', () => {
     it('floors bucket size to 1s minimum', () => {
         const local = makePlayer();
         const json = makeJson({ players: [local] });
-        const result = computeStabPerformance(json, local, 250);
+        const result = stab(json, local, 250);
         expect(result!.bucketSizeMs).toBe(1000);
     });
 
     it('rounds up partial trailing bucket', () => {
         const local = makePlayer();
         const json = makeJson({ durationMS: 10500, players: [local] });
-        const result = computeStabPerformance(json, local, 2000);
+        const result = stab(json, local, 2000);
         expect(result!.bucketCount).toBe(6); // ceil(10500/2000)
     });
 });
@@ -67,7 +70,7 @@ describe('party identification', () => {
         const fake = makePlayer({ name: 'Fake', account: 'Fake.6', group: 2, isFake: true });
         const json = makeJson({ players: [local, mate1, mate2, otherGroup, notInSquad, fake] });
 
-        const result = computeStabPerformance(json, local, 1000);
+        const result = stab(json, local, 1000);
         const keys = result!.partyMembers.map(m => m.key).sort();
         expect(keys).toEqual(['Mate1.2', 'Mate2.3']);
         expect(result!.partyMembers[0].displayName).toBe('Mate1');
@@ -78,7 +81,7 @@ describe('party identification', () => {
         const local = makePlayer({ group: 0 });
         const mate = makePlayer({ name: 'Mate', account: 'Mate.2', group: 0 });
         const json = makeJson({ players: [local, mate] });
-        const result = computeStabPerformance(json, local, 1000);
+        const result = stab(json, local, 1000);
         expect(result!.partyMembers).toEqual([]);
     });
 });
@@ -96,7 +99,7 @@ describe('party member stab stacks', () => {
         });
         const local = makePlayer({ group: 1 });
         const json = makeJson({ durationMS: 5000, players: [local, mate] });
-        const result = computeStabPerformance(json, local, 1000);
+        const result = stab(json, local, 1000);
         const stacks = result!.partyMembers[0].stacks;
         // Bucket 0 [0,1000): all at 5 → avg 5
         // Bucket 1 [1000,2000): all at 5 → avg 5
@@ -118,7 +121,7 @@ describe('party member stab stacks', () => {
         });
         const local = makePlayer({ group: 1 });
         const json = makeJson({ durationMS: 1000, players: [local, mate] });
-        const result = computeStabPerformance(json, local, 1000);
+        const result = stab(json, local, 1000);
         expect(result!.partyMembers[0].stacks).toEqual([2.5]);
     });
 
@@ -126,7 +129,7 @@ describe('party member stab stacks', () => {
         const mate = makePlayer({ name: 'M', account: 'M.2', group: 1, buffUptimes: [] });
         const local = makePlayer({ group: 1 });
         const json = makeJson({ durationMS: 3000, players: [local, mate] });
-        const result = computeStabPerformance(json, local, 1000);
+        const result = stab(json, local, 1000);
         expect(result!.partyMembers[0].stacks).toEqual([0, 0, 0]);
     });
 });
@@ -139,7 +142,7 @@ describe('party member deaths', () => {
         });
         const local = makePlayer({ group: 1 });
         const json = makeJson({ durationMS: 5000, players: [local, mate] });
-        const result = computeStabPerformance(json, local, 1000);
+        const result = stab(json, local, 1000);
         expect(result!.partyMembers[0].deaths).toEqual([0, 1, 0, 0, 1]);
     });
 
@@ -147,7 +150,7 @@ describe('party member deaths', () => {
         const mate = makePlayer({ name: 'M', account: 'M.2', group: 1, rotation: [] });
         const local = makePlayer({ group: 1 });
         const json = makeJson({ durationMS: 3000, players: [local, mate] });
-        const result = computeStabPerformance(json, local, 1000);
+        const result = stab(json, local, 1000);
         expect(result!.partyMembers[0].deaths).toEqual([0, 0, 0]);
     });
 });
@@ -170,7 +173,7 @@ describe('party member distances', () => {
             durationMS: 2000, players: [local, mate],
             combatReplayMetaData: { pollingRate: 500, inchToPixel: 2 },
         });
-        const result = computeStabPerformance(json, local, 1000);
+        const result = stab(json, local, 1000);
         expect(result!.partyMembers[0].distances).toEqual([7.5, 17.5]);
     });
 
@@ -182,7 +185,7 @@ describe('party member distances', () => {
             combatReplayData: { positions: [], start: 0 },
         });
         const json = makeJson({ durationMS: 2000, players: [local, mate] });
-        const result = computeStabPerformance(json, local, 1000);
+        const result = stab(json, local, 1000);
         expect(result!.partyMembers[0].distances).toEqual([425, 425]);
     });
 
@@ -196,7 +199,7 @@ describe('party member distances', () => {
             durationMS: 1000, players: [local, cmd, mate],
             combatReplayMetaData: { pollingRate: 500, inchToPixel: 1 },
         });
-        const result = computeStabPerformance(json, local, 1000);
+        const result = stab(json, local, 1000);
         // mate is at distance 10 from cmd consistently
         expect(result!.partyMembers.find(m => m.key === 'M.2')!.distances).toEqual([10]);
     });
@@ -215,7 +218,7 @@ describe('party incoming damage', () => {
         const mate1 = makePlayer({ name: 'M1', account: 'M1.2', group: 1, damageTaken1S: [[0, 100, 250, 400, 600]] });
         const mate2 = makePlayer({ name: 'M2', account: 'M2.3', group: 1, damageTaken1S: [[0, 50, 50, 200, 200]] });
         const json = makeJson({ durationMS: 5000, players: [local, mate1, mate2] });
-        const result = computeStabPerformance(json, local, 2000);
+        const result = stab(json, local, 2000);
         expect(result!.partyIncomingDamage).toEqual([150, 450, 200]);
     });
 
@@ -223,7 +226,7 @@ describe('party incoming damage', () => {
         const local = makePlayer({ group: 1 });
         const mate = makePlayer({ name: 'M', account: 'M.2', group: 1, damageTaken1S: [[]] });
         const json = makeJson({ durationMS: 3000, players: [local, mate] });
-        const result = computeStabPerformance(json, local, 1000);
+        const result = stab(json, local, 1000);
         expect(result!.partyIncomingDamage).toEqual([0, 0, 0]);
     });
 
@@ -232,7 +235,7 @@ describe('party incoming damage', () => {
         const local = makePlayer({ group: 1 });
         const mate = makePlayer({ name: 'M', account: 'M.2', group: 1, damageTaken1S: [[500, 600, 700]] });
         const json = makeJson({ durationMS: 3000, players: [local, mate] });
-        const result = computeStabPerformance(json, local, 1000);
+        const result = stab(json, local, 1000);
         expect(result!.partyIncomingDamage).toEqual([0, 100, 100]);
     });
 });
@@ -263,7 +266,7 @@ describe('local player stab generation', () => {
             }],
         });
         const json = makeJson({ durationMS: 2000, players: [local, mate1, mate2] });
-        const result = computeStabPerformance(json, local, 1000);
+        const result = stab(json, local, 1000);
         expect(result!.selfGeneration).toEqual([4, 1]);
     });
 
@@ -275,14 +278,14 @@ describe('local player stab generation', () => {
             groupBuffs: [], squadBuffs: [],
         });
         const json = makeJson({ durationMS: 2000, players: [local] });
-        const result = computeStabPerformance(json, local, 1000);
+        const result = stab(json, local, 1000);
         expect(result!.selfGeneration).toEqual([0.5, 0.5]);
     });
 
     it('returns zeros when no generation data exists', () => {
         const local = makePlayer({ group: 1 });
         const json = makeJson({ durationMS: 3000, players: [local] });
-        const result = computeStabPerformance(json, local, 1000);
+        const result = stab(json, local, 1000);
         expect(result!.selfGeneration).toEqual([0, 0, 0]);
     });
 });
