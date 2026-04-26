@@ -130,3 +130,24 @@ describe('party member stab stacks', () => {
         expect(result!.partyMembers[0].stacks).toEqual([0, 0, 0]);
     });
 });
+
+describe('party member deaths', () => {
+    it('buckets deaths by cast time', () => {
+        const mate = makePlayer({
+            name: 'M', account: 'M.2', group: 1,
+            rotation: [{ id: -28, skills: [{ castTime: 1500, duration: 0 }, { castTime: 4200, duration: 0 }] }],
+        });
+        const local = makePlayer({ group: 1 });
+        const json = makeJson({ durationMS: 5000, players: [local, mate] });
+        const result = computeStabPerformance(json, local, 1000);
+        expect(result!.partyMembers[0].deaths).toEqual([0, 1, 0, 0, 1]);
+    });
+
+    it('returns all zeros when there is no death skill', () => {
+        const mate = makePlayer({ name: 'M', account: 'M.2', group: 1, rotation: [] });
+        const local = makePlayer({ group: 1 });
+        const json = makeJson({ durationMS: 3000, players: [local, mate] });
+        const result = computeStabPerformance(json, local, 1000);
+        expect(result!.partyMembers[0].deaths).toEqual([0, 0, 0]);
+    });
+});

@@ -40,6 +40,17 @@ function getStabilityBuff(player: EiPlayer) {
     return (player.buffUptimes ?? []).find(b => Number(b?.id) === STABILITY_BUFF_ID);
 }
 
+function computeDeathsPerBucket(player: EiPlayer, bucketCount: number, bucketSizeMs: number): number[] {
+    const out = new Array<number>(bucketCount).fill(0);
+    const deathSkill = (player.rotation ?? []).find(r => Number(r?.id) === DEATH_SKILL_ID);
+    if (!deathSkill || !Array.isArray(deathSkill.skills)) return out;
+    for (const skill of deathSkill.skills) {
+        const idx = Math.min(bucketCount - 1, Math.floor(Number(skill?.castTime || 0) / bucketSizeMs));
+        if (idx >= 0) out[idx]++;
+    }
+    return out;
+}
+
 export function computeStabPerformance(
     json: EiJson,
     localPlayer: EiPlayer,
@@ -71,7 +82,7 @@ export function computeStabPerformance(
             displayName: p.account.split('.')[0],
             profession: p.profession,
             stacks: integrateStatesPerBucket(states, bucketCount, effectiveBucketMs),
-            deaths: new Array(bucketCount).fill(0),
+            deaths: computeDeathsPerBucket(p, bucketCount, effectiveBucketMs),
             distances: new Array(bucketCount).fill(0),
         };
     });
