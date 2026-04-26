@@ -51,6 +51,29 @@ function computeDeathsPerBucket(player: EiPlayer, bucketCount: number, bucketSiz
     return out;
 }
 
+function cumulativeToDeltas(cum: number[]): number[] {
+    return cum.map((v, i) => Math.max(0, Number(v || 0) - Number(cum[i - 1] || 0)));
+}
+
+function computePartyIncomingDamage(
+    partyPlayers: EiPlayer[],
+    bucketCount: number,
+    bucketSizeMs: number,
+): number[] {
+    const out = new Array<number>(bucketCount).fill(0);
+    const bucketSizeSec = Math.max(1, Math.round(bucketSizeMs / 1000));
+    for (const p of partyPlayers) {
+        const row = (p.damageTaken1S ?? [])[0] ?? [];
+        if (row.length === 0) continue;
+        const deltas = cumulativeToDeltas(row.map(Number));
+        for (let s = 0; s < deltas.length; s++) {
+            const bucketIdx = Math.min(bucketCount - 1, Math.floor(s / bucketSizeSec));
+            out[bucketIdx] += deltas[s];
+        }
+    }
+    return out;
+}
+
 function resolveCommander(json: EiJson, localPlayer: EiPlayer): EiPlayer {
     if (localPlayer.hasCommanderTag) return localPlayer;
     const tagged = json.players.find(p => p?.hasCommanderTag && !p.notInSquad && !p.isFake);
@@ -150,7 +173,7 @@ export function computeStabPerformance(
         bucketCount,
         buckets,
         selfGeneration: new Array(bucketCount).fill(0),
-        partyIncomingDamage: new Array(bucketCount).fill(0),
+        partyIncomingDamage: computePartyIncomingDamage(partyPlayers, bucketCount, effectiveBucketMs),
         partyMembers,
     };
 }

@@ -201,3 +201,29 @@ describe('party member distances', () => {
         expect(result!.partyMembers.find(m => m.key === 'M.2')!.distances).toEqual([10]);
     });
 });
+
+describe('party incoming damage', () => {
+    it('sums per-second deltas across party into buckets', () => {
+        const local = makePlayer({ group: 1 });
+        // Mate1 cumulative: [0, 100, 250, 400, 600] over 5s → deltas [0, 100, 150, 150, 200]
+        // Mate2 cumulative: [0, 50,  50, 200, 200] → deltas [0, 50, 0, 150, 0]
+        // Per-sec sum: [0, 150, 150, 300, 200]
+        // 2s buckets: bucket count = ceil(5/2) = 3
+        //   bucket 0 [0,2): seconds 0,1 → 0+150 = 150
+        //   bucket 1 [2,4): seconds 2,3 → 150+300 = 450
+        //   bucket 2 [4,6): second 4 → 200
+        const mate1 = makePlayer({ name: 'M1', account: 'M1.2', group: 1, damageTaken1S: [[0, 100, 250, 400, 600]] });
+        const mate2 = makePlayer({ name: 'M2', account: 'M2.3', group: 1, damageTaken1S: [[0, 50, 50, 200, 200]] });
+        const json = makeJson({ durationMS: 5000, players: [local, mate1, mate2] });
+        const result = computeStabPerformance(json, local, 2000);
+        expect(result!.partyIncomingDamage).toEqual([150, 450, 200]);
+    });
+
+    it('returns zeros when no party damage data exists', () => {
+        const local = makePlayer({ group: 1 });
+        const mate = makePlayer({ name: 'M', account: 'M.2', group: 1, damageTaken1S: [[]] });
+        const json = makeJson({ durationMS: 3000, players: [local, mate] });
+        const result = computeStabPerformance(json, local, 1000);
+        expect(result!.partyIncomingDamage).toEqual([0, 0, 0]);
+    });
+});
