@@ -24,7 +24,7 @@ function getBoonColor(name: string): string {
 }
 
 export function BoonsSubview({ data }: { data: PlayerFightData }) {
-    const { boons } = data;
+    const { boons, eliteSpec, profession } = data;
 
     return (
         <div className="space-y-5">
@@ -144,7 +144,10 @@ export function BoonsSubview({ data }: { data: PlayerFightData }) {
             )}
 
             {boons.stabPerformance && (
-                <StabPerformanceChart breakdown={boons.stabPerformance} />
+                <StabPerformanceChart
+                    breakdown={boons.stabPerformance}
+                    localProfession={eliteSpec || profession}
+                />
             )}
         </div>
     );

@@ -1,21 +1,23 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
     Bar, Brush, CartesianGrid, Cell, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import { MapPin, Shield, Skull } from 'lucide-react';
 import type { StabPerfBreakdown } from '../../../shared/types';
+import { getProfessionColor } from '../../../shared/professionUtils';
 
 const PARTY_MEMBER_COLORS = [
     '#a78bfa', '#34d399', '#f59e0b', '#60a5fa', '#f472b6',
     '#fb923c', '#4ade80', '#e879f9', '#38bdf8', '#fbbf24',
 ];
 
-const SELF_LINE_COLOR = '#10b981'; // brand-primary
+const FALLBACK_SELF_COLOR = '#10b981';
 const DISTANCE_THRESHOLD = 600;
 
 type Props = {
     breakdown: StabPerfBreakdown;
+    localProfession: string;
 };
 
 type ChartPoint = {
@@ -27,31 +29,37 @@ type ChartPoint = {
     [memberKey: string]: any; // pm_<key>, deaths_<key>, distance_<key>
 };
 
-export function StabPerformanceChart({ breakdown }: Props) {
+export function StabPerformanceChart({ breakdown, localProfession }: Props) {
     const [showHeatmap, setShowHeatmap] = useState(true);
     const [showDeaths, setShowDeaths] = useState(true);
     const [showDistance, setShowDistance] = useState(true);
 
-    const incomingMax = breakdown.partyIncomingDamage.reduce((m, v) => Math.max(m, v), 0);
-    const hasIncomingHeat = incomingMax > 0;
+    const selfColor = getProfessionColor(localProfession) || FALLBACK_SELF_COLOR;
 
-    const data: ChartPoint[] = breakdown.buckets.map((b, i) => {
-        const incomingDamage = breakdown.partyIncomingDamage[i] ?? 0;
-        const intensity = incomingMax > 0 ? Math.max(0, Math.min(1, incomingDamage / incomingMax)) : 0;
-        const point: ChartPoint = {
-            label: b.label,
-            value: breakdown.selfGeneration[i] ?? 0,
-            incomingDamage,
-            incomingIntensity: intensity,
-            incomingHeatBand: 1,
-        };
-        for (const m of breakdown.partyMembers) {
-            point[`pm_${m.key}`] = m.stacks[i] ?? 0;
-            point[`deaths_${m.key}`] = m.deaths[i] ?? 0;
-            point[`distance_${m.key}`] = m.distances[i] ?? 0;
-        }
-        return point;
-    });
+    const { data, hasIncomingHeat, partyColorByKey } = useMemo(() => {
+        const incomingMax = breakdown.partyIncomingDamage.reduce((m, v) => Math.max(m, v), 0);
+        const colorByKey = Object.fromEntries(
+            breakdown.partyMembers.map((m, mi) => [m.key, PARTY_MEMBER_COLORS[mi % PARTY_MEMBER_COLORS.length]] as const),
+        );
+        const points: ChartPoint[] = breakdown.buckets.map((b, i) => {
+            const incomingDamage = breakdown.partyIncomingDamage[i] ?? 0;
+            const intensity = incomingMax > 0 ? Math.max(0, Math.min(1, incomingDamage / incomingMax)) : 0;
+            const point: ChartPoint = {
+                label: b.label,
+                value: breakdown.selfGeneration[i] ?? 0,
+                incomingDamage,
+                incomingIntensity: intensity,
+                incomingHeatBand: 1,
+            };
+            for (const m of breakdown.partyMembers) {
+                point[`pm_${m.key}`] = m.stacks[i] ?? 0;
+                point[`deaths_${m.key}`] = m.deaths[i] ?? 0;
+                point[`distance_${m.key}`] = m.distances[i] ?? 0;
+            }
+            return point;
+        });
+        return { data: points, hasIncomingHeat: incomingMax > 0, partyColorByKey: colorByKey };
+    }, [breakdown]);
 
     return (
         <motion.div
@@ -82,15 +90,19 @@ export function StabPerformanceChart({ breakdown }: Props) {
                 </div>
             </div>
 
-            {breakdown.partyMembers.length > 0 && (
+            {breakdown.partyMembers.length > 0 ? (
                 <div className="flex flex-wrap gap-x-4 gap-y-1 mb-2">
-                    {breakdown.partyMembers.map((m, mi) => (
+                    {breakdown.partyMembers.map(m => (
                         <div key={m.key} className="flex items-center gap-1.5">
                             <div className="w-5 h-0"
-                                style={{ borderTop: `2px dashed ${PARTY_MEMBER_COLORS[mi % PARTY_MEMBER_COLORS.length]}` }} />
+                                style={{ borderTop: `2px dashed ${partyColorByKey[m.key]}` }} />
                             <span className="text-[10px] text-[color:var(--text-muted)]">{m.displayName}</span>
                         </div>
                     ))}
+                </div>
+            ) : (
+                <div className="text-[10px] text-[color:var(--text-muted)] mb-2 italic">
+                    No group-mates in this fight
                 </div>
             )}
 
@@ -107,7 +119,11 @@ export function StabPerformanceChart({ breakdown }: Props) {
                         <YAxis yAxisId="stabStacks" hide domain={[0, 25]} />
                         <Tooltip content={(props: any) => (
                             <StabTooltip {...props} breakdown={breakdown}
-                                showHeatmap={showHeatmap} />
+                                partyColorByKey={partyColorByKey}
+                                selfColor={selfColor}
+                                showHeatmap={showHeatmap}
+                                showDeaths={showDeaths}
+                                showDistance={showDistance} />
                         )} />
                         {showHeatmap && hasIncomingHeat && (
                             <Bar
@@ -126,12 +142,12 @@ export function StabPerformanceChart({ breakdown }: Props) {
                         )}
                         <Line type="monotone" dataKey="value"
                             name="Self Stab Generation"
-                            stroke={SELF_LINE_COLOR} strokeWidth={2}
-                            dot={{ r: 2, fill: SELF_LINE_COLOR }}
+                            stroke={selfColor} strokeWidth={2}
+                            dot={{ r: 2, fill: selfColor }}
                             activeDot={{ r: 4 }}
                             isAnimationActive animationDuration={500} animationEasing="ease-out" />
-                        {breakdown.partyMembers.map((m, mi) => {
-                            const color = PARTY_MEMBER_COLORS[mi % PARTY_MEMBER_COLORS.length];
+                        {breakdown.partyMembers.map(m => {
+                            const color = partyColorByKey[m.key];
                             return (
                                 <Line key={m.key}
                                     yAxisId="stabStacks"
@@ -196,12 +212,16 @@ function ToggleButton({
 }
 
 function StabTooltip({
-    payload, label, breakdown, showHeatmap,
+    payload, label, breakdown, partyColorByKey, selfColor, showHeatmap, showDeaths, showDistance,
 }: {
     payload?: any[];
     label?: string;
     breakdown: StabPerfBreakdown;
+    partyColorByKey: Record<string, string>;
+    selfColor: string;
     showHeatmap: boolean;
+    showDeaths: boolean;
+    showDistance: boolean;
 }) {
     if (!payload || payload.length === 0) return null;
     const point = payload[0]?.payload || {};
@@ -215,7 +235,7 @@ function StabTooltip({
             <div className="text-slate-200 font-medium mb-1">
                 {String(label || '')}
                 {gen > 0 && (
-                    <span className="text-emerald-300">{` · Gen: ${gen.toFixed(2)} stacks`}</span>
+                    <span style={{ color: selfColor }}>{` · Gen: ${gen.toFixed(2)} stacks`}</span>
                 )}
             </div>
             {showHeatmap && damage > 0 && (
@@ -224,8 +244,7 @@ function StabTooltip({
                 </div>
             )}
             {sortedMembers.map(m => {
-                const mi = breakdown.partyMembers.indexOf(m);
-                const color = PARTY_MEMBER_COLORS[mi % PARTY_MEMBER_COLORS.length];
+                const color = partyColorByKey[m.key];
                 const stacks = Number(point[`pm_${m.key}`] ?? 0);
                 const deaths = Number(point[`deaths_${m.key}`] || 0);
                 const distance = Number(point[`distance_${m.key}`] || 0);
@@ -234,13 +253,13 @@ function StabTooltip({
                     <div key={m.key} style={{ color }} className="py-px flex items-center gap-1">
                         <span>{m.displayName}</span>
                         <span>: {stacks === 0 ? 'No stab' : `${stacks.toFixed(1)} stacks`}</span>
-                        {distance > 0 && (
+                        {showDistance && distance > 0 && (
                             <span className={`flex items-center gap-0.5 ${hasFar ? 'text-yellow-400' : 'text-slate-400'}`}>
                                 <MapPin className="inline w-3 h-3" />
                                 {Math.round(distance)}u
                             </span>
                         )}
-                        {deaths > 0 && <Skull className="inline w-3.5 h-3.5 text-white" />}
+                        {showDeaths && deaths > 0 && <Skull className="inline w-3.5 h-3.5 text-white" />}
                     </div>
                 );
             })}
