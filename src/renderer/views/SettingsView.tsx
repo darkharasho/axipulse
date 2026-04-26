@@ -99,11 +99,11 @@ export function SettingsView({ onOpenDotnetModal }: Props) {
     const handleDebugParse = async () => {
         setDebugParsing(true);
         setDebugResult(null);
+        setView('pulse');
         try {
             const result = await window.electronAPI?.devParseRandom();
             if (result?.success) {
                 setDebugResult({ ok: true, msg: `Parsed: ${result.logPath?.split(/[\\/]/).pop()}` });
-                setView('pulse');
             } else {
                 setDebugResult({ ok: false, msg: result?.error ?? 'Unknown error' });
             }
