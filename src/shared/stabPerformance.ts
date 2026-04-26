@@ -74,6 +74,46 @@ function computePartyIncomingDamage(
     return out;
 }
 
+function computeSelfGenerationPerBucket(
+    json: EiJson,
+    localPlayer: EiPlayer,
+    bucketCount: number,
+    bucketSizeMs: number,
+    durationMs: number,
+): number[] {
+    const localName = localPlayer.name;
+    const squadMembers = json.players.filter(p => p && !p.notInSquad && !p.isFake);
+    let anyStatesPerSource = false;
+    const summed = new Array<number>(bucketCount).fill(0);
+    for (const member of squadMembers) {
+        const stab = (member.buffUptimes ?? []).find(b => Number(b?.id) === STABILITY_BUFF_ID);
+        const sps = stab?.statesPerSource;
+        if (!sps || typeof sps !== 'object') continue;
+        const sourceStates = sps[localName];
+        if (!Array.isArray(sourceStates) || sourceStates.length === 0) continue;
+        anyStatesPerSource = true;
+        const states = sourceStates.map(s => [Number(s[0]), Number(s[1])] as [number, number]);
+        const perBucket = integrateStatesPerBucket(states, bucketCount, bucketSizeMs);
+        for (let b = 0; b < bucketCount; b++) summed[b] += perBucket[b];
+    }
+    if (anyStatesPerSource) return summed;
+
+    // Fallback: distribute total generation evenly. Less accurate; statesPerSource is preferred.
+    let totalGenMs = 0;
+    for (const buff of localPlayer.selfBuffs ?? []) {
+        if (Number(buff?.id) === STABILITY_BUFF_ID) totalGenMs += Number(buff.buffData?.[0]?.generation || 0);
+    }
+    for (const buff of localPlayer.groupBuffs ?? []) {
+        if (Number(buff?.id) === STABILITY_BUFF_ID) totalGenMs += Number(buff.buffData?.[0]?.generation || 0);
+    }
+    for (const buff of localPlayer.squadBuffs ?? []) {
+        if (Number(buff?.id) === STABILITY_BUFF_ID) totalGenMs += Number(buff.buffData?.[0]?.generation || 0);
+    }
+    if (totalGenMs <= 0 || durationMs <= 0) return summed;
+    const uptimeFraction = totalGenMs / durationMs;
+    return summed.map(() => uptimeFraction);
+}
+
 function resolveCommander(json: EiJson, localPlayer: EiPlayer): EiPlayer {
     if (localPlayer.hasCommanderTag) return localPlayer;
     const tagged = json.players.find(p => p?.hasCommanderTag && !p.notInSquad && !p.isFake);
@@ -172,7 +212,7 @@ export function computeStabPerformance(
         bucketSizeMs: effectiveBucketMs,
         bucketCount,
         buckets,
-        selfGeneration: new Array(bucketCount).fill(0),
+        selfGeneration: computeSelfGenerationPerBucket(json, localPlayer, bucketCount, effectiveBucketMs, durationMs),
         partyIncomingDamage: computePartyIncomingDamage(partyPlayers, bucketCount, effectiveBucketMs),
         partyMembers,
     };

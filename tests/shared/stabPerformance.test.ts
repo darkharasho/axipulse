@@ -227,3 +227,53 @@ describe('party incoming damage', () => {
         expect(result!.partyIncomingDamage).toEqual([0, 0, 0]);
     });
 });
+
+describe('local player stab generation', () => {
+    it('integrates statesPerSource across all squad members', () => {
+        // Local applies stab to two squad-mates.
+        // Mate1 receives 3 stacks at t=0, falls to 0 at t=1000 → 3 stack-seconds in [0,1000)
+        // Mate2 receives 2 stacks at t=500, falls to 0 at t=1500 → in [0,1000): 2*500ms = 1 stack-sec
+        //   in [1000,2000): 2*500ms = 1 stack-sec
+        // Bucket [0,1000): (3000 + 1000)/1000 = 4 avg stacks
+        // Bucket [1000,2000): (0 + 1000)/1000 = 1 avg stack
+        const local = makePlayer({ name: 'Local', account: 'Local.1', group: 1 });
+        const mate1 = makePlayer({
+            name: 'M1', account: 'M1.2', group: 1,
+            buffUptimes: [{
+                id: 1122,
+                buffData: [{ uptime: 0, generation: 0, overstack: 0, wasted: 0 }],
+                statesPerSource: { 'Local': [[0, 3], [1000, 0]] },
+            }],
+        });
+        const mate2 = makePlayer({
+            name: 'M2', account: 'M2.3', group: 2,
+            buffUptimes: [{
+                id: 1122,
+                buffData: [{ uptime: 0, generation: 0, overstack: 0, wasted: 0 }],
+                statesPerSource: { 'Local': [[500, 2], [1500, 0]] },
+            }],
+        });
+        const json = makeJson({ durationMS: 2000, players: [local, mate1, mate2] });
+        const result = computeStabPerformance(json, local, 1000);
+        expect(result!.selfGeneration).toEqual([4, 1]);
+    });
+
+    it('falls back to evenly distributed total generation when no statesPerSource', () => {
+        // local has selfBuffs gen 1000ms over 2000ms fight → uptime fraction 0.5 → 0.5 avg stacks per bucket
+        const local = makePlayer({
+            group: 1,
+            selfBuffs: [{ id: 1122, buffData: [{ generation: 1000, overstack: 0, wasted: 0 }] }],
+            groupBuffs: [], squadBuffs: [],
+        });
+        const json = makeJson({ durationMS: 2000, players: [local] });
+        const result = computeStabPerformance(json, local, 1000);
+        expect(result!.selfGeneration).toEqual([0.5, 0.5]);
+    });
+
+    it('returns zeros when no generation data exists', () => {
+        const local = makePlayer({ group: 1 });
+        const json = makeJson({ durationMS: 3000, players: [local] });
+        const result = computeStabPerformance(json, local, 1000);
+        expect(result!.selfGeneration).toEqual([0, 0, 0]);
+    });
+});
