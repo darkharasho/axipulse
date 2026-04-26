@@ -2,7 +2,6 @@ import type { EiJson, EiPlayer, StabPerfBreakdown, StabPerfPartyMember } from '.
 
 const STABILITY_BUFF_ID = 1122;
 const DEATH_SKILL_ID = -28;
-const DISTANCE_THRESHOLD_UNITS = 600;
 
 function integrateStatesPerBucket(
     states: Array<[number, number]>,
