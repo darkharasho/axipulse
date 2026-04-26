@@ -51,6 +51,48 @@ function computeDeathsPerBucket(player: EiPlayer, bucketCount: number, bucketSiz
     return out;
 }
 
+function resolveCommander(json: EiJson, localPlayer: EiPlayer): EiPlayer {
+    if (localPlayer.hasCommanderTag) return localPlayer;
+    const tagged = json.players.find(p => p?.hasCommanderTag && !p.notInSquad && !p.isFake);
+    return tagged ?? localPlayer;
+}
+
+function computeDistancesPerBucket(
+    player: EiPlayer,
+    cmdPositions: Array<[number, number]>,
+    cmdStartMs: number,
+    pollingRate: number,
+    inchToPixel: number,
+    fallbackDist: number,
+    bucketCount: number,
+    bucketSizeMs: number,
+): number[] {
+    const playerPositions = player.combatReplayData?.positions ?? [];
+    const playerStartMs = Number(player.combatReplayData?.start ?? 0);
+    const cmdOffset = Math.floor(cmdStartMs / pollingRate);
+    const playerOffset = Math.floor(playerStartMs / pollingRate);
+
+    return Array.from({ length: bucketCount }, (_, b) => {
+        if (cmdPositions.length === 0 || playerPositions.length === 0) return fallbackDist;
+        const bucketStart = b * bucketSizeMs;
+        const bucketEnd = bucketStart + bucketSizeMs;
+        let sum = 0;
+        let count = 0;
+        for (let t = bucketStart; t < bucketEnd; t += pollingRate) {
+            const tick = Math.floor(t / pollingRate);
+            const cmdIdx = tick - cmdOffset;
+            const playerIdx = tick - playerOffset;
+            if (cmdIdx < 0 || cmdIdx >= cmdPositions.length) continue;
+            if (playerIdx < 0 || playerIdx >= playerPositions.length) continue;
+            const [cx, cy] = cmdPositions[cmdIdx];
+            const [px, py] = playerPositions[playerIdx];
+            const d = Math.hypot(px - cx, py - cy) / inchToPixel;
+            if (Number.isFinite(d)) { sum += d; count++; }
+        }
+        return count > 0 ? sum / count : fallbackDist;
+    });
+}
+
 export function computeStabPerformance(
     json: EiJson,
     localPlayer: EiPlayer,
@@ -74,6 +116,13 @@ export function computeStabPerformance(
             && p.account !== localPlayer.account)
         : [];
 
+    const meta = json.combatReplayMetaData ?? {};
+    const inchToPixel = Number(meta.inchToPixel || 0) > 0 ? Number(meta.inchToPixel) : 1;
+    const pollingRate = Number(meta.pollingRate || 0) > 0 ? Number(meta.pollingRate) : 500;
+    const commander = resolveCommander(json, localPlayer);
+    const cmdPositions = (commander.combatReplayData?.positions ?? []) as Array<[number, number]>;
+    const cmdStartMs = Number(commander.combatReplayData?.start ?? 0);
+
     const partyMembers: StabPerfPartyMember[] = partyPlayers.map(p => {
         const stabBuff = getStabilityBuff(p);
         const states = (stabBuff?.states ?? []).map(s => [Number(s[0]), Number(s[1])] as [number, number]);
@@ -83,7 +132,16 @@ export function computeStabPerformance(
             profession: p.profession,
             stacks: integrateStatesPerBucket(states, bucketCount, effectiveBucketMs),
             deaths: computeDeathsPerBucket(p, bucketCount, effectiveBucketMs),
-            distances: new Array(bucketCount).fill(0),
+            distances: computeDistancesPerBucket(
+                p,
+                cmdPositions,
+                cmdStartMs,
+                pollingRate,
+                inchToPixel,
+                Number(p.statsAll?.[0]?.distToCom ?? 0),
+                bucketCount,
+                effectiveBucketMs,
+            ),
         };
     });
 

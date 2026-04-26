@@ -151,3 +151,53 @@ describe('party member deaths', () => {
         expect(result!.partyMembers[0].deaths).toEqual([0, 0, 0]);
     });
 });
+
+describe('party member distances', () => {
+    it('averages per-tick distance from commander positions', () => {
+        // Polling 500ms, inchToPixel = 2 → distance in pixels divided by 2 = inches
+        // Local commander stays at [0,0]. Mate at [10,0] then [20,0] then [30,0] then [40,0] (10 inches per tick).
+        // Bucket [0,1000) covers ticks 0,1: avg pixel dist = (10+20)/2 = 15, /2 = 7.5 inches
+        // Bucket [1000,2000) covers ticks 2,3: avg = (30+40)/2 = 35, /2 = 17.5
+        const local = makePlayer({
+            group: 1, hasCommanderTag: true,
+            combatReplayData: { positions: [[0, 0], [0, 0], [0, 0], [0, 0]], start: 0 },
+        });
+        const mate = makePlayer({
+            name: 'M', account: 'M.2', group: 1,
+            combatReplayData: { positions: [[10, 0], [20, 0], [30, 0], [40, 0]], start: 0 },
+        });
+        const json = makeJson({
+            durationMS: 2000, players: [local, mate],
+            combatReplayMetaData: { pollingRate: 500, inchToPixel: 2 },
+        });
+        const result = computeStabPerformance(json, local, 1000);
+        expect(result!.partyMembers[0].distances).toEqual([7.5, 17.5]);
+    });
+
+    it('falls back to statsAll[0].distToCom when positions are missing', () => {
+        const local = makePlayer({ group: 1, hasCommanderTag: true, combatReplayData: { positions: [], start: 0 } });
+        const mate = makePlayer({
+            name: 'M', account: 'M.2', group: 1,
+            statsAll: [{ downContribution: 0, distToCom: 425, stackDist: 0, appliedCrowdControl: 0, appliedCrowdControlDuration: 0 }],
+            combatReplayData: { positions: [], start: 0 },
+        });
+        const json = makeJson({ durationMS: 2000, players: [local, mate] });
+        const result = computeStabPerformance(json, local, 1000);
+        expect(result!.partyMembers[0].distances).toEqual([425, 425]);
+    });
+
+    it('uses any commander-tagged player when local player is not commander', () => {
+        const cmd = makePlayer({ name: 'Cmd', account: 'Cmd.0', group: 1, hasCommanderTag: true,
+            combatReplayData: { positions: [[0, 0], [0, 0]], start: 0 } });
+        const local = makePlayer({ group: 1, combatReplayData: { positions: [[0, 0], [0, 0]], start: 0 } });
+        const mate = makePlayer({ name: 'M', account: 'M.2', group: 1,
+            combatReplayData: { positions: [[10, 0], [10, 0]], start: 0 } });
+        const json = makeJson({
+            durationMS: 1000, players: [local, cmd, mate],
+            combatReplayMetaData: { pollingRate: 500, inchToPixel: 1 },
+        });
+        const result = computeStabPerformance(json, local, 1000);
+        // mate is at distance 10 from cmd consistently
+        expect(result!.partyMembers.find(m => m.key === 'M.2')!.distances).toEqual([10]);
+    });
+});
