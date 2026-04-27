@@ -1,5 +1,19 @@
 # Release Notes
 
+Version v0.1.16 — April 26, 2026
+
+## What's New modal
+
+Pops up automatically when you launch a new version for the first time and tells you what changed. If you skip a few versions in a row, it now shows you the notes for every release in between, newest first — so an upgrade from v0.1.10 straight to v0.1.16 doesn't quietly hide five releases worth of changes.
+
+You can also pull it up any time from Settings → About → "What's New" if you want to revisit the current release's notes.
+
+## QoL Improvements
+
+- Notes load from the live GitHub release first, with the bundled `RELEASE_NOTES.md` as an offline fallback, so post-release edits to the notes propagate automatically.
+- Escape and clicking outside the modal both close it.
+- Links in release notes open in your system browser.
+
 Version v0.1.15 — April 26, 2026
 
 ## Boon Performance breakdown (Pulse → Boons)
