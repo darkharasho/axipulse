@@ -118,7 +118,7 @@ export function SettingsView({ onOpenDotnetModal }: Props) {
         const version = await window.electronAPI?.getAppVersion?.();
         if (!version) return;
         const result = await window.electronAPI?.getReleaseNotes?.(version);
-        requestWhatsNew({ version, markdown: result?.markdown ?? null });
+        requestWhatsNew({ version, markdown: result?.markdown ?? null, source: 'manual' });
     };
 
     const handleBrowse = async () => {

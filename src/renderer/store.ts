@@ -78,8 +78,8 @@ interface AppState {
     fightCounter: number;
     incrementFightCounter: () => number;
 
-    whatsNewRequest: { version: string; markdown: string | null } | null;
-    requestWhatsNew: (req: { version: string; markdown: string | null }) => void;
+    whatsNewRequest: { version: string; markdown: string | null; source: 'auto' | 'manual' } | null;
+    requestWhatsNew: (req: { version: string; markdown: string | null; source: 'auto' | 'manual' }) => void;
     clearWhatsNew: () => void;
 }
 

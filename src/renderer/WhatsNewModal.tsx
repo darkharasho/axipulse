@@ -51,7 +51,7 @@ export function WhatsNewModal({ open, version, markdown, onClose }: Props) {
                                     v{version}
                                 </span>
                             </div>
-                            <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
+                            <button onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-white transition-colors">
                                 <X className="w-4 h-4" />
                             </button>
                         </div>
@@ -121,6 +121,12 @@ const mdComponents = {
             style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
             {children}
         </code>
+    ),
+    pre: ({ children }: { children?: ReactNode }) => (
+        <pre className="overflow-x-auto rounded px-3 py-2 my-2 text-[0.85em]"
+            style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
+            {children}
+        </pre>
     ),
     blockquote: ({ children }: { children?: ReactNode }) => (
         <blockquote className="border-l-2 pl-3 my-2 italic"

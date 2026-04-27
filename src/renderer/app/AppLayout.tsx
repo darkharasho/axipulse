@@ -93,7 +93,7 @@ export function AppLayout() {
             const result = await window.electronAPI?.getReleaseNotes?.(appVersion);
             if (cancelled) return;
             if (result?.markdown) {
-                requestWhatsNew({ version: appVersion, markdown: result.markdown });
+                requestWhatsNew({ version: appVersion, markdown: result.markdown, source: 'auto' });
             } else {
                 await window.electronAPI?.setLastSeenVersion?.(appVersion);
             }
@@ -102,7 +102,7 @@ export function AppLayout() {
     }, [appVersion, requestWhatsNew]);
 
     const handleWhatsNewClose = async () => {
-        const wasAutoOpened = whatsNewRequest?.version === appVersion;
+        const wasAutoOpened = whatsNewRequest?.source === 'auto';
         clearWhatsNew();
         if (wasAutoOpened && appVersion) {
             await window.electronAPI?.setLastSeenVersion?.(appVersion);
