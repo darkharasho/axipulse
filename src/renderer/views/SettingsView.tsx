@@ -74,6 +74,7 @@ export function SettingsView({ onOpenDotnetModal }: Props) {
     const bucketSizeMs = useAppStore(s => s.bucketSizeMs);
     const setBucketSizeMs = useAppStore(s => s.setBucketSizeMs);
     const setView = useAppStore(s => s.setView);
+    const requestWhatsNew = useAppStore(s => s.requestWhatsNew);
     const [eiProgress, setEiProgress] = useState<string>('');
     const [devMinFileSize, setDevMinFileSize] = useState<number>(0);
     const [debugParsing, setDebugParsing] = useState(false);
@@ -111,6 +112,13 @@ export function SettingsView({ onOpenDotnetModal }: Props) {
             setDebugResult({ ok: false, msg: err?.message ?? 'Failed' });
         }
         setDebugParsing(false);
+    };
+
+    const handleOpenWhatsNew = async () => {
+        const version = await window.electronAPI?.getAppVersion?.();
+        if (!version) return;
+        const result = await window.electronAPI?.getReleaseNotes?.(version);
+        requestWhatsNew({ version, markdown: result?.markdown ?? null });
     };
 
     const handleBrowse = async () => {
@@ -267,6 +275,18 @@ export function SettingsView({ onOpenDotnetModal }: Props) {
                 </SectionCard>
 
                 {troubleshootOpen && <TroubleshootModal onClose={() => setTroubleshootOpen(false)} />}
+
+                {/* About */}
+                <SectionCard label="About">
+                    <div className="flex items-center justify-between">
+                        <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+                            See what changed in this version
+                        </span>
+                        <Btn variant="ghost" onClick={handleOpenWhatsNew}>
+                            What's New
+                        </Btn>
+                    </div>
+                </SectionCard>
 
                 {/* Links */}
                 <SectionCard label="Links">

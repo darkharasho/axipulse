@@ -77,6 +77,10 @@ interface AppState {
 
     fightCounter: number;
     incrementFightCounter: () => number;
+
+    whatsNewRequest: { version: string; markdown: string | null } | null;
+    requestWhatsNew: (req: { version: string; markdown: string | null }) => void;
+    clearWhatsNew: () => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -154,4 +158,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({ fightCounter: next });
         return next;
     },
+
+    whatsNewRequest: null,
+    requestWhatsNew: (req) => set({ whatsNewRequest: req }),
+    clearWhatsNew: () => set({ whatsNewRequest: null }),
 }));

@@ -10,6 +10,7 @@ import { HistoryView } from '../views/HistoryView';
 import { SettingsView } from '../views/SettingsView';
 import { useFightListener } from './useFightListener';
 import { DotnetModal } from './DotnetModal';
+import { WhatsNewModal } from '../WhatsNewModal';
 
 const NAV_ITEMS: { id: View; label: string; icon: typeof Activity }[] = [
     { id: 'pulse', label: 'Pulse', icon: Activity },
@@ -26,6 +27,9 @@ export function AppLayout() {
     const setView = useAppStore(s => s.setView);
     const isParsing = useAppStore(s => s.isParsing);
     const currentFight = useAppStore(s => s.currentFight);
+    const whatsNewRequest = useAppStore(s => s.whatsNewRequest);
+    const requestWhatsNew = useAppStore(s => s.requestWhatsNew);
+    const clearWhatsNew = useAppStore(s => s.clearWhatsNew);
 
     const [appVersion, setAppVersion] = useState<string | null>(null);
     const [updateDownloaded, setUpdateDownloaded] = useState(false);
@@ -78,6 +82,32 @@ export function AppLayout() {
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
     }, []);
+
+    useEffect(() => {
+        if (!appVersion) return;
+        let cancelled = false;
+        (async () => {
+            const lastSeen = await window.electronAPI?.getLastSeenVersion?.();
+            if (cancelled) return;
+            if (lastSeen === appVersion) return;
+            const result = await window.electronAPI?.getReleaseNotes?.(appVersion);
+            if (cancelled) return;
+            if (result?.markdown) {
+                requestWhatsNew({ version: appVersion, markdown: result.markdown });
+            } else {
+                await window.electronAPI?.setLastSeenVersion?.(appVersion);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [appVersion, requestWhatsNew]);
+
+    const handleWhatsNewClose = async () => {
+        const wasAutoOpened = whatsNewRequest?.version === appVersion;
+        clearWhatsNew();
+        if (wasAutoOpened && appVersion) {
+            await window.electronAPI?.setLastSeenVersion?.(appVersion);
+        }
+    };
 
     const isFirstParse = isParsing && !currentFight;
 
@@ -226,6 +256,12 @@ export function AppLayout() {
             <AnimatePresence>
                 {showDotnetModal && <DotnetModal onDismiss={() => setShowDotnetModal(false)} />}
             </AnimatePresence>
+            <WhatsNewModal
+                open={whatsNewRequest !== null}
+                version={whatsNewRequest?.version ?? ''}
+                markdown={whatsNewRequest?.markdown ?? null}
+                onClose={handleWhatsNewClose}
+            />
         </div>
     );
 }
