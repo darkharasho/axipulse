@@ -136,21 +136,3 @@ html, body, #root {
   background-clip: text;
 }
 
-.stat-card-glow {
-  position: relative;
-}
-
-.stat-card-glow::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  opacity: 0;
-  transition: opacity var(--duration-normal) ease;
-  pointer-events: none;
-  box-shadow: inset 0 0 20px var(--card-glow-color, rgba(16, 185, 129, 0.08));
-}
-
-.stat-card-glow:hover::before {
-  opacity: 1;
-}
