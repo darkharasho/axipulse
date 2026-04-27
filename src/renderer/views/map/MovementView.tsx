@@ -128,7 +128,8 @@ export function MovementView() {
     const [timeMs, setTimeMs] = useState(0);
     const [hoveredMember, setHoveredMember] = useState<string | null>(null);
     const [showSquad, setShowSquad] = useState(false);
-    const [followPlayer, setFollowPlayer] = useState(false);
+    const followPlayer = useAppStore(s => s.mapFollowPlayer);
+    const setFollowPlayer = useAppStore(s => s.setMapFollowPlayer);
     const [playing, setPlaying] = useState(false);
     const [playSpeed, setPlaySpeed] = useState(1);
     const playSpeedRef = useRef(1);
@@ -341,7 +342,7 @@ export function MovementView() {
                         Squad
                     </button>
                     <button
-                        onClick={() => setFollowPlayer(v => !v)}
+                        onClick={() => setFollowPlayer(!followPlayer)}
                         className="flex items-center gap-1.5 px-2 py-0.5 rounded text-xs transition-colors"
                         style={{
                             color: followPlayer ? 'var(--text-primary)' : 'var(--text-muted)',
