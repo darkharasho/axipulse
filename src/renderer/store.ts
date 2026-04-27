@@ -53,6 +53,8 @@ interface AppState {
     setPulseSubview: (subview: PulseSubview) => void;
     mapSubview: MapSubview;
     setMapSubview: (subview: MapSubview) => void;
+    mapFollowPlayer: boolean;
+    setMapFollowPlayer: (value: boolean) => void;
     timelinePreset: TimelinePreset;
     setTimelinePreset: (preset: TimelinePreset) => void;
     timelineToggles: TimelineLayerToggles;
@@ -105,6 +107,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     setPulseSubview: (subview) => set({ pulseSubview: subview }),
     mapSubview: 'overview',
     setMapSubview: (subview) => set({ mapSubview: subview }),
+    mapFollowPlayer: false,
+    setMapFollowPlayer: (value) => set({ mapFollowPlayer: value }),
     timelinePreset: 'show-all',
     setTimelinePreset: (preset) => set({ timelinePreset: preset }),
 
