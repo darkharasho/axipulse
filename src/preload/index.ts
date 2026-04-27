@@ -40,6 +40,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getAppVersion: () => ipcRenderer.invoke('get-app-version'),
     openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
 
+    // Release notes
+    getReleaseNotes: (version: string) => ipcRenderer.invoke('release-notes:get', version),
+    getLastSeenVersion: () => ipcRenderer.invoke('release-notes:get-last-seen'),
+    setLastSeenVersion: (version: string) => ipcRenderer.invoke('release-notes:set-last-seen', version),
+
     // Session history
     getSessionHistory: () => ipcRenderer.invoke('get-session-history'),
     saveSessionHistory: (history: unknown[]) => ipcRenderer.send('save-session-history', history),

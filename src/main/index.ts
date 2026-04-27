@@ -7,6 +7,7 @@ import Store from 'electron-store'
 import { LogWatcher } from './watcher'
 import { EiManager, DEFAULT_EI_SETTINGS, EiParserSettings } from './eiParser'
 import { registerEiHandlers } from './handlers/eiHandlers'
+import { registerReleaseNotesHandlers } from './handlers/releaseNotesHandlers'
 import { checkArcdps } from './arcdpsDetect'
 
 for (const stream of [process.stdout, process.stderr]) {
@@ -161,6 +162,8 @@ function setupIpcHandlers(): void {
     ipcMain.handle('get-app-version', () => {
         return app.getVersion();
     });
+
+    registerReleaseNotesHandlers(store);
 
     ipcMain.handle('dev:parse-random', async () => {
         const logDir = store.get('logDirectory') as string | undefined;
