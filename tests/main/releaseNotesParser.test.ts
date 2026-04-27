@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractVersionSection } from '../../src/main/releaseNotesParser';
+import { compareVersions, extractAllVersions, extractVersionRange, extractVersionSection } from '../../src/main/releaseNotesParser';
 
 const SAMPLE = `# Release Notes
 
@@ -51,5 +51,55 @@ describe('extractVersionSection', () => {
     it('escapes regex metacharacters in the version string', () => {
         const result = extractVersionSection(SAMPLE, '0.1.15.*');
         expect(result).toBeNull();
+    });
+});
+
+describe('compareVersions', () => {
+    it('compares numeric components correctly', () => {
+        expect(compareVersions('0.1.15', '0.1.10')).toBe(1);
+        expect(compareVersions('0.1.10', '0.1.15')).toBe(-1);
+        expect(compareVersions('0.1.15', '0.1.15')).toBe(0);
+        expect(compareVersions('0.2.0', '0.1.99')).toBe(1);
+        expect(compareVersions('1.0.0', '0.99.99')).toBe(1);
+    });
+
+    it('treats missing components as zero', () => {
+        expect(compareVersions('0.1', '0.1.0')).toBe(0);
+        expect(compareVersions('0.1.1', '0.1')).toBe(1);
+    });
+});
+
+describe('extractAllVersions', () => {
+    it('parses every version section in document order', () => {
+        const all = extractAllVersions(SAMPLE);
+        expect(all.map(e => e.version)).toEqual(['0.1.15', '0.1.14', '0.1.13']);
+        expect(all[0].header).toBe('Version v0.1.15 — April 26, 2026');
+        expect(all[0].body).toBe('## Boon Performance\n\nSome text.\n\n- Bullet 1\n- Bullet 2');
+    });
+
+    it('returns empty array for empty input', () => {
+        expect(extractAllVersions('')).toEqual([]);
+    });
+});
+
+describe('extractVersionRange', () => {
+    it('returns versions in (lower, upper] range, newest-first', () => {
+        const range = extractVersionRange(SAMPLE, '0.1.13', '0.1.15');
+        expect(range.map(e => e.version)).toEqual(['0.1.15', '0.1.14']);
+    });
+
+    it('treats null lower bound as "everything up to upper"', () => {
+        const range = extractVersionRange(SAMPLE, null, '0.1.14');
+        expect(range.map(e => e.version)).toEqual(['0.1.14', '0.1.13']);
+    });
+
+    it('returns empty when no versions are in range', () => {
+        const range = extractVersionRange(SAMPLE, '0.1.15', '0.1.15');
+        expect(range).toEqual([]);
+    });
+
+    it('excludes versions newer than upper', () => {
+        const range = extractVersionRange(SAMPLE, '0.1.10', '0.1.14');
+        expect(range.map(e => e.version)).toEqual(['0.1.14', '0.1.13']);
     });
 });

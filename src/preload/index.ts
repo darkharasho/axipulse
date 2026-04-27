@@ -41,7 +41,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
 
     // Release notes
-    getReleaseNotes: (version: string) => ipcRenderer.invoke('release-notes:get', version),
+    getReleaseNotes: (version: string, lastSeenVersion: string | null = null) =>
+        ipcRenderer.invoke('release-notes:get', version, lastSeenVersion),
     getLastSeenVersion: () => ipcRenderer.invoke('release-notes:get-last-seen'),
     setLastSeenVersion: (version: string) => ipcRenderer.invoke('release-notes:set-last-seen', version),
 

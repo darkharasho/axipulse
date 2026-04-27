@@ -90,7 +90,7 @@ export function AppLayout() {
             const lastSeen = await window.electronAPI?.getLastSeenVersion?.();
             if (cancelled) return;
             if (lastSeen === appVersion) return;
-            const result = await window.electronAPI?.getReleaseNotes?.(appVersion);
+            const result = await window.electronAPI?.getReleaseNotes?.(appVersion, lastSeen ?? null);
             if (cancelled) return;
             if (result?.markdown) {
                 requestWhatsNew({ version: appVersion, markdown: result.markdown, source: 'auto' });

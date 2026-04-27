@@ -12,7 +12,7 @@ interface Window {
         saveSettings: (settings: any) => void;
         getAppVersion: () => Promise<string>;
         openExternal: (url: string) => Promise<void>;
-        getReleaseNotes: (version: string) => Promise<{ source: 'github' | 'bundled' | 'none'; markdown: string | null }>;
+        getReleaseNotes: (version: string, lastSeenVersion?: string | null) => Promise<{ source: 'github' | 'bundled' | 'none'; markdown: string | null }>;
         getLastSeenVersion: () => Promise<string | null>;
         setLastSeenVersion: (version: string) => Promise<void>;
         getSessionHistory: () => Promise<unknown[]>;
