@@ -92,7 +92,15 @@ jobs:
         run: |
           tag="${GITHUB_REF#refs/tags/}"
           if [ -f RELEASE_NOTES.md ]; then
-            gh release edit "$tag" --notes-file RELEASE_NOTES.md
+            awk -v ver="$tag" '
+              /^Version v[0-9]/ { capture = ($2 == ver) ? 1 : 0; next }
+              capture { print }
+            ' RELEASE_NOTES.md > /tmp/release-notes-section.md
+            if [ -s /tmp/release-notes-section.md ]; then
+              gh release edit "$tag" --notes-file /tmp/release-notes-section.md
+            else
+              gh release edit "$tag" --notes-file RELEASE_NOTES.md
+            fi
           fi
 
       - name: Publish release
