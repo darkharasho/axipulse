@@ -1,5 +1,15 @@
 # Release Notes
 
+Version v0.1.17 — April 27, 2026
+
+## Follow toggle now sticks between fights
+
+The Map view's **Follow** button used to reset every time you switched to a different fight in history. Now it stays on. Toggle it once, page through your history, and the view keeps re-centering on you in each fight. Dragging the map still turns it off, and it resets when you restart the app.
+
+## QoL Improvements
+
+- Stat cards on dashboards no longer glow on hover unless they're actually clickable. Less visual noise on cards that were never meant to do anything.
+
 Version v0.1.16 — April 26, 2026
 
 ## What's New modal
