@@ -1,5 +1,11 @@
 # Release Notes
 
+Version v0.1.18 — May 3, 2026
+
+## Fixes
+
+- Fixed a rare rendering glitch where the big gradient damage/healing number on the Pulse overview would paint as a solid colored block instead of text. Mostly happened on the first frame of a fight loading.
+
 Version v0.1.17 — April 27, 2026
 
 ## Follow toggle now sticks between fights
