@@ -154,7 +154,14 @@ function HeroBanner({ label, primaryValue, secondaryValue, secondaryLabel, rank,
                     </div>
                     <div
                         className="font-stat font-bold text-4xl leading-none mt-1"
-                        style={{ background: t.valueGradient, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
+                        style={{
+                            background: t.valueGradient,
+                            backgroundClip: 'text',
+                            WebkitBackgroundClip: 'text',
+                            color: 'transparent',
+                            WebkitTextFillColor: 'transparent',
+                            transform: 'translateZ(0)',
+                        }}
                     >
                         {primaryValue.toLocaleString()}
                     </div>
