@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AxiPulse — Personal GW2 combat analysis, beside your game</title>
+  <meta name="description" content="A lightweight desktop companion that parses your arcdps logs locally and shows your personal WvW combat performance — fight by fight, second by second." />
+
+  <meta property="og:title" content="AxiPulse — Personal GW2 combat analysis" />
+  <meta property="og:description" content="A lightweight desktop companion that parses your arcdps logs locally and shows your personal WvW combat performance — fight by fight, second by second." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://darkharasho.github.io/axipulse/" />
+
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=2" />
+</head>
+<body>
+
+<!-- SVG noise grain overlay -->
+<svg class="noise-overlay" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+  <filter id="noise">
+    <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" />
+    <feColorMatrix type="saturate" values="0" />
+  </filter>
+  <rect width="100%" height="100%" filter="url(#noise)" />
+</svg>
+
+<!-- 1. TOP CHROME BAR -->
+<header class="nav" id="site-nav">
+  <a class="nav-brand" href="#top">
+    <img class="nav-logo" src="assets/logo.svg" alt="" width="32" height="32" />
+    <span class="nav-wordmark">AXIPULSE</span>
+  </a>
+  <nav class="nav-links" aria-label="Site navigation">
+    <a href="#features">FEATURES</a>
+    <a href="#views">VIEWS</a>
+    <a href="#faq">FAQ</a>
+  </nav>
+  <div class="nav-status">
+    <span class="status-dot" aria-hidden="true"></span>
+    <span class="status-label">PULSING</span>
+    <span class="status-version" id="nav-version">v0.0.0</span>
+  </div>
+</header>
+
+<main>
+
+  <!-- 2. HERO -->
+  <section class="hero" id="top">
+    <div class="hero-copy">
+      <div class="hero-brand">
+        <img class="hero-logo hero-logo--solo" src="assets/logo.svg" alt="" width="96" height="96" />
+        <div class="hero-brand-text">
+          <span class="hero-wordmark">AXIPULSE</span>
+          <span class="hero-eyebrow"><i data-lucide="activity"></i>PERSONAL COMBAT TELEMETRY</span>
+        </div>
+      </div>
+      <h1 class="hero-headline">See what <em>happened</em>. Know what to fix.</h1>
+      <p class="hero-lede">A lightweight desktop companion that watches your arcdps log folder, parses each fight locally with Elite Insights, and shows exactly how you performed — while the squad is still forming up for the next one.</p>
+
+      <!-- ECG signature: a single-channel cardiogram that loops across the hero -->
+      <div class="ecg" aria-hidden="true">
+        <svg viewBox="0 0 600 64" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="ecg-fade" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0"   stop-color="currentColor" stop-opacity="0" />
+              <stop offset="0.1" stop-color="currentColor" stop-opacity="0.9" />
+              <stop offset="0.9" stop-color="currentColor" stop-opacity="0.9" />
+              <stop offset="1"   stop-color="currentColor" stop-opacity="0" />
+            </linearGradient>
+          </defs>
+          <!-- baseline grid -->
+          <g stroke="currentColor" stroke-width="0.5" opacity="0.10">
+            <line x1="0" y1="32" x2="600" y2="32" />
+            <line x1="0" y1="16" x2="600" y2="16" />
+            <line x1="0" y1="48" x2="600" y2="48" />
+          </g>
+          <!-- two beats of an ECG trace -->
+          <path
+            class="ecg-trace"
+            d="M0 32 L60 32 L80 30 L90 36 L100 22 L110 50 L115 8 L120 50 L130 32 L160 32 L180 30 L190 38 L210 32 L240 32 L260 30 L300 32 L360 32 L380 30 L390 36 L400 22 L410 50 L415 8 L420 50 L430 32 L460 32 L480 30 L490 38 L510 32 L600 32"
+            fill="none"
+            stroke="url(#ecg-fade)"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </div>
+
+      <div class="cta-row">
+        <a class="btn btn-primary" id="dl-win" href="https://github.com/darkharasho/axipulse/releases/latest">
+          <i data-lucide="download"></i><span>Windows</span>
+        </a>
+        <a class="btn btn-primary" id="dl-linux" href="https://github.com/darkharasho/axipulse/releases/latest">
+          <i data-lucide="download"></i><span>Linux</span>
+        </a>
+        <a class="btn btn-secondary" href="https://github.com/darkharasho/axipulse" target="_blank" rel="noopener">
+          <span>View source</span><i data-lucide="github"></i>
+        </a>
+      </div>
+      <p class="release-meta" id="release-meta">Latest release on GitHub</p>
+    </div>
+
+    <button class="hero-shot" type="button" data-full="assets/screenshots/hero-app.png" aria-label="AxiPulse Pulse view, full size">
+      <img src="assets/screenshots/hero-app.png" alt="AxiPulse — Pulse view showing personal combat stats" loading="eager" />
+    </button>
+  </section>
+
+  <!-- 3. // KEY FEATURES -->
+  <section class="section" id="features">
+    <div class="section-rule">
+      <span class="section-rule-label">// KEY FEATURES</span>
+    </div>
+
+    <div class="feature-grid">
+      <article class="feature-card">
+        <span class="feature-icon"><i data-lucide="activity"></i></span>
+        <h3>Per-fight Pulse</h3>
+        <p>Damage, DPS, downs, strips, cleanses, healing — ranked against your squad. AxiPulse detects your role and surfaces the stats that matter for it.</p>
+      </article>
+
+      <article class="feature-card">
+        <span class="feature-icon"><i data-lucide="gantt-chart"></i></span>
+        <h3>Second-by-second timeline</h3>
+        <p>Scrub through a fight. Damage dealt, damage taken, distance to tag, healing, boons, CC, down events — all on synchronized lanes.</p>
+      </article>
+
+      <article class="feature-card">
+        <span class="feature-icon"><i data-lucide="map-pin"></i></span>
+        <h3>Top-down map replay</h3>
+        <p>Watch the squad move on the actual WvW map. Position, downs, and engagement flow plotted with profession color-coding and live boon state.</p>
+      </article>
+
+      <article class="feature-card">
+        <span class="feature-icon"><i data-lucide="clock-3"></i></span>
+        <h3>Searchable history</h3>
+        <p>Every parsed fight is saved. Scan a whole night at a glance, click any fight, the full Pulse / Timeline / Map loads instantly.</p>
+      </article>
+
+      <article class="feature-card">
+        <span class="feature-icon"><i data-lucide="hard-drive-download"></i></span>
+        <h3>Local-only parsing</h3>
+        <p>Logs never leave your machine. Elite Insights runs as a local subprocess — no uploads, no accounts, no telemetry.</p>
+      </article>
+
+      <article class="feature-card feature-card--wide">
+        <span class="feature-icon"><i data-lucide="cpu"></i></span>
+        <h3>Automatic Elite Insights management</h3>
+        <p>AxiPulse downloads, installs, and updates Elite Insights for you. On Linux it handles the .NET runtime too. You never touch a CLI or a config file — the parser just works.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- 4. // PROCEDURE -->
+  <section class="section" id="how">
+    <div class="section-rule">
+      <span class="section-rule-label">// PROCEDURE</span>
+    </div>
+
+    <ol class="steps" aria-label="How it works">
+      <li class="step-row">
+        <span class="step-num" aria-hidden="true">01</span>
+        <span class="step-divider" aria-hidden="true">│</span>
+        <div class="step-body">
+          <h3>Point at your arcdps logs</h3>
+          <p>Set your <code>arcdps.cbtlogs</code> folder in Settings. AxiPulse watches the folder for new files.</p>
+        </div>
+      </li>
+      <li class="step-row">
+        <span class="step-num" aria-hidden="true">02</span>
+        <span class="step-divider" aria-hidden="true">│</span>
+        <div class="step-body">
+          <h3>Fights parse automatically</h3>
+          <p>Each new <code>.evtc</code> is parsed locally with Elite Insights. Your Pulse, Timeline, and Map are ready before the next pull.</p>
+        </div>
+      </li>
+      <li class="step-row">
+        <span class="step-num" aria-hidden="true">03</span>
+        <span class="step-divider" aria-hidden="true">│</span>
+        <div class="step-body">
+          <h3>Open the view you need</h3>
+          <p>Drop AxiPulse on a second monitor and let it work. Pulse for performance, Timeline for replay, Map for positioning, History for trends.</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <!-- 5. // VIEWS -->
+  <section class="section" id="views">
+    <div class="section-rule">
+      <span class="section-rule-label">// VIEWS</span>
+    </div>
+
+    <div class="suite-grid">
+      <article class="suite-card">
+        <span class="suite-tag">VITALS</span>
+        <h3>Pulse</h3>
+        <p>Per-fight performance snapshot. Damage, DPS, downs, strips, cleanses, healing — ranked against the squad so you know where you stand.</p>
+      </article>
+
+      <article class="suite-card">
+        <span class="suite-tag">REPLAY</span>
+        <h3>Timeline</h3>
+        <p>Second-by-second fight playback. Damage, healing, boons, CC, distance to tag — every metric on its own lane, click to inspect any moment.</p>
+      </article>
+
+      <article class="suite-card">
+        <span class="suite-tag">POSITION</span>
+        <h3>Map</h3>
+        <p>Top-down replay of squad movement on the WvW map. Profession color-coded, with downs and live boon overlays.</p>
+      </article>
+
+      <article class="suite-card">
+        <span class="suite-tag">SESSION</span>
+        <h3>History</h3>
+        <p>Every parsed fight, browsable. Quick-stats let you scan a whole night; click any entry to load the full Pulse, Timeline, and Map.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- 6. // GALLERY -->
+  <section class="section" id="gallery">
+    <div class="section-rule">
+      <span class="section-rule-label">// GALLERY</span>
+    </div>
+
+    <div class="gallery">
+      <button class="thumb" data-full="assets/screenshots/pulse.png" aria-label="Pulse view, full size">
+        <img src="assets/screenshots/pulse.png" alt="Pulse view — per-fight performance snapshot" loading="lazy" />
+        <div class="thumb-body">
+          <span class="thumb-caption">PULSE</span>
+          <p class="thumb-desc">Damage, DPS, down contribution, strips, cleanses, healing — all ranked against your squad with role-aware emphasis.</p>
+        </div>
+      </button>
+      <button class="thumb" data-full="assets/screenshots/timeline.png" aria-label="Timeline view, full size">
+        <img src="assets/screenshots/timeline.png" alt="Timeline view — second-by-second fight playback" loading="lazy" />
+        <div class="thumb-body">
+          <span class="thumb-caption">TIMELINE</span>
+          <p class="thumb-desc">Synchronized lanes for damage, healing, boons, CC, distance to tag. Click anywhere to inspect the fight at that exact second.</p>
+        </div>
+      </button>
+      <button class="thumb" data-full="assets/screenshots/map.png" aria-label="Map view, full size">
+        <img src="assets/screenshots/map.png" alt="Map view — top-down squad replay on the WvW map" loading="lazy" />
+        <div class="thumb-body">
+          <span class="thumb-caption">MAP</span>
+          <p class="thumb-desc">Top-down playback on the actual WvW map. Profession-colored player tracks, downs, and live boon state.</p>
+        </div>
+      </button>
+      <button class="thumb" data-full="assets/screenshots/history.png" aria-label="History view, full size">
+        <img src="assets/screenshots/history.png" alt="History view — searchable fight log" loading="lazy" />
+        <div class="thumb-body">
+          <span class="thumb-caption">HISTORY</span>
+          <p class="thumb-desc">Every parsed fight, browsable with quick-stats. Click any entry to reload the full Pulse, Timeline, and Map.</p>
+        </div>
+      </button>
+      <button class="thumb" data-full="assets/screenshots/settings.png" aria-label="Settings view, full size">
+        <img src="assets/screenshots/settings.png" alt="Settings view — arcdps folder, EI management, updates" loading="lazy" />
+        <div class="thumb-body">
+          <span class="thumb-caption">SETTINGS</span>
+          <p class="thumb-desc">Point at your arcdps log folder, manage Elite Insights, and tune AxiPulse — sensible defaults out of the box.</p>
+        </div>
+      </button>
+    </div>
+  </section>
+
+  <!-- Lightbox -->
+  <div class="lightbox" id="lightbox" hidden>
+    <button class="lightbox-close" id="lightbox-close" aria-label="Close lightbox"><i data-lucide="x"></i></button>
+    <img id="lightbox-img" alt="" />
+  </div>
+
+  <!-- Release modal -->
+  <div class="modal" id="release-modal" hidden>
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <header class="modal-header">
+        <div>
+          <div class="modal-eyebrow" id="modal-eyebrow">// RELEASE</div>
+          <h3 class="modal-title" id="modal-title"></h3>
+          <p class="modal-date" id="modal-date"></p>
+        </div>
+        <button class="modal-close" id="modal-close" aria-label="Close release notes"><i data-lucide="x"></i></button>
+      </header>
+      <div class="modal-body" id="modal-body"></div>
+      <footer class="modal-footer">
+        <a class="btn btn-secondary" id="modal-link" target="_blank" rel="noopener"><i data-lucide="github"></i><span>View on GitHub</span></a>
+      </footer>
+    </div>
+  </div>
+
+  <!-- 7. // FAQ -->
+  <section class="section" id="faq">
+    <div class="section-rule">
+      <span class="section-rule-label">// FAQ</span>
+    </div>
+
+    <div class="faq">
+      <details>
+        <summary>Does AxiPulse upload my logs anywhere?<span class="faq-indicator" aria-hidden="true"><i data-lucide="plus"></i></span></summary>
+        <div class="faq-body">
+          <p>No. Everything is parsed locally with Elite Insights running as a subprocess on your machine. Nothing is uploaded, no account is required, no telemetry is collected.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>Does it touch the game?<span class="faq-indicator" aria-hidden="true"><i data-lucide="plus"></i></span></summary>
+        <div class="faq-body">
+          <p>No. AxiPulse only reads <code>.evtc</code> files arcdps writes to disk after a fight ends. Nothing is injected into Guild Wars 2.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>What is Elite Insights, and do I need to install it?<span class="faq-indicator" aria-hidden="true"><i data-lucide="plus"></i></span></summary>
+        <div class="faq-body">
+          <p>Elite Insights is the open-source parser that turns <code>.evtc</code> files into structured fight data. AxiPulse downloads, installs, and keeps it up-to-date for you — and handles the .NET runtime on Linux too.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>Will it slow my game down?<span class="faq-indicator" aria-hidden="true"><i data-lucide="plus"></i></span></summary>
+        <div class="faq-body">
+          <p>Parsing happens on a background process after the fight ends. Drop AxiPulse on a second monitor and it stays out of your way during combat.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>Can I use AxiPulse on Linux?<span class="faq-indicator" aria-hidden="true"><i data-lucide="plus"></i></span></summary>
+        <div class="faq-body">
+          <p>Yes. Linux builds ship as an AppImage. AxiPulse installs and manages the .NET runtime Elite Insights needs — you don't have to touch any of it.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>Is it free?<span class="faq-indicator" aria-hidden="true"><i data-lucide="plus"></i></span></summary>
+        <div class="faq-body">
+          <p>Yes. Free forever, no paid tier.</p>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <!-- 8. // CHANGELOG -->
+  <section class="section" id="changelog">
+    <div class="section-rule">
+      <span class="section-rule-label">// CHANGELOG</span>
+    </div>
+
+    <div class="changelog" id="changelog-list">
+      <p class="muted">Loading recent releases…</p>
+    </div>
+    <div class="changelog-footer">
+      <a class="btn btn-secondary" href="https://github.com/darkharasho/axipulse/releases" target="_blank" rel="noopener"><span>View all releases</span><i data-lucide="arrow-right"></i></a>
+    </div>
+  </section>
+
+</main>
+
+<!-- 9. FOOTER -->
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-grid">
+      <div class="footer-col">
+        <h4 class="footer-heading">PROJECT</h4>
+        <ul>
+          <li><a href="https://github.com/darkharasho/axipulse" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="https://github.com/darkharasho/axipulse/releases" target="_blank" rel="noopener">Releases</a></li>
+          <li><a href="https://github.com/darkharasho/axipulse/blob/main/LICENSE" target="_blank" rel="noopener">License</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4 class="footer-heading">COMMUNITY</h4>
+        <ul>
+          <li><a href="https://discord.gg/UjzMXMGXEg" target="_blank" rel="noopener">Discord</a></li>
+          <li><a href="https://github.com/darkharasho/axipulse/issues" target="_blank" rel="noopener">Issues</a></li>
+          <li><a href="https://github.com/darkharasho/axipulse/discussions" target="_blank" rel="noopener">Discussions</a></li>
+        </ul>
+      </div>
+      <div class="footer-col footer-col--about">
+        <h4 class="footer-heading">ABOUT</h4>
+        <p class="footer-muted">AxiPulse parses arcdps logs locally with Elite Insights. Nothing is uploaded, no account is required. Built for the commander who wants to know what happened before the next push.</p>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      © 2026 harasho · Not affiliated with ArenaNet · Guild Wars 2 © ArenaNet, LLC.
+    </div>
+  </div>
+</footer>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script type="module" src="main.js"></script>
+</body>
+</html>
