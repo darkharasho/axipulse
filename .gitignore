@@ -7,3 +7,4 @@ dist_out/
 .DS_Store
 Thumbs.db
 .superpowers/
+graphify-out/
