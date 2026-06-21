@@ -119,7 +119,7 @@ export function AppLayout() {
                 style={{ background: 'var(--bg-base)', borderColor: 'var(--border-subtle)' }}
             >
                 <div className="flex items-center gap-2.5">
-                    <img src="./img/axipulse-white.png" alt="AxiPulse" className="h-4 w-auto object-contain opacity-90" draggable={false} />
+                    <img src="./img/axipulse-glyph.svg" alt="AxiPulse" className="h-5 w-5 object-contain opacity-90" draggable={false} />
                     <span style={{ fontFamily: '"Cinzel", serif', fontSize: '0.95rem', letterSpacing: '0.06em', fontWeight: 500 }}>
                         <span style={{ color: '#ffffff' }}>Axi</span>
                         <span style={{ color: 'var(--brand-primary)' }}>Pulse</span>
