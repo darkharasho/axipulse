@@ -1,5 +1,10 @@
 # Release Notes
 
+Version v0.1.19 — June 21, 2026
+
+## New app icon
+AxiPulse has a new duotone **pulse** mark, part of a suite-wide icon refresh. Updated installer/taskbar icon and in-app logo. No functional changes in this release.
+
 Version v0.1.18 — May 3, 2026
 
 ## Fixes
