@@ -61,10 +61,27 @@ pub fn parse_report_v1(bytes: &[u8], opts: &ParseOpts)
     -> Result<axilog_schema::v1::ReportV1, EvtcError>;
 ```
 
-Placement: `axilog-core`, which takes a new dependency on
-`axilog-schema`. The Node binding and the CLI are refactored to call it,
-so there is exactly one orchestration path. The existing golden tests
-cover this refactor.
+Placement: a new thin `axilog-api` crate depending on `axilog-core` and
+`axilog-schema`, re-exporting `axilog_schema::v1` so a consumer declares
+one dependency.
+
+It cannot live in `axilog-core`: `axilog-schema` already depends on
+`axilog-core` (`crates/axilog-schema/Cargo.toml`), and `parse_report_v1`
+returns a schema type, so putting it in core is a cargo cycle. It is kept
+out of `axilog-schema` because a crate named "schema" owning parse
+orchestration would have the CLI and `axilog-ei` importing their entry
+point from it.
+
+The Node binding and the CLI are refactored to call it, so there is
+exactly one orchestration path. The existing golden tests cover this
+refactor.
+
+**axibridge guard.** axibridge pins `@axiapps/axilog` at exactly `1.0.0`
+and consumes ei-json exclusively through `parseFileEi`, so it picks up
+nothing until deliberately bumped. Because this refactor touches the
+option plumbing `parseFileEi` rides, the refactor commit must assert
+ei-json output is byte-identical on the committed fixture before and
+after.
 
 ### 0.2 Incoming healing and barrier per-second series
 
@@ -263,10 +280,10 @@ entries; the EI install/update/uninstall/.NET/auto-manage sections of
 
 ### Dependency
 
-`axilog-core` as a git dependency pinned to axilog's `v1.1.0` tag; it
-re-exports `ReportV1` through its own dependency on `axilog-schema`, so
-the plugin declares one dependency, not two. The tree is pure Rust
-(`thiserror`, `flate2`, `serde`), so the existing `cargo xwin --target
+`axilog-api` as a git dependency pinned to axilog's `v1.1.0` tag; it
+re-exports `axilog_schema::v1`, so the plugin declares one dependency
+rather than three. The tree is pure Rust (`thiserror`, `flate2`, `serde`,
+`serde_json`), so the existing `cargo xwin --target
 x86_64-pc-windows-msvc` alias works with no new toolchain. `parse_report_v1` is called on the existing parser worker
 thread.
 
