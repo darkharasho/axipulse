@@ -61,10 +61,10 @@ pub fn parse_report_v1(bytes: &[u8], opts: &ParseOpts)
     -> Result<axilog_schema::v1::ReportV1, EvtcError>;
 ```
 
-Placement: `axilog-core` if it may depend on `axilog-schema`; otherwise a
-thin `axilog-api` crate depending on both. The Node binding and the CLI
-are refactored to call it, so there is exactly one orchestration path.
-The existing golden tests cover this refactor.
+Placement: `axilog-core`, which takes a new dependency on
+`axilog-schema`. The Node binding and the CLI are refactored to call it,
+so there is exactly one orchestration path. The existing golden tests
+cover this refactor.
 
 ### 0.2 Incoming healing and barrier per-second series
 
@@ -263,10 +263,11 @@ entries; the EI install/update/uninstall/.NET/auto-manage sections of
 
 ### Dependency
 
-`axilog-core` and `axilog-schema` as git dependencies pinned to axilog's
-`v1.1.0` tag. Both are pure Rust (`thiserror`, `flate2` only), so the
-existing `cargo xwin --target x86_64-pc-windows-msvc` alias works with no
-new toolchain. `parse_report_v1` is called on the existing parser worker
+`axilog-core` as a git dependency pinned to axilog's `v1.1.0` tag; it
+re-exports `ReportV1` through its own dependency on `axilog-schema`, so
+the plugin declares one dependency, not two. The tree is pure Rust
+(`thiserror`, `flate2`, `serde`), so the existing `cargo xwin --target
+x86_64-pc-windows-msvc` alias works with no new toolchain. `parse_report_v1` is called on the existing parser worker
 thread.
 
 ### What this removes
