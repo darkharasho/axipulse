@@ -341,6 +341,115 @@ describe('party member distances (native, world-inch replay tracks)', () => {
     });
 });
 
+/**
+ * The unsampled-bucket path -- previously a silent zero, and previously
+ * unoracled: forcing its value to 0 left the whole suite green, because the
+ * `dist_to_com` oracle above skips exactly the buckets that are its only
+ * consumer.
+ */
+describe('party member distances: the unsampled-bucket fallback (native)', () => {
+    /**
+     * WHICH buckets take the fallback, measured rather than assumed, and
+     * WHAT they take, oracled against the document.
+     *
+     * The EI path padded a bucket with no jointly-sampled poll using
+     * `statsAll[0].distToCom`; `blocks.replay.by_entity[id].dist_to_com` is
+     * documented as that same quantity, so the native path pads with it.
+     * Truncation -- the answer `extract/timeline.ts` reached for its own
+     * lane -- is not available here: `distances` is a fixed-length array
+     * indexed by bucket, so "absent" has no representation except padding.
+     *
+     * Measured across the 45 non-commander squad members at 1000ms buckets:
+     * 0 leading, 0 interior, 7 trailing. Trailing because the last replay
+     * poll is t=138300 against a 138333ms fight. Pinned at 2000/3000ms too,
+     * where the count shrinks as the buckets widen, which is the signature
+     * of a trailing edge rather than a scattering of holes.
+     */
+    it('pads only trailing unsampled buckets, and pads them with dist_to_com', () => {
+        const native = loadNativeFixture();
+        const replay = native.blocks.replay!;
+        const tracks = replay.tracks!;
+        const cmdTimes = new Set((tracks.by_entity[String(commanderId(native)!)]!.samples).map(s => s[0]));
+
+        for (const [bucketMs, expectedTrailing] of [[1000, 7], [2000, 5], [3000, 4]] as const) {
+            let leading = 0;
+            let interior = 0;
+            let trailing = 0;
+            const wrongValue: string[] = [];
+            const seen = new Set<string>();
+
+            for (const e of squadMembers(native)) {
+                if (!e.subgroup) continue;
+                const result = computeBoonPerformance(native, e.id, bucketMs, STABILITY_BUFF_ID)!;
+                for (const member of result.partyMembers) {
+                    if (seen.has(member.key)) continue;
+                    seen.add(member.key);
+                    const expected = replay.by_entity[member.key]!.dist_to_com!;
+                    const occupied = new Set<number>();
+                    for (const [t] of tracks.by_entity[member.key]!.samples) {
+                        if (cmdTimes.has(t)) {
+                            occupied.add(Math.min(result.bucketCount - 1, Math.floor(t / result.bucketSizeMs)));
+                        }
+                    }
+                    expect(occupied.size, `${member.key} has some sampled bucket`).toBeGreaterThan(0);
+                    const first = Math.min(...occupied);
+                    const last = Math.max(...occupied);
+                    for (let b = 0; b < result.bucketCount; b++) {
+                        if (occupied.has(b)) continue;
+                        if (b < first) leading++;
+                        else if (b > last) trailing++;
+                        else interior++;
+                        if (member.distances[b] !== expected) {
+                            wrongValue.push(`${member.key}@${b} ${member.distances[b]} != ${expected}`);
+                        }
+                    }
+                }
+            }
+            expect(seen.size, `${bucketMs}ms roster`).toBe(46);
+            expect(leading, `${bucketMs}ms leading`).toBe(0);
+            expect(interior, `${bucketMs}ms interior`).toBe(0);
+            expect(trailing, `${bucketMs}ms trailing`).toBe(expectedTrailing);
+            expect(wrongValue, `${bucketMs}ms padded value`).toEqual([]);
+        }
+    });
+
+    /**
+     * The two non-values `dist_to_com` can carry are NOT distances and are
+     * no longer collapsed to zero. Both are unreachable on this fixture (all
+     * 47 rows carry a real `>= 0` value, asserted here so the mutation is
+     * known to be creating the state rather than observing it), so they are
+     * reached by editing a clone.
+     */
+    it('throws rather than padding zero when dist_to_com is absent or the -1 sentinel', () => {
+        const native = loadNativeFixture();
+        const local = localPlayerId(native);
+        const rows = Object.values(native.blocks.replay!.by_entity);
+        expect(rows.length).toBe(47);
+        expect(rows.every(r => r.dist_to_com !== undefined && r.dist_to_com >= 0)).toBe(true);
+
+        const partyKey = computeBoonPerformance(native, local, 1000, STABILITY_BUFF_ID)!.partyMembers[0].key;
+
+        const edit = (fn: (row: any) => void): ReportV1 => {
+            const replay = structuredClone(native.blocks.replay!);
+            fn((replay.by_entity as any)[partyKey]);
+            return { ...native, blocks: { ...native.blocks, replay } } as ReportV1;
+        };
+
+        expect(() => computeBoonPerformance(edit(r => { delete r.dist_to_com; }), local, 1000, STABILITY_BUFF_ID))
+            .toThrow(/dist_to_com is absent/);
+        expect(() => computeBoonPerformance(edit(r => { r.dist_to_com = -1; }), local, 1000, STABILITY_BUFF_ID))
+            .toThrow(/sentinel/);
+
+        // ... and a squad member with no intervals row at all is a broken
+        // document, not a member who never died.
+        const replay = structuredClone(native.blocks.replay!);
+        delete (replay.by_entity as any)[partyKey];
+        const stripped = { ...native, blocks: { ...native.blocks, replay } } as ReportV1;
+        expect(() => computeBoonPerformance(stripped, local, 1000, STABILITY_BUFF_ID))
+            .toThrow(/no replay intervals row/);
+    });
+});
+
 describe('party incoming damage (native, differenced series)', () => {
     // `blocks.series.by_entity[id].damage_taken` is CUMULATIVE (established
     // in Task 2) -- this function differences it before bucketing, exactly

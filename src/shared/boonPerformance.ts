@@ -269,6 +269,58 @@ function computeDeathsPerBucketNative(
  * (neither did the EI path it replaces); the chart wants a position for
  * every tick. Only the oracle applies the liveness filter.
  */
+/**
+ * The value a bucket with no jointly-sampled replay poll takes.
+ *
+ * MEASURED, not chosen. The EI path this replaces padded such buckets with
+ * `statsAll[0].distToCom` -- GW2EI's mean distance to the commander over the
+ * actor's active polls -- and `blocks.replay.by_entity[id].dist_to_com` is
+ * documented as literally that same quantity, so passing it through is
+ * matching EI rather than inventing a rule. (Truncation, which
+ * `extract/timeline.ts` chose for its own lane, is not available here:
+ * `BoonPerfPartyMember.distances` is a fixed-length `number[]` indexed by
+ * bucket, so there is no way to express "absent" except by not padding at
+ * all, which the type forbids.)
+ *
+ * Which buckets are these? Measured across the 45 non-commander squad
+ * members of the fixture, against `computeBoonPerformance`'s own bucket
+ * grid: 0 leading, 0 interior, and 7 trailing at 1000ms (5 at 2000ms, 4 at
+ * 3000ms, 0 at 5000ms) -- the same shape `extract/timeline.ts` measured, and
+ * for the same reason: the last replay poll is t=138300 against a 138333ms
+ * fight. Padding a trailing bucket with the actor's own mean distance is
+ * therefore the whole of this path.
+ *
+ * The two non-values are NOT collapsed to zero, which is what the previous
+ * revision did and which reads downstream as "standing on the commander":
+ *
+ *   - ABSENT means the position pass never ran. Under this app's fixed
+ *     `PARSE_OPTS` (`replay: true`) it always runs, so absence is a broken
+ *     document.
+ *   - `-1` is GW2EI's sentinel for "the pass ran and nothing qualified" --
+ *     there is no mean to pad with, and EI's own code would have propagated
+ *     the -1 as a negative distance, which is not a behaviour worth copying.
+ *
+ * Both are unreachable on this fixture (all 47 rows carry a real `>= 0`
+ * value), so `boonPerformance.test.ts` reaches them by mutating a shallow
+ * copy of the report rather than leaving them as untested dead code.
+ */
+function requireFallbackDist(distToCom: number | undefined, entityId: number): number {
+    if (distToCom === undefined) {
+        throw new Error(
+            `computeBoonPerformance: blocks.replay.by_entity[${entityId}].dist_to_com is absent`
+            + ' -- the log was parsed without `replay: true`, so unsampled buckets have no'
+            + ' measured distance to fall back to',
+        );
+    }
+    if (distToCom < 0) {
+        throw new Error(
+            `computeBoonPerformance: blocks.replay.by_entity[${entityId}].dist_to_com is`
+            + ` ${distToCom} -- GW2EI's "nothing qualified" sentinel, which is not a distance`,
+        );
+    }
+    return distToCom;
+}
+
 function computeDistancesPerBucketNative(
     memberSamples: [number, number, number][],
     cmdSamples: [number, number, number][],
@@ -413,10 +465,17 @@ export function computeBoonPerformance(
     const partyMembers: BoonPerfPartyMember[] = partyEntities.map(e => {
         const row = boons.by_entity[String(e.id)]?.[String(buffId)];
         const states = (row?.states ?? []) as Array<[number, number]>;
-        const dead = replay.by_entity[String(e.id)]?.dead ?? [];
+        // `blocks.replay.by_entity` is keyed by SQUAD entity and `partyEntities`
+        // is a subset of `squadMembers(r)`, so a missing row is a broken
+        // document rather than "this player has no intervals". The previous
+        // `?? []` turned that into a member who silently never died.
+        const intervals = replay.by_entity[String(e.id)];
+        if (!intervals) {
+            throw new Error(`computeBoonPerformance: no replay intervals row for squad entity ${e.id}`);
+        }
+        const dead = intervals.dead;
         const memberSamples = tracks?.by_entity[String(e.id)]?.samples ?? [];
-        const rawFallbackDist = replay.by_entity[String(e.id)]?.dist_to_com;
-        const fallbackDist = rawFallbackDist !== undefined && rawFallbackDist >= 0 ? rawFallbackDist : 0;
+        const fallbackDist = requireFallbackDist(intervals.dist_to_com, e.id);
         return {
             key: String(e.id),
             displayName: (e.account ?? e.name ?? '').split('.')[0],
