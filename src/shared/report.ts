@@ -20,7 +20,10 @@ export type { ReportV1, EntityOut, SeriesOut, CoverageState };
 export function decodeSeries(s: SeriesOut): number[] {
     let out: number[];
     if (s.enc === 'raw') {
-        out = s.data as number[];
+        // Copy: the ReportV1 is memoized (oracle.ts, and the parse cache in
+        // production), so handing out the live array would let any consumer
+        // that mutates a decoded series corrupt the document for everyone else.
+        out = (s.data as number[]).slice();
     } else {
         out = [];
         for (const pair of s.data as [number, number][]) {
