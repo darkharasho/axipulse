@@ -93,4 +93,20 @@ describe('getAvgDistanceInRange', () => {
         expect(getAvgDistanceInRange([], 0, 5000)).toBeNull();
         expect(getAvgDistanceInRange([{ time: 0, value: 500 }], 9000, 10000)).toBeNull();
     });
+
+    /**
+     * The OTHER half of "absence is distinguishable from a genuine zero",
+     * which the test above only proves in one direction. A player standing
+     * exactly on the commander is a real measurement of 0 inches and must
+     * still come back as `{ avg: 0 }` -- collapsing it to `null` would
+     * replace one silent substitution with its mirror image and hide a
+     * genuinely perfect stack behind an em dash.
+     */
+    it('returns a genuine sampled zero as zero, not as absence', () => {
+        expect(getAvgDistanceInRange([{ time: 0, value: 0 }], 0, 1000))
+            .toEqual({ avg: 0, max: 0 });
+        expect(getAvgDistanceInRange(
+            [{ time: 0, value: 0 }, { time: 1000, value: 0 }, { time: 2000, value: 0 }], 0, 5000,
+        )).toEqual({ avg: 0, max: 0 });
+    });
 });

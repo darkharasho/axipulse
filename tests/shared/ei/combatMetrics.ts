@@ -1,6 +1,20 @@
 // tests/shared/ei/combatMetrics.ts -- EI-shaped oracle accessors, moved out of
 // src/ by Task 11. No production caller; the equality oracles are the only
 // consumers.
+//
+// PRUNED in fix round 1. The module was `git mv`'d whole, which carried four
+// functions no oracle calls (`getStabilityGeneration`, `getTopHealingSkills`,
+// `getTopBarrierSkills`, `getTopDamageTakenSkills`) plus, on a second pass,
+// `getDeathTimes`/`getDownTimes`. Those last two were NOT caught by counting
+// references: their only mentions anywhere are inside a prose comment in
+// `extract/timeline.test.ts` explaining why the EI side has no death TIMES to
+// compare against. A grep-based count -- mine and the review's alike -- reads
+// a comment as a consumer. Mutation does not: forcing either to return `[]`
+// left all 310 tests passing. They were dead for a good reason: the oracles
+// that need those quantities read the EI fixture DIRECTLY
+// (`p.extHealingStats.totalHealingDist`, `p.squadBuffs`), which is one fewer
+// layer between the document and the assertion. Everything left here has at
+// least one caller.
 import type { EiPlayer, EiJson } from './types';
 import type { SkillDamage } from '../../../src/shared/types';
 
@@ -37,24 +51,6 @@ export function getBarrierOutput(player: EiPlayer): number {
     return total;
 }
 
-const STABILITY_BUFF_ID = 1122;
-
-export function getStabilityGeneration(player: EiPlayer): number {
-    let selfMs = 0;
-    let squadMs = 0;
-    for (const buff of player.selfBuffs ?? []) {
-        if (buff.id === STABILITY_BUFF_ID) {
-            selfMs += buff.buffData[0]?.generation ?? 0;
-        }
-    }
-    for (const buff of player.squadBuffs ?? []) {
-        if (buff.id === STABILITY_BUFF_ID) {
-            squadMs += buff.buffData[0]?.generation ?? 0;
-        }
-    }
-    return (selfMs + squadMs) / 1000;
-}
-
 export function getTopSkillDamage(
     player: EiPlayer,
     skillMap: SkillMap,
@@ -74,63 +70,6 @@ export function getTopSkillDamage(
     return skills.slice(0, limit);
 }
 
-export function getTopHealingSkills(
-    player: EiPlayer,
-    skillMap: SkillMap,
-    buffMap: BuffMap,
-    limit: number = 8,
-): SkillDamage[] {
-    const phase = player.extHealingStats?.totalHealingDist?.[0];
-    if (!phase) return [];
-    const skills: SkillDamage[] = [];
-    for (const entry of phase) {
-        if (entry.totalHealing > 0) {
-            const meta = resolveSkillMeta(entry.id, skillMap, buffMap);
-            skills.push({ id: entry.id, name: meta.name, damage: entry.totalHealing, downContribution: 0, downedHealing: entry.totalDownedHealing ?? 0, hits: entry.hits, icon: meta.icon });
-        }
-    }
-    skills.sort((a, b) => b.damage - a.damage);
-    return skills.slice(0, limit);
-}
-
-export function getTopBarrierSkills(
-    player: EiPlayer,
-    skillMap: SkillMap,
-    buffMap: BuffMap,
-    limit: number = 8,
-): SkillDamage[] {
-    const phase = player.extBarrierStats?.totalBarrierDist?.[0];
-    if (!phase) return [];
-    const skills: SkillDamage[] = [];
-    for (const entry of phase) {
-        if (entry.totalBarrier > 0) {
-            const meta = resolveSkillMeta(entry.id, skillMap, buffMap);
-            skills.push({ id: entry.id, name: meta.name, damage: entry.totalBarrier, downContribution: 0, downedHealing: 0, hits: entry.hits, icon: meta.icon });
-        }
-    }
-    skills.sort((a, b) => b.damage - a.damage);
-    return skills.slice(0, limit);
-}
-
-export function getTopDamageTakenSkills(
-    player: EiPlayer,
-    skillMap: SkillMap,
-    buffMap: BuffMap,
-    limit: number = 8,
-): SkillDamage[] {
-    const phase = player.totalDamageTaken?.[0];
-    if (!phase) return [];
-    const skills: SkillDamage[] = [];
-    for (const entry of phase) {
-        if (entry.totalDamage > 0) {
-            const meta = resolveSkillMeta(entry.id, skillMap, buffMap);
-            skills.push({ id: entry.id, name: meta.name, damage: entry.totalDamage, downContribution: 0, downedHealing: 0, hits: entry.connectedHits, icon: meta.icon });
-        }
-    }
-    skills.sort((a, b) => b.damage - a.damage);
-    return skills.slice(0, limit);
-}
-
 export function getSquadRank(
     squadPlayers: EiPlayer[],
     player: EiPlayer,
@@ -144,12 +83,3 @@ export function getSquadRank(
     return rank;
 }
 
-export function getDeathTimes(player: EiPlayer): number[] {
-    if (!player.combatReplayData?.dead) return [];
-    return player.combatReplayData.dead.map(([time]) => time);
-}
-
-export function getDownTimes(player: EiPlayer): number[] {
-    if (!player.combatReplayData?.down) return [];
-    return player.combatReplayData.down.map(([time]) => time);
-}

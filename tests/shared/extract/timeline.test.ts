@@ -984,8 +984,12 @@ describe('extractTimeline', () => {
     it('throws on a missing boons row rather than rendering eight empty boon lanes', () => {
         const native = loadNativeFixture();
         const id = localPlayerId(native);
+        // Four modules throw `no boons row for entity` (`extractBoonUptimes`,
+        // `extractBoonGeneration`, `extractSupport`, `extractTimeline`) --
+        // and `extractTimeline` calls none of them, so the bare tail could
+        // have passed on a throw from a completely different unit.
         expect(() => extractTimeline(withBoonsRow(native, id, undefined), id, BUCKET_MS))
-            .toThrow(/no boons row for entity/);
+            .toThrow(/extractTimeline: no boons row for entity/);
     });
 
     it('throws when a boon row carries no states timeline', () => {

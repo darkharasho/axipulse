@@ -47,10 +47,17 @@ const RUNBACK_FLOOR_INCHES = 400;
  *
  * That omission was untestable on the EI path: `combatReplayData.dead` is
  * `[]` for all 46 players in the frozen EI fixture, so the exclusion never
- * executed and no oracle could see it missing. It is testable now --
- * `blocks.replay.by_entity` carries three real dead intervals on this
- * fixture's local player -- and `extractPlayerData.test.ts` pins both the
- * excluded and the unexcluded average so removing the argument fails.
+ * executed and no oracle could see it missing.
+ *
+ * It is testable now, but NOT via the local player, who has `dead: []` and
+ * `down: []` like everyone did under EI (asserted by this file's own test).
+ * THREE OTHER squad members -- `Anon151.6587`, `Anon175.7475`,
+ * `Anon174.7438` -- carry one real `blocks.replay.by_entity[id].dead`
+ * interval each, and `extractPlayerData.test.ts` reaches them by repointing
+ * `encounter.recorded_by`. For `Anon151.6587` the exclusion moves the mean
+ * from 17986 to 2046 inches. Both figures are pinned, so dropping the
+ * argument fails. (An earlier revision of this comment said the intervals
+ * were the local player's; they are not.)
  *
  * No `?? 0` on the pre-death reference distance. A death with no earlier
  * sampled bucket has no reference, which is a different thing from a
@@ -141,9 +148,15 @@ function computeFightPosition(local: SquadMemberMovement | undefined): [number, 
 function positionsAt(
     local: SquadMemberMovement | undefined,
     times: number[],
-    pollingRate: number,
+    pollingRate: number | undefined,
 ): [number, number][] {
-    if (!local) return [];
+    // Both absences travel together and are the same absence: a member only
+    // exists because `extractMovement` returned a `MovementData`, which is
+    // where `pollingRate` comes from. Taking `number | undefined` rather
+    // than letting the caller write `?? 0` keeps the impossible combination
+    // out of the type instead of papering it over with a sentinel that
+    // would divide.
+    if (!local || pollingRate === undefined) return [];
     return times
         .map(t => memberPosAt(local, t, pollingRate))
         .filter((p): p is [number, number] => p !== null);
@@ -224,10 +237,11 @@ export function extractPlayerFightData(
         throw new Error(`extractPlayerFightData: no replay intervals row for local entity ${id}`);
     }
 
-    // No `?? 300`: the poll grid comes from the document that produced the
-    // positions, and `movementData === null` means there are no positions to
-    // place at all, in which case `positionsAt` returns `[]` without reading it.
-    const pollingRate = movementData?.pollingRate ?? 0;
+    // No `?? 300` and no `?? 0`: the poll grid comes from the document that
+    // produced the positions. `movementData === null` means there are no
+    // positions to place at all, and `positionsAt` takes the `undefined`
+    // rather than being handed a sentinel.
+    const pollingRate = movementData?.pollingRate;
     const downPositions = positionsAt(localMember, replay.down.map(([t]) => t), pollingRate);
     const deathPositions = positionsAt(localMember, replay.dead.map(([t]) => t), pollingRate);
 

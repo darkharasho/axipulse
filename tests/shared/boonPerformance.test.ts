@@ -543,8 +543,13 @@ describe('party member distances: the unsampled-bucket fallback (native)', () =>
         const replay = structuredClone(native.blocks.replay!);
         delete (replay.by_entity as any)[partyKey];
         const stripped = { ...native, blocks: { ...native.blocks, replay } } as ReportV1;
+        // Anchored on the FUNCTION NAME, not on the shared tail. Task 11
+        // added a second `no replay intervals row` throw
+        // (`extractPlayerFightData`), so `/no replay intervals row/` matched
+        // two sites and proved nothing about either. The prefix is the only
+        // part of a message guaranteed unique to its throw.
         expect(() => computeBoonPerformance(stripped, local, 1000, STABILITY_BUFF_ID))
-            .toThrow(/no replay intervals row/);
+            .toThrow(/computeBoonPerformance: no replay intervals row/);
     });
 });
 
@@ -590,6 +595,27 @@ describe('party incoming damage (native, differenced series)', () => {
         expect(result.partyIncomingDamage.every(v => v === 0)).toBe(true);
     });
 });
+
+/** The fixture with one entity's stability `states` timeline removed. Never
+ *  mutates the memoized report. */
+function withoutStates(native: ReportV1, entityId: number): ReportV1 {
+    const boons = native.blocks.boons!;
+    const key = String(entityId);
+    const row = { ...boons.by_entity[key][String(STABILITY_BUFF_ID)] };
+    delete row.states;
+    return {
+        ...native,
+        blocks: {
+            ...native.blocks,
+            boons: {
+                by_entity: {
+                    ...boons.by_entity,
+                    [key]: { ...boons.by_entity[key], [String(STABILITY_BUFF_ID)]: row },
+                },
+            },
+        },
+    } as ReportV1;
+}
 
 describe('local player stab generation (native, rekeyed per_source)', () => {
     it('produces a non-negative, finite selfGeneration series of the right length for every squad member', () => {
@@ -674,36 +700,51 @@ describe('local player stab generation (native, rekeyed per_source)', () => {
             .toThrow(/per_source/);
     });
 
-    // The other half of the removed fallback. `states` is absent only when
-    // the report was parsed without `timeseries: true`, which our fixed
-    // PARSE_OPTS never does -- so an absent timeline means the caller got a
-    // report it cannot compute generation from, and must not see zeros.
-    it('throws when a boons row has no states timeline at all', () => {
+    /**
+     * The other half of the removed fallback. `states` is absent only when
+     * the report was parsed without `timeseries: true`, which our fixed
+     * PARSE_OPTS never does -- so an absent timeline means the caller got a
+     * report it cannot compute generation from, and must not see zeros.
+     *
+     * TWO guards, and until Task 11's fix round this test only ever reached
+     * ONE of them. It anchored on `/states/`, which matched five throw sites
+     * across three modules; re-anchoring on the function name revealed that
+     * its victim (entity 2, the first squad member with a non-empty
+     * timeline) is NOT in the local player's party, so it always tripped
+     * `computeSelfGenerationPerBucketNative` and `computeBoonPerformance`'s
+     * own party-loop guard was never executed at all. Both are now covered,
+     * with the victim chosen to select the site under test:
+     *   - a PARTY member trips the party loop, which runs first;
+     *   - a non-party squad member falls through to the generation sum.
+     */
+    it('throws from the party loop when a party member has no states timeline', () => {
         const native = loadNativeFixture();
-        const boons = native.blocks.boons!;
+        const local = native.entities.find(e => e.id === localPlayerId(native))!;
         const victim = squadMembers(native).find(e =>
-            (boons.by_entity[String(e.id)][String(STABILITY_BUFF_ID)].states?.length ?? 0) > 0);
-        expect(victim, 'no squad member has a non-empty stability timeline').toBeDefined();
+            e.subgroup === local.subgroup && e.id !== local.id
+            && (native.blocks.boons!.by_entity[String(e.id)][String(STABILITY_BUFF_ID)].states?.length ?? 0) > 0);
+        expect(victim, 'no party member has a non-empty stability timeline').toBeDefined();
 
-        const key = String(victim!.id);
-        const row = { ...boons.by_entity[key][String(STABILITY_BUFF_ID)] };
-        expect(row.states).toBeDefined();
-        delete row.states;
-        const mutated: ReportV1 = {
-            ...native,
-            blocks: {
-                ...native.blocks,
-                boons: {
-                    by_entity: {
-                        ...boons.by_entity,
-                        [key]: { ...boons.by_entity[key], [String(STABILITY_BUFF_ID)]: row },
-                    },
-                },
-            },
-        };
+        expect(() => computeBoonPerformance(
+            withoutStates(native, victim!.id), localPlayerId(native), 1000, STABILITY_BUFF_ID,
+        )).toThrow(new RegExp(
+            `computeBoonPerformance: blocks\\.boons\\.by_entity\\[${victim!.id}\\]\\[${STABILITY_BUFF_ID}\\] has no`,
+        ));
+    });
 
-        expect(() => computeBoonPerformance(mutated, localPlayerId(native), 1000, STABILITY_BUFF_ID))
-            .toThrow(/states/);
+    it('throws from the generation sum when a non-party squad member has no states timeline', () => {
+        const native = loadNativeFixture();
+        const local = native.entities.find(e => e.id === localPlayerId(native))!;
+        const victim = squadMembers(native).find(e =>
+            e.subgroup !== local.subgroup
+            && (native.blocks.boons!.by_entity[String(e.id)][String(STABILITY_BUFF_ID)].states?.length ?? 0) > 0);
+        expect(victim, 'no non-party squad member has a non-empty stability timeline').toBeDefined();
+
+        expect(() => computeBoonPerformance(
+            withoutStates(native, victim!.id), localPlayerId(native), 1000, STABILITY_BUFF_ID,
+        )).toThrow(new RegExp(
+            `computeSelfGenerationPerBucketNative: blocks\\.boons\\.by_entity\\[${victim!.id}\\]\\[${STABILITY_BUFF_ID}\\]`,
+        ));
     });
 
     // An all-zero selfGeneration is a REAL zero (this entity applied the

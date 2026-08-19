@@ -120,9 +120,44 @@ export function getMapTiles(
  * the renderer stops carrying bare `?? 523` / `?? 750` literals, which were
  * Alpine's numbers applied to every map including EBG (716x750) and Red
  * Desert (750x750).
+ *
+ * `WVW_TILE_DATA` is typed `Record<WvwMap, ...>`, so every enum member has an
+ * entry -- but that is a compile-time guarantee about a hand-maintained
+ * table, and a `WvwMap` value arriving from outside the type system (a cast,
+ * a persisted store) would return `undefined` and the caller would destructure
+ * `undefined[0]`. Checked rather than assumed.
  */
 export function getMapPixelSize(map: WvwMap): [number, number] {
-    return WVW_TILE_DATA[map].pixelSize;
+    const data = WVW_TILE_DATA[map];
+    if (!data) throw new Error(`getMapPixelSize: no tile data for map ${map}`);
+    return data.pixelSize;
+}
+
+/**
+ * The pixel space a fight's map overlay should be laid out in, or `null` when
+ * there is no such space.
+ *
+ * Preference order, and the reason for each:
+ *   1. `mapSize` -- the log's OWN `arena`, squeezed into GW2EI's pixel space.
+ *      Best, because it travels with the positions being plotted.
+ *   2. the per-map table -- for a log with no arena. The landmark overlay
+ *      still has a coordinate space even when there are no positions.
+ *   3. `null` -- the map is one this app has no assets for at all (a PvE
+ *      log, or a WvW map ArenaNet adds later).
+ *
+ * `null` rather than `[0, 0]`, which is what fix round 1 replaced. A 0x0
+ * viewBox is a degenerate coordinate space: every landmark collapses onto
+ * the origin and the SVG renders as an empty box that looks like a map that
+ * failed to load rather than a map this app cannot draw. Callers take their
+ * explicit "no map" branch instead.
+ */
+export function resolveMapPixelSize(
+    mapSize: [number, number] | null,
+    map: WvwMap | null,
+): [number, number] | null {
+    if (mapSize) return mapSize;
+    if (map) return getMapPixelSize(map);
+    return null;
 }
 
 export function hasTileData(map: WvwMap): boolean {

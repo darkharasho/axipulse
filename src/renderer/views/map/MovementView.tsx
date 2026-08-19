@@ -3,7 +3,7 @@ import { ChevronRight, Crosshair, MapPin, Pause, Play, RotateCcw, Users, ZoomIn,
 import { useAppStore } from '../../store';
 import { WVW_LANDMARKS, WvwMap, type WvwLandmark } from '../../../shared/wvwLandmarks';
 import { resolveMapFromMapId } from '../../../shared/mapUtils';
-import { getMapTiles, hasTileData, getMapPixelSize } from '../../../shared/wvwTiles';
+import { getMapTiles, hasTileData, resolveMapPixelSize } from '../../../shared/wvwTiles';
 import type { SkillCast, SquadMemberMovement } from '../../../shared/types';
 import { lerpPos, memberFrame, memberPosAt } from '../../../shared/movementFrame';
 import { getProfessionIconPath } from '../../classIconUtils';
@@ -183,11 +183,17 @@ export function MovementView() {
     // Follow player: center view on local player's position
     useEffect(() => {
         if (!followPlayer || !currentFight?.movementData || !containerRef.current) return;
-        const { movementData, mapSize } = currentFight;
+        const { movementData, mapSize, mapId } = currentFight;
         const local = movementData.members.find(m => m.isLocal);
         if (!local) return;
-        const mw = mapSize?.[0] ?? 523;
-        const mh = mapSize?.[1] ?? 750;
+        // Same resolver the render path uses. The `?? 523 / ?? 750` that stood
+        // here was Alpine's size, silently applied to EBG (716x750) and Red
+        // Desert (750x750) -- which mis-framed the follow camera on two of the
+        // four maps. Missed in Task 11's first pass because it is inside an
+        // effect rather than the render body.
+        const pixelSize = resolveMapPixelSize(mapSize, mapId === null ? null : resolveMapFromMapId(mapId));
+        if (pixelSize === null) return;
+        const [mw, mh] = pixelSize;
         const rect = containerRef.current.getBoundingClientRect();
         const renderScale = Math.min(rect.width / mw, rect.height / mh);
         const renderW = mw * renderScale;
@@ -283,11 +289,12 @@ export function MovementView() {
     // WvW maps and cannot be broken by a localisation or a rewording.
     const map = mapId === null ? null : resolveMapFromMapId(mapId);
     const landmarks = map ? WVW_LANDMARKS[map] : [];
-    // `mapSize` is the log's own arena, squeezed into EI pixel space. The
-    // per-map table is the fallback for a log with no arena; the bare
-    // `?? 523 / ?? 750` this replaced was Alpine's size applied to EBG and
-    // Red Desert too.
-    const [width, height] = mapSize ?? (map ? getMapPixelSize(map) : [0, 0]);
+    // `mapSize` is the log's own arena, squeezed into EI pixel space; the
+    // per-map table is the fallback for a log with no arena; `null` means no
+    // assets for this map at all. The bare `?? 523 / ?? 750` this replaced
+    // was Alpine's size applied to EBG and Red Desert too, and the `[0, 0]`
+    // that briefly replaced THAT was a degenerate coordinate space.
+    const pixelSize = resolveMapPixelSize(mapSize, map);
     const useTiles = map && hasTileData(map);
     const tileZoom = tileZoomForScale(view.scale);
     const tiles = useMemo(
@@ -296,6 +303,19 @@ export function MovementView() {
         () => (useTiles ? getMapTiles(map as WvwMap, tileZoom, mapSize ?? undefined) : []),
         [useTiles, map, tileZoom, mapSize],
     );
+
+    // After every hook, so the rules of hooks hold on both branches.
+    if (pixelSize === null) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full gap-2">
+                <MapPin className="w-8 h-8" style={{ color: 'var(--text-muted)' }} />
+                <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>No Map Assets</span>
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {mapName} is not a WvW map this app has landmark or tile data for
+                </span>
+            </div>
+        );
+    }
 
     if (!movementData || movementData.members.length === 0) {
         return (
@@ -306,6 +326,8 @@ export function MovementView() {
             </div>
         );
     }
+
+    const [width, height] = pixelSize;
 
     const { pollingRate, durationMs, inchToPixel, members, boonIcons, skillIcons } = movementData;
     // There is no shared position index across members -- `members[0]`'s

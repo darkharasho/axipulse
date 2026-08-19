@@ -1,6 +1,16 @@
-// tests/shared/ei/dashboardMetrics.ts -- EI-shaped oracle accessors, moved out of
-// src/ by Task 11. No production caller; the equality oracles are the only
+// tests/shared/ei/dashboardMetrics.ts -- EI-shaped oracle accessors, moved out
+// of src/ by Task 11. No production caller; the equality oracles are the only
 // consumers.
+//
+// PRUNED in fix round 1: eleven per-counter accessors
+// (`getCleanseSelf`/`getDeaths`/`getDowns`/`getDodges`/`getIncomingCC`/
+// `getIncomingStrips`/`getBlocked`/`getEvaded`/`getMissed`/`getInvulned`/
+// `getInterrupted`) had zero callers anywhere and were carried over by a
+// whole-file `git mv` under the "the oracles need them" banner when they
+// demonstrably were not needed. Confirmed dead by mutation: forcing
+// `getDeaths` to return 99 left every test passing. The defensive-counter
+// oracle in `extractPlayerData.test.ts` reads `p.defenses[0].dodgeCount` and
+// friends off the fixture directly instead. Everything left here has a caller.
 import type { EiPlayer } from './types';
 
 export function getDamage(player: EiPlayer): number {
@@ -21,10 +31,6 @@ export function getCleanses(player: EiPlayer): number {
     return s.condiCleanse + s.condiCleanseSelf;
 }
 
-export function getCleanseSelf(player: EiPlayer): number {
-    return player.support[0]?.condiCleanseSelf ?? 0;
-}
-
 export function getStrips(player: EiPlayer): number {
     return player.support[0]?.boonStrips ?? 0;
 }
@@ -37,18 +43,6 @@ export function getDistToTag(player: EiPlayer): number {
 
 export function getDamageTaken(player: EiPlayer): number {
     return player.defenses[0]?.damageTaken ?? 0;
-}
-
-export function getDeaths(player: EiPlayer): number {
-    return player.defenses[0]?.deadCount ?? 0;
-}
-
-export function getDowns(player: EiPlayer): number {
-    return player.defenses[0]?.downCount ?? 0;
-}
-
-export function getDodges(player: EiPlayer): number {
-    return player.defenses[0]?.dodgeCount ?? 0;
 }
 
 export function getDownContribution(player: EiPlayer): number {
@@ -68,30 +62,3 @@ export function getDownContribution(player: EiPlayer): number {
     return total;
 }
 
-export function getIncomingCC(player: EiPlayer): number {
-    return player.defenses[0]?.receivedCrowdControl ?? 0;
-}
-
-export function getIncomingStrips(player: EiPlayer): number {
-    return player.defenses[0]?.boonStrips ?? 0;
-}
-
-export function getBlocked(player: EiPlayer): number {
-    return player.defenses[0]?.blockedCount ?? 0;
-}
-
-export function getEvaded(player: EiPlayer): number {
-    return player.defenses[0]?.evadedCount ?? 0;
-}
-
-export function getMissed(player: EiPlayer): number {
-    return player.defenses[0]?.missedCount ?? 0;
-}
-
-export function getInvulned(player: EiPlayer): number {
-    return player.defenses[0]?.invulnedCount ?? 0;
-}
-
-export function getInterrupted(player: EiPlayer): number {
-    return player.defenses[0]?.interruptedCount ?? 0;
-}

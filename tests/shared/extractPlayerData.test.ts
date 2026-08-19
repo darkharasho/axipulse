@@ -684,9 +684,40 @@ describe('extractPlayerFightData -- replay-derived positions', () => {
                 }
             }
         }
-        // Vacuity guard: without this, an index join would pass the check above.
+        // Vacuity guard, PINNED rather than bounded. Measured: exactly 2 of
+        // the 6 down/death events across the three members who went down are
+        // placed differently by the two joins. `toBeGreaterThan(0)` would
+        // keep passing if a fixture or bucketing change eroded that to 1,
+        // silently thinning the evidence for the assertion above until it
+        // rested on a single event. If this number moves, look at WHY before
+        // updating it.
         expect(discriminated, 'events where the index join gives a different position')
-            .toBeGreaterThan(0);
+            .toBe(2);
+    });
+
+    /**
+     * The guard added by Task 11 at the composer, which had NO test: deleting
+     * it outright left all 295 tests passing. `blocks.replay.by_entity` is
+     * keyed by squad entity and the local player is one by construction, so
+     * an absent row is a broken document -- and swallowing it would have
+     * meant no down or death markers on the map with nothing said about why.
+     *
+     * Anchored on `extractPlayerFightData:`, not on the shared tail. Task 11
+     * gave this message the same wording as `computeBoonPerformance`'s
+     * equivalent throw, and `boonPerformance.test.ts` was anchored on
+     * `/no replay intervals row/` -- which then matched both sites and
+     * proved nothing about either. Both anchors now carry their function
+     * name, and a mutation of either site fails only its own test.
+     */
+    it('throws, naming itself, when the local player has no replay intervals row', () => {
+        const native = loadNativeFixture();
+        const id = localPlayerId(native);
+        const replay = structuredClone(requireBlock(native, 'replay'));
+        delete (replay.by_entity as Record<string, unknown>)[String(id)];
+        const stripped = { ...native, blocks: { ...native.blocks, replay } } as ReportV1;
+
+        expect(() => extractPlayerFightData(stripped, 1, BUCKET_MS))
+            .toThrow(new RegExp(`extractPlayerFightData: no replay intervals row for local entity ${id}`));
     });
 
     it('has no down or death markers for the local player, who never went down', () => {

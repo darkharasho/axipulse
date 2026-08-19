@@ -111,10 +111,14 @@ describe('arena geometry', () => {
     });
 
     it('rejects a degenerate arena instead of emitting Infinity', () => {
+        // Two DIFFERENT guards, and `/degenerate/` matched both -- so either
+        // assertion would have passed on the other's throw, and a deleted
+        // world-rect check would have been covered by the image check.
+        // Anchored on the half of the message unique to each.
         expect(() => arenaPixelSize({ ...ARENA_95, world_max_x: -30720 }))
-            .toThrow(/degenerate/);
+            .toThrow(/arena world rect is degenerate \(spanX=/);
         expect(() => arenaPixelSize({ ...ARENA_95, image_height: 0 }))
-            .toThrow(/degenerate/);
+            .toThrow(/arena image is degenerate \(/);
 
         // ... and through `extractMovement`, not only through the helper: a
         // degenerate arena is a broken block, so it must THROW rather than
@@ -123,7 +127,8 @@ describe('arena geometry', () => {
         const degenerate = withReplay(native, replay => {
             replay.tracks.arena.world_max_y = replay.tracks.arena.world_min_y;
         });
-        expect(() => extractMovement(degenerate, localPlayerId(native))).toThrow(/degenerate/);
+        expect(() => extractMovement(degenerate, localPlayerId(native)))
+            .toThrow(/arena world rect is degenerate \(spanX=/);
     });
 
     /**

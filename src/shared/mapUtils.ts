@@ -1,6 +1,6 @@
 import { WvwMap } from './wvwLandmarks';
 
-export const ZONE_PREFIXES = ['Detailed WvW - ', 'World vs World - ', 'WvW - '];
+const ZONE_PREFIXES = ['Detailed WvW - ', 'World vs World - ', 'WvW - '];
 
 export function stripPrefix(zone: string): string {
     for (const prefix of ZONE_PREFIXES) {
