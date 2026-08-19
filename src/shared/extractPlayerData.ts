@@ -258,14 +258,12 @@ export function extractPlayerFightData(
         mapName,
         mapId: mapId ?? null,
         nearestLandmark,
-        // The native format carries no combat-replay map IMAGE. GW2EI
-        // rendered one and served it from its own host
-        // (`combatReplayMetaData.maps[0].url`); axilog emits the world rect
-        // (`arena`) and leaves the imagery to the consumer. Both map views
-        // already fall back to the GW2 tile service via `getMapTiles` when
-        // this is null, which is the better source anyway -- so this is a
-        // permanent, deliberate `null`, not an unwired field.
-        mapImageUrl: null,
+        // `blocks.replay.tracks.arena.image_url` is the native format's
+        // equivalent of GW2EI's `combatReplayMetaData.maps[0].url`, and it
+        // is non-optional on `Arena`. `null` only when the log carries no
+        // arena at all -- `MapView` has no tile fallback, so a null here is
+        // a bare rectangle with floating pins.
+        mapImageUrl: arena ? arena.image_url : null,
         mapSize,
         avgPosition: avgPos,
         downPositions,

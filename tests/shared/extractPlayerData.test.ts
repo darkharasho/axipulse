@@ -198,17 +198,18 @@ describe('extractPlayerFightData -- identity and fight metadata vs EI', () => {
     });
 
     /**
-     * A permanent, deliberate `null`, not an unwired field: GW2EI rendered a
-     * combat-replay map image and served it from its own host
-     * (`combatReplayMetaData.maps[0].url`); the native format emits the
-     * world rect and leaves imagery to the consumer. Both map views already
-     * fall back to the live GW2 tile service, which is the better source.
-     * Pinned so a future axilog release that DOES carry an image is a test
-     * failure rather than a silently ignored field.
+     * The native format DOES carry a combat-replay map image:
+     * `blocks.replay.tracks.arena.image_url`, non-optional on `Arena`. This
+     * field was hardcoded `null` behind a comment claiming otherwise, and
+     * `MapView` -- unlike `MovementView` -- has no `getMapTiles` fallback,
+     * so the Overview map was a bare rectangle with floating pins.
      */
-    it('reports mapImageUrl as null -- the native format carries no replay image', () => {
-        expect(fight().mapImageUrl).toBeNull();
-        expect(loadEiFixture().combatReplayMetaData?.maps).toBeUndefined();
+    it('takes mapImageUrl from the arena\'s image_url', () => {
+        const arena = requireBlock(loadNativeFixture(), 'replay').tracks!.arena!;
+        expect(arena.image_url).toBe(
+            'https://darkharasho.github.io/axibridge-map-tiles/icons/imgur-nVu2ivF.png',
+        );
+        expect(fight().mapImageUrl).toBe(arena.image_url);
     });
 });
 

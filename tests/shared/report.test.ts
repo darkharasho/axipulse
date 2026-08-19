@@ -45,12 +45,32 @@ describe('decodeSeries', () => {
         // than assumed: the per-entity `damage` series is a CUMULATIVE
         // running total, so its final sample -- not the sum of its
         // buckets -- should equal DamageBlock's fight-total `total`.
+        let compared = 0;
         for (const [id, e] of Object.entries(series.by_entity)) {
             const total = damage.by_entity[id]?.total;
             if (total === undefined) continue;
             const decoded = decodeSeries(e.damage);
             expect(decoded[decoded.length - 1], `entity ${id} final damage sample vs DamageBlock total`).toBe(total);
+            compared++;
         }
+        // Measured on the fixture: all 103 series entities have a
+        // DamageBlock total, so a `continue` that skipped every row would
+        // be the bug, not the fixture.
+        expect(compared, 'entities actually compared').toBe(103);
+    });
+
+    it('returns a copy, so a caller mutating the result cannot corrupt the source', () => {
+        // `decodeSeries` slices rather than returning `data` itself. The
+        // reason is not "the parse cache in production" -- `extract/timeline.ts`
+        // refutes that -- it is that a raw-encoded series would otherwise hand
+        // out its own backing array, and the fixture IS shared between the
+        // tests in a file via `loadNativeFixture`'s module-level cache.
+        const data = [1, 2, 3];
+        const s = { interval_ms: 1000, len: 3, enc: 'raw', data } as SeriesOut;
+        const decoded = decodeSeries(s);
+        expect(decoded).not.toBe(data);
+        decoded[0] = 999;
+        expect(data[0]).toBe(1);
     });
 });
 
@@ -75,19 +95,45 @@ describe('entity helpers', () => {
 
     it('partitions players by role', () => {
         const r = loadNativeFixture();
+        // Counts first: `[].every()` is true, so the predicates below pass
+        // vacuously on an empty partition. Measured on the fixture.
+        expect(squadMembers(r).length).toBe(46);
+        expect(enemyPlayers(r).length).toBe(46);
         expect(squadMembers(r).every(e => e.role === 'squad')).toBe(true);
         expect(enemyPlayers(r).every(e => e.role === 'enemy_player')).toBe(true);
-        expect(squadMembers(r).length).toBeGreaterThan(0);
     });
 
     it('resolves the local player from encounter.recorded_by', () => {
         const r = loadNativeFixture();
-        expect(entityById(r).has(localPlayerId(r))).toBe(true);
+        // The identity, not just membership: `entityById(r).has(...)` passes
+        // for ANY entity in the log, including a function that ignores
+        // `recorded_by` and returns a stranger.
+        expect(r.encounter.recorded_by).toBe(11);
+        expect(localPlayerId(r)).toBe(11);
     });
 
-    it('resolves the commander, or null when the fight had none', () => {
+    it('throws rather than guessing when the log carries no recorded_by', () => {
+        // A personal-performance tool that silently substitutes another
+        // squad member renders a stranger's numbers as the user's own, and
+        // the output gives no way to notice.
         const r = loadNativeFixture();
-        const id = commanderId(r);
-        if (id !== null) expect(entityById(r).get(id)!.commander).toBeDefined();
+        const noRecorder = { ...r, encounter: { ...r.encounter, recorded_by: undefined } } as ReportV1;
+        expect(squadMembers(noRecorder).length).toBe(46);
+        expect(() => localPlayerId(noRecorder)).toThrow(/recorded_by/);
+    });
+
+    it('resolves the commander to the entity that held the tag', () => {
+        const r = loadNativeFixture();
+        // Measured: exactly one tagged entity, id 6. `if (id !== null)`
+        // around this made the test blind to `commanderId` returning null
+        // unconditionally.
+        expect(commanderId(r)).toBe(6);
+        expect(entityById(r).get(6)!.commander).toBeDefined();
+    });
+
+    it('returns null when nobody held a tag', () => {
+        const r = loadNativeFixture();
+        const noTag = { ...r, entities: r.entities.map(e => ({ ...e, commander: undefined })) } as ReportV1;
+        expect(commanderId(noTag)).toBeNull();
     });
 });

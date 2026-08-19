@@ -6,8 +6,12 @@ import { loadNativeFixture } from './oracle';
  * `everything: true`, so it must fail loudly if axilog ever moves a
  * surface it reads behind a new gate.
  */
+// `cc` is deliberately ABSENT: nothing under `src/` reads `blocks.cc`
+// (the only mentions are prose comments in `extract/damage.ts` and
+// `extract/timeline.ts` saying so). Listing it made this test certify a
+// block the app cannot use.
 const BLOCKS_THIS_APP_READS = [
-    'damage', 'defenses', 'cc', 'boons', 'support',
+    'damage', 'defenses', 'boons', 'support',
     'contribution', 'healing', 'rotation', 'replay', 'series',
 ] as const;
 

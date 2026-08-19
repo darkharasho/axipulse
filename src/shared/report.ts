@@ -20,9 +20,15 @@ export type { ReportV1, EntityOut, SeriesOut, CoverageState };
 export function decodeSeries(s: SeriesOut): number[] {
     let out: number[];
     if (s.enc === 'raw') {
-        // Copy: the ReportV1 is memoized (oracle.ts, and the parse cache in
-        // production), so handing out the live array would let any consumer
-        // that mutates a decoded series corrupt the document for everyone else.
+        // Copy. NOT because of "the parse cache in production" -- there is
+        // none; `extract/timeline.ts` records that production parses each
+        // log once and hands the document straight to the renderer. The real
+        // reason is narrower and still real: a raw-encoded series would
+        // otherwise hand out `s.data` itself, and one ReportV1 IS shared
+        // across the callers within a process (`oracle.ts` memoizes it per
+        // test file; the renderer holds one report while every extract runs
+        // over it), so a consumer that mutates a decoded series would
+        // corrupt the document for everyone else.
         out = (s.data as number[]).slice();
     } else {
         out = [];
@@ -78,14 +84,17 @@ export function requireBlock<K extends keyof ReportV1['blocks']>(
  *
  * `encounter.recorded_by` is an entity id, not a name -- so unlike the EI
  * path there is no `recordedAccountBy`/`recordedBy`/heuristic ladder.
- * Falls back to the first squad member only when the log carries no
- * recorder at all.
+ *
+ * There is deliberately no fallback. This is a personal-performance tool:
+ * guessing the recorder (the old `squadMembers(r)[0]`) renders a STRANGER'S
+ * damage, healing and positions under the user's own name, and nothing in
+ * the output lets them notice. An absent recorder is an error.
  */
 export function localPlayerId(r: ReportV1): number {
-    if (typeof r.encounter.recorded_by === 'number') return r.encounter.recorded_by;
-    const first = squadMembers(r)[0];
-    if (!first) throw new Error('axilog report has no squad members and no recorded_by');
-    return first.id;
+    if (typeof r.encounter.recorded_by !== 'number') {
+        throw new Error('axilog report has no `encounter.recorded_by`: cannot identify the local player');
+    }
+    return r.encounter.recorded_by;
 }
 
 /** The commander's entity id, or null when nobody held a tag. */
