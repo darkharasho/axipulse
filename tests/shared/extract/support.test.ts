@@ -10,6 +10,19 @@ function eiLocal(ei: ReturnType<typeof loadEiFixture>) {
 }
 
 describe('extractSupport', () => {
+    // Fix round 3, finding 5: every full-roster loop in this file filters
+    // `native.entities` by `role === 'squad'` and collects mismatches into
+    // an array asserted with `toEqual([])` (or `toEqual([<pinned accounts>])`).
+    // If that filter ever returned zero entities (a fixture regression, a
+    // wrong role string, an axilog schema change), every one of those
+    // checks would pass vacuously -- 0 mismatches out of 0 entities looks
+    // identical to 0 mismatches out of 46. This single guard, covering the
+    // whole file, makes that failure mode loud instead of silent.
+    it('has the full 46-member squad roster this file\'s full-roster tests assume', () => {
+        const native = loadNativeFixture();
+        expect(native.entities.filter(e => e.role === 'squad').length).toBe(46);
+    });
+
     it('matches the EI oracle on integer event counts for the local player', () => {
         const ei = loadEiFixture();
         const native = loadNativeFixture();
@@ -52,39 +65,36 @@ describe('extractSupport', () => {
         expect(nonZero, 'players with a nonzero outgoingHealingAllies/outgoingBarrierAllies sum').toEqual([]);
     });
 
-    it('matches the EI per-skill healing/barrier distribution totals for every squad member', () => {
+    // NOTE: this test intentionally does NOT re-check `barrierOutput`
+    // against `totalBarrierDist` -- that comparison, and its
+    // `Anon178.7586` pin, live in the dedicated oracle test below
+    // (`matches EI's (totalHealingDist - self) oracle on healingOutput...`)
+    // and both tests fail together on any `barrierOutput` mutation, so a
+    // duplicate copy here adds no kill power (fix round 3, finding 4). What
+    // IS unique to this test: `outgoing_total` vs EI's `totalHealingDist`
+    // directly (not routed through `extractSupport`, which has no field
+    // exposing the raw total), and the `outgoing_allies + outgoing_self`
+    // additive identity -- both would catch a fixture/axilog regeneration
+    // that broke the native healing block's internal consistency, even if
+    // `healingOutput`/`barrierOutput` themselves stayed accidentally
+    // correct.
+    it('matches the EI per-skill healing distribution total for every squad member', () => {
         const ei = loadEiFixture();
         const native = loadNativeFixture();
-        const barrierMismatches: string[] = [];
 
         for (const e of native.entities.filter(x => x.role === 'squad')) {
             const eiPlayer = ei.players.find(p => p.account === e.account);
             expect(eiPlayer, `no EI player for ${e.account}`).toBeDefined();
             const healing = native.blocks.healing.by_entity[String(e.id)];
             expect(healing, `no native healing row for ${e.account}`).toBeDefined();
-            const actual = extractSupport(native, e.id);
 
             const eiHealingTotal = eiPlayer!.extHealingStats?.totalHealingDist?.[0]
                 ?.reduce((a, b) => a + b.totalHealing, 0) ?? 0;
-            const eiBarrierTotal = eiPlayer!.extBarrierStats?.totalBarrierDist?.[0]
-                ?.reduce((a, b) => a + b.totalBarrier, 0) ?? 0;
 
             if (eiHealingTotal === 0) {
                 expect(healing!.outgoing_total).toBeLessThanOrEqual(1);
             } else {
                 expect(Math.abs(healing!.outgoing_total - eiHealingTotal) / eiHealingTotal).toBeLessThan(0.01);
-            }
-            // Barrier has the same pet/minion-fold phenomenon documented in
-            // damage.test.ts for damage: one account's native barrier total
-            // disagrees with EI beyond float drift. Detected by its real
-            // condition and pinned below, not silently tolerated here.
-            // Routed through `extractSupport(...).barrierOutput` (fix round
-            // 1), not the raw block, so a wrong-field bug in the extract
-            // itself would be caught here.
-            if (eiBarrierTotal === 0) {
-                if (actual.barrierOutput > 1) barrierMismatches.push(e.account);
-            } else if (Math.abs(actual.barrierOutput - eiBarrierTotal) / eiBarrierTotal >= 0.01) {
-                barrierMismatches.push(e.account);
             }
 
             // Internal identity, always exact on this fixture: allies + self
@@ -93,22 +103,25 @@ describe('extractSupport', () => {
             // see the dedicated oracle test below for that.
             expect(healing!.outgoing_allies + healing!.outgoing_self).toBe(healing!.outgoing_total);
         }
-
-        expect(barrierMismatches, 'squad members whose extractSupport().barrierOutput disagrees with EI\'s totalBarrierDist sum')
-            .toEqual(['Anon178.7586']);
     });
 
     // Fix round 2, finding 3: the round-1 oracle for `healingOutput` was
-    // mis-specified, not a real disagreement. `alliedHealingDist` (summed
-    // raw, including the healer's own index) is EI's per-ALLY-ROSTER
-    // breakdown -- it only covers entries in the `players[]` friendlies
-    // roster (47 slots), so its sum is naturally SMALLER than EI's own
-    // `totalHealingDist` sum whenever healing landed on an off-roster ally
-    // (e.g. a non-tracked NPC/minion). That's a coverage difference between
-    // two different EI quantities, not a native/EI gap: EI's own
+    // mis-specified, not a real disagreement. The DOMINANT cause is
+    // self-inclusion: `alliedHealingDist` summed raw includes the healer's
+    // own index (self-healing), while native's `outgoing_allies` is
+    // allies-only (total minus self) -- comparing them head-on mixes two
+    // different definitions. Measured: 15 of 46 squad members have nonzero
+    // EI self-healing, and those are EXACTLY the 15 accounts round 1 pinned
+    // as "mismatched". A secondary, smaller effect also exists:
+    // `alliedHealingDist` only covers the `players[]` friendlies roster,
+    // so its sum can additionally fall short of EI's own `totalHealingDist`
+    // sum for healing that landed on an off-roster ally -- measured on 10
+    // of 46 members (a strict subset of the 15, since every off-roster-gap
+    // case also has nonzero self-healing). Both are EI-side-only
+    // definitional gaps, not a native/EI disagreement: EI's own
     // `alliedHealingDist` sum is short of its own `totalHealingDist` sum by
-    // the identical gap native's `detail.by_ally` sum is short of native's
-    // `outgoing_total` (proven per-account, not asserted).
+    // the identical amount native's `detail.by_ally` sum is short of
+    // native's `outgoing_total` (proven per-account, not asserted).
     //
     // The correct EI-side oracle for `healingOutput` (`outgoing_allies`,
     // i.e. total minus self) is therefore
@@ -151,6 +164,18 @@ describe('extractSupport', () => {
             const eiAlliesOnly = eiTotalHealing - eiSelfHealing;
             if (actual.healingOutput !== eiAlliesOnly) healingMismatches.push(e.account);
 
+            // One account (Anon178.7586, a Specter with an EMPTY `minions`
+            // list -- there is no summon/pet to fold, ruling out the
+            // pet-fold mechanism documented for `damage.test.ts`) disagrees
+            // with EI beyond float drift on `barrierOutput`. Measured, not
+            // assumed: native has exactly one extra hit on each of two
+            // skills (63066 "Shadow Bolt": 24 native hits/8286 total vs 23
+            // EI hits/7928 total; 63351 "Shadow Sap": 7 vs 6 hits, 6919 vs
+            // 5868 total). Native's own `detail.by_ally` barrier sum equals
+            // `barrier_out` exactly, so both sides ARE roster-covered here
+            // -- this is a one-extra-hit event-inclusion difference on two
+            // skills, not a coverage or fold mechanism. No further
+            // mechanism is asserted beyond what was measured.
             const eiBarrierTotal = eiPlayer.extBarrierStats?.totalBarrierDist?.[0]
                 ?.reduce((a, b) => a + b.totalBarrier, 0) ?? 0;
             if (eiBarrierTotal === 0) {

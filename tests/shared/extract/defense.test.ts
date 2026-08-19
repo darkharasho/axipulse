@@ -9,6 +9,17 @@ function eiLocal(ei: ReturnType<typeof loadEiFixture>) {
 }
 
 describe('extractDefense', () => {
+    // Fix round 3 (support.test.ts), finding 5, applied here too: every
+    // full-roster loop in this file filters `native.entities` by
+    // `role === 'squad'` and asserts a mismatch array with `toEqual(...)`.
+    // If that filter ever returned zero entities, those checks would pass
+    // vacuously. This single guard, covering the whole file, makes that
+    // failure mode loud instead of silent.
+    it('has the full 46-member squad roster this file\'s full-roster tests assume', () => {
+        const native = loadNativeFixture();
+        expect(native.entities.filter(e => e.role === 'squad').length).toBe(46);
+    });
+
     // NOTE on `downs`/`downTimes`: `defenses.by_entity[id].downs_taken` (the
     // brief's mapping for `DefenseStats.downs`) is NOT the same quantity as
     // `replay.by_entity[id].down.length` (what backs `downTimes`), even
