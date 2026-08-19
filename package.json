@@ -29,6 +29,7 @@
     "test:unit": "vitest run"
   },
   "dependencies": {
+    "@axiapps/axilog": "^1.2.0",
     "adm-zip": "^0.5.16",
     "chokidar": "^3.5.3",
     "clsx": "^2.0.0",
