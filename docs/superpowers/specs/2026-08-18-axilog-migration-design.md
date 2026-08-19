@@ -28,10 +28,11 @@ document parsed inside the game process on every fight.
    its current job and the `ui/` layer is not restructured. The migration
    is contained to the parse and projection layers.
 
-## Part 0 — Prerequisite changes in `axilog` (ships as v1.1.0)
+## Part 0 — Prerequisite changes in `axilog` (shipped in v1.2.0)
 
-Both changes land in the `axilog` repo first and are tagged `v1.1.0`.
-The other two repos pin to that tag.
+Both changes landed in the `axilog` repo first and are tagged `v1.2.0`
+(they were projected as `v1.1.0`; the parse facade shipped alongside them,
+so the release carried a minor bump). The other two repos pin to that tag.
 
 ### 0.1 A shared `ReportV1` facade
 
@@ -197,7 +198,7 @@ fails loudly when axilog adds a surface behind a new gate.
 
 ### Dependency
 
-`@axiapps/axilog@^1.1.0` from npm. Prebuilt `.node` binaries ship as
+`@axiapps/axilog@^1.2.0` from npm. Prebuilt `.node` binaries ship as
 `optionalDependencies` for `linux-x64-gnu` and `win32-x64-msvc`, covering
 both electron-builder targets. `adm-zip` is removed.
 
@@ -280,7 +281,7 @@ entries; the EI install/update/uninstall/.NET/auto-manage sections of
 
 ### Dependency
 
-`axilog-api` as a git dependency pinned to axilog's `v1.1.0` tag; it
+`axilog-api` as a git dependency pinned to axilog's `v1.2.0` tag; it
 re-exports `axilog_schema::v1`, so the plugin declares one dependency
 rather than three. The tree is pure Rust (`thiserror`, `flate2`, `serde`,
 `serde_json`), so the existing `cargo xwin --target
@@ -380,7 +381,8 @@ entry for that unit records why.
 1. **axilog** — `parse_report_v1` facade; CLI and Node binding refactored
    onto it. Tag nothing yet.
 2. **axilog** — `healing_received_1s` / `barrier_received_1s`, with a
-   golden test. Release **v1.1.0**; publish `@axiapps/axilog@1.1.0`.
+   golden test. **Done** — released as **v1.2.0**; `@axiapps/axilog@1.2.0`
+   is on npm.
 3. **axipulse** — commit fixture + EI oracle JSON; add `report.ts` with a
    tested `decodeSeries`.
 4. **axipulse** — migrate `src/shared/extract/*` unit by unit, oracle

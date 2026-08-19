@@ -6,11 +6,11 @@
 
 **Architecture:** `src/shared/report.ts` adds the native-format primitives (entity index, RLE series decoder, coverage guard). `extractPlayerData.ts` is split into `src/shared/extract/*`, migrated one unit at a time against an equality oracle that computes each value both from the frozen EI JSON and from `ReportV1`. Only once every unit is green does the parse path swap to an Electron `utilityProcess` calling `@axiapps/axilog`, and the EI manager, its IPC surface and its UI are deleted.
 
-**Tech Stack:** Electron 35, React 18, TypeScript 5.2, Vite 6, Vitest 4, `@axiapps/axilog` 1.1.0 (napi-rs).
+**Tech Stack:** Electron 35, React 18, TypeScript 5.2, Vite 6, Vitest 4, `@axiapps/axilog` 1.2.0 (napi-rs).
 
 **Spec:** `docs/superpowers/specs/2026-08-18-axilog-migration-design.md` (Parts 1, 2, 4)
 
-**Depends on:** `docs/superpowers/plans/2026-08-18-axilog-v1.1.0-parse-facade.md` — `@axiapps/axilog@1.1.0` must be on npm before Task 1.
+**Depends on:** `docs/superpowers/plans/2026-08-18-axilog-v1.1.0-parse-facade.md` — **satisfied.** The facade shipped in axilog 1.2.0 and `@axiapps/axilog@1.2.0` is published on npm.
 
 ## Global Constraints
 
@@ -35,14 +35,14 @@
 - Modify: `package.json` (add `@axiapps/axilog`)
 
 **Interfaces:**
-- Consumes: `@axiapps/axilog@1.1.0`'s `parseFile`, `anonymizeFile`.
+- Consumes: `@axiapps/axilog@1.2.0`'s `parseFile`, `anonymizeFile`.
 - Produces:
   - `tests/shared/oracle.ts` exporting `loadEiFixture(): EiJson`, `loadNativeFixture(): ReportV1`, and `PARSE_OPTS`.
 
 - [ ] **Step 1: Install the dependency**
 
 ```bash
-npm install @axiapps/axilog@1.1.0
+npm install @axiapps/axilog@1.2.0
 node -e "console.log(Object.keys(require('@axiapps/axilog')))"
 ```
 Expected: `[ 'anonymizeFile', 'parseBuffer', 'parseFile', 'parseFileEi' ]`.
