@@ -33,13 +33,18 @@ export const MAX_BOON_STACKS: Record<number, number> = { 740: 25, 1122: 25 };
 export const CONDITION_NAMES: Record<number, string> = {
     872: 'Stun',
     833: 'Daze',
-    785: 'Fear',
+    791: 'Fear',
     727: 'Immobilize',
     722: 'Chill',
     26766: 'Slow',
 };
 
-export const HARD_CC_IDS = new Set([872, 833, 785]); // Stun, Daze, Fear
+// Fear is buff id 791, not 785. `785` appears in NEITHER document: it is
+// absent from native's `catalogs.buffs` and EI's `buffMap` has no `b785`,
+// while both define 791 as Fear. The wrong id silently dropped Fear from
+// the hard-CC lane on the still-live EI path (7 EI players in the frozen
+// fixture carry a `b791` state timeline). Pinned by boonData.test.ts.
+export const HARD_CC_IDS = new Set([872, 833, 791]); // Stun, Daze, Fear
 export const SOFT_CC_IDS = new Set([722, 727, 26766]); // Chill, Immobilize, Slow
 
 export const ALL_TRACKED_BUFF_IDS = new Set([

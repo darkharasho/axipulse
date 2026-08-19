@@ -48,7 +48,7 @@ const BUFF_COLORS: Record<number, string> = {
     743: '#fbbf24',   // Aegis
     872: '#f43f5e',   // Stun
     833: '#e879f9',   // Daze
-    785: '#fb923c',   // Fear
+    791: '#fb923c',   // Fear
     722: '#67e8f9',   // Chill
     727: '#fbbf24',   // Immobilize
     26766: '#a78bfa', // Slow

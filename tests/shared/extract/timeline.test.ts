@@ -5,6 +5,7 @@ import { localPlayerId, commanderId } from '../../../src/shared/report';
 import { extractDamageTimeline } from '../../../src/shared/timelineData';
 import { HARD_CC_IDS, SOFT_CC_IDS, WVW_BOON_IDS } from '../../../src/shared/boonData';
 import { loadEiFixture, loadNativeFixture } from '../oracle';
+import type { ReportV1 } from '../../../src/shared/report';
 import type { EiPlayer } from '../../../src/shared/types';
 
 const BUCKET_MS = 1000;
@@ -41,15 +42,36 @@ describe('extractTimeline', () => {
 
     // ---- bucket grid --------------------------------------------------
 
-    it('returns one shared bucket grid across every lane, for every squad member', () => {
+    /**
+     * The four summed lanes share one grid, 140 buckets at 1000ms.
+     * `distanceToTag` does NOT, and that is the point of the fix: it is
+     * TRUNCATED to the ticks actually sampled on both sides rather than
+     * padded to the damage grid with a zero for the unsampled tail. A zero
+     * there means "standing on the commander", which is a measured-vs-absent
+     * conflation and also drags `computeDistanceToTagStats`' average toward
+     * zero once Task 11 wires this lane in.
+     *
+     * Measured and pinned here: 52 unsampled buckets across the 45
+     * non-commander members, ALL trailing, ZERO interior or leading. The
+     * last replay poll on this fixture is t=138300 (bucket 138) against a
+     * 140-bucket damage grid, so 41 members lose exactly one bucket; four
+     * members whose track ends earlier lose 2-4.
+     */
+    it('shares one grid across the summed lanes and truncates the distance lane to its sampled range', () => {
         const native = loadNativeFixture();
         const cmd = commanderId(native);
         expect(cmd, 'this fixture must have a commander for the distance lane to exist').not.toBeNull();
+        const tracks = native.blocks.replay!.tracks!;
+        const cmdTimes = new Set((tracks.by_entity[String(cmd)]?.samples ?? []).map(s => s[0]));
 
         const laneLengthMismatches: string[] = [];
         const timeGridMismatches: string[] = [];
-        const emptyDistance: string[] = [];
+        const commanderLaneShape: string[] = [];
+        const distanceLaneLengths: Record<number, number> = {};
         let compared = 0;
+        let trailingUnsampled = 0;
+        let interiorOrLeadingUnsampled = 0;
+        let damageGrid = 0;
 
         for (const e of native.entities.filter(x => x.role === 'squad')) {
             const t = extractTimeline(native, e.id, BUCKET_MS);
@@ -57,6 +79,7 @@ describe('extractTimeline', () => {
             const n = t.damageDealt.length;
             expect(n, `${e.account} damageDealt bucket count`).toBeGreaterThan(0);
             expect(t.bucketSizeMs).toBe(BUCKET_MS);
+            damageGrid = n;
 
             for (const [label, lane] of [
                 ['damageTaken', t.damageTaken],
@@ -66,26 +89,90 @@ describe('extractTimeline', () => {
                 if (lane.length !== n) laneLengthMismatches.push(`${e.account}:${label} ${lane.length}/${n}`);
             }
 
-            // The commander's own distance lane is empty by construction
-            // (EI's `buildTimeline` had the same `player !== commander`
-            // guard); everyone else shares the damage grid.
-            if (e.id === cmd) {
-                if (t.distanceToTag.length !== 0) emptyDistance.push(`${e.account} commander lane not empty`);
-            } else if (t.distanceToTag.length !== n) {
-                laneLengthMismatches.push(`${e.account}:distanceToTag ${t.distanceToTag.length}/${n}`);
-            }
-
-            for (const lane of [t.damageDealt, t.damageTaken, t.incomingHealing, t.incomingBarrier, t.distanceToTag]) {
+            for (const lane of [t.damageDealt, t.damageTaken, t.incomingHealing, t.incomingBarrier]) {
                 for (let i = 0; i < lane.length; i++) {
                     if (lane[i].time !== i * BUCKET_MS) { timeGridMismatches.push(`${e.account}@${i}`); break; }
                 }
             }
+
+            // The commander's own distance lane is empty by construction
+            // (EI's `buildTimeline` had the same `player !== commander` guard).
+            if (e.id === cmd) {
+                if (t.distanceToTag.length !== 0) commanderLaneShape.push(`${e.account} commander lane not empty`);
+                continue;
+            }
+
+            distanceLaneLengths[t.distanceToTag.length] = (distanceLaneLengths[t.distanceToTag.length] ?? 0) + 1;
+            // The distance lane keeps its own absolute times, so it stays
+            // aligned to the shared axis despite being shorter.
+            const firstBucket = t.distanceToTag[0].time / BUCKET_MS;
+            for (let i = 0; i < t.distanceToTag.length; i++) {
+                if (t.distanceToTag[i].time !== (firstBucket + i) * BUCKET_MS) {
+                    timeGridMismatches.push(`${e.account}:distanceToTag@${i}`);
+                    break;
+                }
+            }
+            expect(firstBucket, `${e.account} distance lane start bucket`).toBe(0);
+            expect(t.distanceToTag.length, `${e.account} distance lane length`).toBeLessThanOrEqual(n);
+
+            // Classify every bucket the lane does NOT cover, from the raw
+            // tracks, so trailing vs interior is measured and not assumed.
+            const occupied = new Set<number>();
+            for (const [ts] of tracks.by_entity[String(e.id)]?.samples ?? []) {
+                if (!cmdTimes.has(ts)) continue;
+                occupied.add(Math.floor(ts / BUCKET_MS));
+            }
+            const last = Math.max(...occupied);
+            for (let b = 0; b < n; b++) {
+                if (occupied.has(b)) continue;
+                if (b > last) trailingUnsampled++;
+                else interiorOrLeadingUnsampled++;
+            }
         }
 
         expect(compared).toBe(46);
-        expect(laneLengthMismatches, 'lanes disagreeing with the damageDealt bucket count').toEqual([]);
-        expect(timeGridMismatches, 'lanes whose bucket times are not i * bucketSizeMs').toEqual([]);
-        expect(emptyDistance, 'commander distance-lane shape').toEqual([]);
+        expect(damageGrid).toBe(140);
+        expect(laneLengthMismatches, 'summed lanes disagreeing with the damageDealt bucket count').toEqual([]);
+        expect(timeGridMismatches, 'lanes whose bucket times are not contiguous multiples of bucketSizeMs').toEqual([]);
+        expect(commanderLaneShape, 'commander distance-lane shape').toEqual([]);
+        // Pinned: the exact truncation profile. 41 members lose the trailing
+        // bucket, four lose more; nothing is padded.
+        expect(distanceLaneLengths, 'distance lane length -> member count').toEqual({
+            136: 1, 137: 1, 138: 2, 139: 41,
+        });
+        expect(trailingUnsampled, 'unsampled buckets after the last joint poll').toBe(52);
+        expect(interiorOrLeadingUnsampled, 'unsampled buckets INSIDE the sampled range').toBe(0);
+    });
+
+    /**
+     * The invariant that makes an interior gap impossible, and therefore
+     * makes `distanceToTagBuckets`' interior-gap throw unreachable rather
+     * than merely untriggered: every track's samples are strictly increasing
+     * consecutive multiples of `poll_ms`. A track then covers one contiguous
+     * time range, and the intersection of two contiguous ranges is
+     * contiguous -- so the jointly-sampled ticks can never have a hole.
+     */
+    it('confirms every replay track is a contiguous run of poll_ms samples', () => {
+        const native = loadNativeFixture();
+        const tracks = native.blocks.replay!.tracks!;
+        const poll = tracks.poll_ms;
+        expect(poll).toBe(300);
+
+        const nonContiguous: string[] = [];
+        let checked = 0;
+        for (const [id, track] of Object.entries(tracks.by_entity)) {
+            if (track.samples.length === 0) continue;
+            checked++;
+            if (track.samples[0][0] % poll !== 0) { nonContiguous.push(`${id}:start`); continue; }
+            for (let i = 1; i < track.samples.length; i++) {
+                if (track.samples[i][0] - track.samples[i - 1][0] !== poll) {
+                    nonContiguous.push(`${id}@${i}`);
+                    break;
+                }
+            }
+        }
+        expect(checked, 'tracks examined').toBe(93);
+        expect(nonContiguous, 'tracks with a gap or an off-grid timestamp').toEqual([]);
     });
 
     it('honours a bucketSizeMs other than the 1000ms default', () => {
@@ -97,7 +184,14 @@ describe('extractTimeline', () => {
         expect(coarse.bucketSizeMs).toBe(5000);
         expect(coarse.damageDealt.length).toBe(Math.ceil(fine.damageDealt.length / 5));
         expect(coarse.damageDealt.map(b => b.time).slice(0, 3)).toEqual([0, 5000, 10000]);
-        expect(coarse.distanceToTag.length).toBe(coarse.damageDealt.length);
+        // The distance lane is truncated to its own sampled range, so its
+        // length follows the last sampled bucket, NOT the damage grid. At
+        // 5000ms it happens to reach 28 (last poll t=138300 -> bucket 27)
+        // which coincides with the damage grid; that coincidence is spelled
+        // out rather than asserted as a shared-grid invariant.
+        expect(fine.distanceToTag.at(-1)!.time).toBe(138000);
+        expect(coarse.distanceToTag.at(-1)!.time).toBe(135000);
+        expect(coarse.distanceToTag.length).toBe(28);
 
         // Regrouping is exact for the summed lanes: a coarse bucket is the
         // sum of the five fine buckets it covers.
@@ -247,6 +341,67 @@ describe('extractTimeline', () => {
             'Anon164.7068 47910/47552',
             'Anon171.7327 22147/21096',
         ]);
+    });
+
+    /**
+     * The per-bucket guard the totals-only check cannot give.
+     *
+     * The divergence between native's and EI's `healing_received_1s` /
+     * `barrier_received_1s` grids is a ONE-SECOND displacement of individual
+     * events (e.g. `Anon186.7882`: native puts 1281 at second 62, EI at
+     * second 63, neighbours identical). WHY the two parsers assign an event
+     * to a different one-second slot IS NOT KNOWN and this test does not
+     * guess -- but the SIZE of the effect is measurable and bounded:
+     *
+     *     max_i | native_cumulative[i] - ei_cumulative[i] |
+     *         <= max single-second delta on either side
+     *
+     * A displacement of one second can move a running total by at most the
+     * size of the single largest second, and that is exactly what is
+     * observed: the bound holds for all 46 members on BOTH fields, and it is
+     * TIGHT -- three of the 92 rows hit a ratio of exactly 1.0, so it is not
+     * a loose bound that would accept anything.
+     *
+     * Without this, the totals-only assertion accepts an arbitrary
+     * redistribution: collapsing the entire lane into bucket 0 preserves the
+     * total and previously passed.
+     */
+    it('bounds the incomingHealing/incomingBarrier cumulative divergence by one second of displacement', () => {
+        const ei = loadEiFixture();
+        const native = loadNativeFixture();
+        const violations: string[] = [];
+        let compared = 0;
+        let rowsWithRealDisplacement = 0;
+
+        for (const e of native.entities.filter(x => x.role === 'squad')) {
+            const p = ei.players.find(q => q.account === e.account)!;
+            const t = extractTimeline(native, e.id, BUCKET_MS);
+
+            for (const [label, lane, eiCum] of [
+                ['incomingHealing', t.incomingHealing, p.extHealingStats?.healingReceived1S?.[0] ?? []],
+                ['incomingBarrier', t.incomingBarrier, p.extBarrierStats?.barrierReceived1S?.[0] ?? []],
+            ] as const) {
+                expect(lane.length, `${e.account} ${label} vs EI grid length`).toBe(eiCum.length);
+                compared++;
+                let nativeCum = 0;
+                let worst = 0;
+                let maxDelta = 0;
+                for (let i = 0; i < lane.length; i++) {
+                    nativeCum += lane[i].value;
+                    const eiDelta = i === 0 ? eiCum[0] : eiCum[i] - eiCum[i - 1];
+                    maxDelta = Math.max(maxDelta, lane[i].value, eiDelta);
+                    worst = Math.max(worst, Math.abs(nativeCum - eiCum[i]));
+                }
+                if (worst > 0) rowsWithRealDisplacement++;
+                if (worst > maxDelta) violations.push(`${e.account}:${label} ${worst} > ${maxDelta}`);
+            }
+        }
+
+        expect(compared, 'member-field rows compared').toBe(92);
+        // Vacuity guard: if every row had zero displacement the bound would
+        // be trivially satisfied. 29 of the 92 rows really do displace.
+        expect(rowsWithRealDisplacement, 'rows with a non-zero cumulative divergence').toBe(29);
+        expect(violations, 'cumulative divergence exceeding one second of displacement').toEqual([]);
     });
 
     /**
@@ -433,10 +588,18 @@ describe('extractTimeline', () => {
 
         // EI DID have this data -- so the empty lanes are a real loss, not
         // an artefact of a fixture with no CC in it.
+        // Population match, deliberately: EI has 47 `players` rows but the
+        // native roster is 46 squad entities. Counting EI's 47 against
+        // native's 46 is the population mismatch this plan keeps getting
+        // bitten by, so the EI side is restricted to the same accounts.
         const ccIds = new Set([...HARD_CC_IDS, ...SOFT_CC_IDS]);
-        const eiHadCc = ei.players.filter((p: EiPlayer) =>
+        const squadAccounts = new Set(native.entities.filter(e => e.role === 'squad').map(e => e.account));
+        expect(squadAccounts.size).toBe(46);
+        const eiSquad = ei.players.filter((p: EiPlayer) => squadAccounts.has(p.account));
+        expect(eiSquad.length, 'EI rows matched to the native squad roster').toBe(46);
+        const eiHadCc = eiSquad.filter((p: EiPlayer) =>
             (p.buffUptimes ?? []).some(b => ccIds.has(b.id) && (b.states?.length ?? 0) > 0));
-        expect(eiHadCc.length, 'EI players carrying at least one CC state timeline').toBe(43);
+        expect(eiHadCc.length, 'squad members carrying at least one CC state timeline in EI').toBe(43);
 
         // ...and native genuinely has nowhere to read it from.
         const squadIds = new Set(native.entities.filter(e => e.role === 'squad').map(e => String(e.id)));
@@ -630,28 +793,78 @@ describe('extractTimeline', () => {
     });
 
     /**
-     * The precondition that makes an index join wrong, asserted directly so
-     * a future refactor back to `samples[i]` vs `cmdSamples[i]` cannot look
-     * safe: the tracks do NOT share a start tick or a length, so index `i`
-     * is a different instant for different entities. (The join correctness
-     * itself is enforced by the `dist_to_com` test above, which an index
-     * join fails.)
+     * The real guard for the CONTROLLER AMENDMENT's timestamp join.
+     *
+     * The previous version of this test asserted a FIXTURE PROPERTY (tracks
+     * do not share a start tick) and never called `extractTimeline`, so it
+     * passed unchanged under an index join -- documentation, not a guard.
+     * And the `dist_to_com` oracle catches an index join on only ONE of the
+     * 45 members, because 44 of the 45 non-commander squad tracks happen to
+     * start at t=300 alongside the commander and are therefore accidentally
+     * index-aligned with it (asserted below, so the weakness is recorded).
+     *
+     * This shifts every commander sample timestamp by one poll (+300) while
+     * leaving the sample ORDER and the positions untouched. A timestamp join
+     * must then pair each member sample with a DIFFERENT commander position
+     * and produce a different lane for all 45. An index join pairs by
+     * position in the array, which the shift does not change, so it produces
+     * an identical lane for all 45 and fails here.
      */
-    it('confirms replay tracks are not index-aligned, so the timestamp join is required', () => {
+    it('re-pairs every distance lane when the commander track is time-shifted, proving the join is on timestamp', () => {
         const native = loadNativeFixture();
+        const cmd = commanderId(native)!;
         const tracks = native.blocks.replay!.tracks!;
-        const starts = new Set<number>();
-        const lengths = new Set<number>();
-        let trackCount = 0;
-        for (const track of Object.values(tracks.by_entity)) {
-            if (track.samples.length === 0) continue;
-            trackCount++;
-            starts.add(track.samples[0][0]);
-            lengths.add(track.samples.length);
+        const cmdTrack = tracks.by_entity[String(cmd)]!;
+
+        // Records the accidental index-alignment that makes the plain
+        // `dist_to_com` oracle a weak index-join guard on this fixture.
+        const startTicks = new Map<number, number>();
+        for (const e of native.entities.filter(x => x.role === 'squad')) {
+            const samples = tracks.by_entity[String(e.id)]?.samples ?? [];
+            if (samples.length === 0) continue;
+            startTicks.set(samples[0][0], (startTicks.get(samples[0][0]) ?? 0) + 1);
         }
-        expect(trackCount).toBeGreaterThan(40);
-        expect(starts.size, 'distinct track start timestamps').toBeGreaterThan(1);
-        expect(lengths.size, 'distinct track lengths').toBeGreaterThan(1);
+        expect(Object.fromEntries(startTicks), 'squad track start tick -> member count').toEqual({ 0: 1, 300: 45 });
+        expect(cmdTrack.samples[0][0], 'commander track start tick').toBe(300);
+
+        const shifted = {
+            ...native,
+            blocks: {
+                ...native.blocks,
+                replay: {
+                    ...native.blocks.replay!,
+                    tracks: {
+                        ...tracks,
+                        by_entity: {
+                            ...tracks.by_entity,
+                            [String(cmd)]: {
+                                ...cmdTrack,
+                                samples: cmdTrack.samples.map(
+                                    ([t, x, y]) => [t + tracks.poll_ms, x, y] as [number, number, number],
+                                ),
+                            },
+                        },
+                    },
+                },
+            },
+        };
+
+        const unchanged: string[] = [];
+        let compared = 0;
+        for (const e of native.entities.filter(x => x.role === 'squad')) {
+            if (e.id === cmd) continue;
+            compared++;
+            const before = extractTimeline(native, e.id, BUCKET_MS).distanceToTag;
+            const after = extractTimeline(shifted, e.id, BUCKET_MS).distanceToTag;
+            expect(before.length, `${e.account} baseline lane`).toBeGreaterThan(0);
+            expect(after.length, `${e.account} shifted lane`).toBeGreaterThan(0);
+            if (JSON.stringify(before.map(b => b.value)) === JSON.stringify(after.map(b => b.value))) {
+                unchanged.push(e.account);
+            }
+        }
+
+        expect(compared).toBe(45);
+        expect(unchanged, 'lanes unchanged by a one-poll commander time shift (an index join)').toEqual([]);
     });
 
     /**
@@ -700,6 +913,231 @@ describe('extractTimeline', () => {
         expect(Object.keys(t.offensiveBoons).length).toBe(4);
         expect(Object.keys(t.defensiveBoons).length).toBe(4);
         expect(t.distanceToTag.some(b => b.value > 0)).toBe(true);
+    });
+
+    // ---- absence and fallback paths ---------------------------------
+    //
+    // Every path below survived the reviewer's mutation pass because none of
+    // them fires on this fixture. Each is now either oracled directly (the
+    // optional-series case, which is legitimate and must stay non-throwing)
+    // or converted to a throw and proven to throw. The overrides are shallow
+    // spreads of the real report -- nothing is hand-built, so a schema change
+    // that invalidates the assumption shows up as a type or runtime error
+    // rather than a stale hand-written stub that keeps passing.
+
+    /** Shallow-override one entity's `blocks.series` row. */
+    function withSeriesRow(r: ReportV1, id: number, patch: (row: Record<string, unknown>) => void): ReportV1 {
+        const row = { ...(r.blocks.series!.by_entity[String(id)] as unknown as Record<string, unknown>) };
+        patch(row);
+        return {
+            ...r,
+            blocks: {
+                ...r.blocks,
+                series: { ...r.blocks.series!, by_entity: { ...r.blocks.series!.by_entity, [String(id)]: row } },
+            },
+        } as unknown as ReportV1;
+    }
+
+    /** Shallow-override one entity's `blocks.boons` row (or remove it). */
+    function withBoonsRow(r: ReportV1, id: number, row: unknown): ReportV1 {
+        const byEntity = { ...r.blocks.boons!.by_entity } as Record<string, unknown>;
+        if (row === undefined) delete byEntity[String(id)];
+        else byEntity[String(id)] = row;
+        return {
+            ...r,
+            blocks: { ...r.blocks, boons: { ...r.blocks.boons!, by_entity: byEntity } },
+        } as unknown as ReportV1;
+    }
+
+    it('returns an empty lane, not a zero lane, when an optional series is absent', () => {
+        const native = loadNativeFixture();
+        const id = localPlayerId(native);
+        const baseline = extractTimeline(native, id, BUCKET_MS);
+        expect(baseline.incomingHealing.length, 'baseline healing lane').toBeGreaterThan(0);
+        expect(baseline.incomingBarrier.length, 'baseline barrier lane').toBeGreaterThan(0);
+
+        // `healing_received_1s`/`barrier_received_1s` are optional in the
+        // format -- absent for enemies and for any log recorded without the
+        // arcdps healing extension. That is a real absence, not a
+        // `not_computed` block, so it must render as "No data" (an empty
+        // lane) and must NOT throw and must NOT become a row of zeros.
+        const stripped = withSeriesRow(native, id, row => {
+            delete row.healing_received_1s;
+            delete row.barrier_received_1s;
+        });
+        const actual = extractTimeline(stripped, id, BUCKET_MS);
+        expect(actual.incomingHealing).toEqual([]);
+        expect(actual.incomingBarrier).toEqual([]);
+        // The other lanes are untouched by the absence.
+        expect(actual.damageDealt).toEqual(baseline.damageDealt);
+    });
+
+    it('throws when a series is not on the one-second grid the bucket times assume', () => {
+        const native = loadNativeFixture();
+        const id = localPlayerId(native);
+        const offGrid = withSeriesRow(native, id, row => {
+            row.damage = { ...(row.damage as Record<string, unknown>), interval_ms: 500 };
+        });
+        expect(() => extractTimeline(offGrid, id, BUCKET_MS)).toThrow(/interval_ms is 500/);
+    });
+
+    it('throws on a missing boons row rather than rendering eight empty boon lanes', () => {
+        const native = loadNativeFixture();
+        const id = localPlayerId(native);
+        expect(() => extractTimeline(withBoonsRow(native, id, undefined), id, BUCKET_MS))
+            .toThrow(/no boons row for entity/);
+    });
+
+    it('throws when a boon row carries no states timeline', () => {
+        const native = loadNativeFixture();
+        const id = localPlayerId(native);
+        const row = { ...(native.blocks.boons!.by_entity[String(id)] as unknown as Record<string, unknown>) };
+        const stab = { ...(row['1122'] as Record<string, unknown>) };
+        delete stab.states;
+        row['1122'] = stab;
+        expect(() => extractTimeline(withBoonsRow(native, id, row), id, BUCKET_MS))
+            .toThrow(/has no `states` timeline/);
+    });
+
+    it('throws on a boon id the catalog does not define, and on one with no icon', () => {
+        const native = loadNativeFixture();
+        const id = localPlayerId(native);
+
+        const missingEntry = {
+            ...native,
+            catalogs: { ...native.catalogs, buffs: { ...native.catalogs.buffs, 1122: undefined } },
+        } as unknown as ReportV1;
+        expect(() => extractTimeline(missingEntry, id, BUCKET_MS))
+            .toThrow(/buff 1122 is missing from catalogs.buffs/);
+
+        const noIcon = { ...(native.catalogs.buffs['1122'] as unknown as Record<string, unknown>) };
+        delete noIcon.icon;
+        const missingIcon = {
+            ...native,
+            catalogs: { ...native.catalogs, buffs: { ...native.catalogs.buffs, 1122: noIcon } },
+        } as unknown as ReportV1;
+        expect(() => extractTimeline(missingIcon, id, BUCKET_MS))
+            .toThrow(/buff 1122 has no icon/);
+    });
+
+    /**
+     * Fix round 1: the reviewer's `ALL_TRACKED_BUFF_IDS`-filter-removal
+     * mutation survived, and re-running it here showed why -- the filter was
+     * exactly redundant with the four-way lane classification that follows
+     * it (the lane sets are a subset of `ALL_TRACKED_BUFF_IDS`, so an id the
+     * filter would reject lands in no lane anyway). It was removed rather
+     * than tested, because a "guard" that cannot change any outcome is not a
+     * guard. The classification chain IS the real filter, and this test
+     * exercises it directly by injecting an untracked id.
+     */
+    it('ignores a boon id outside the tracked set instead of leaking it into a lane', () => {
+        const native = loadNativeFixture();
+        const id = localPlayerId(native);
+        const UNTRACKED = 9999;
+
+        const row = { ...(native.blocks.boons!.by_entity[String(id)] as unknown as Record<string, unknown>) };
+        row[String(UNTRACKED)] = { ...(row['1122'] as Record<string, unknown>) };
+        const injected = {
+            ...withBoonsRow(native, id, row),
+            catalogs: {
+                ...native.catalogs,
+                buffs: { ...native.catalogs.buffs, [UNTRACKED]: { name: 'Untracked', icon: 'x', kind: 'effect', stacking: 'duration' } },
+            },
+        } as unknown as ReportV1;
+
+        const actual = extractTimeline(injected, id, BUCKET_MS);
+        for (const lane of [actual.offensiveBoons, actual.defensiveBoons, actual.hardCC, actual.softCC]) {
+            expect(Object.keys(lane).map(Number)).not.toContain(UNTRACKED);
+        }
+        // ...and the tracked lanes are unchanged by its presence.
+        expect(Object.keys(actual.offensiveBoons).length).toBe(4);
+        expect(Object.keys(actual.defensiveBoons).length).toBe(4);
+    });
+
+    /**
+     * `distanceToTagBuckets` throws on an interior gap rather than inventing
+     * a distance for it. No such gap exists on this fixture (the contiguity
+     * test above proves it cannot), so it is constructed here by deleting a
+     * single mid-fight commander sample -- otherwise the throw would be
+     * unreachable code asserted only by a comment.
+     */
+    it('throws on an interior gap in the jointly-sampled range instead of filling it', () => {
+        const native = loadNativeFixture();
+        const cmd = commanderId(native)!;
+        const tracks = native.blocks.replay!.tracks!;
+        const cmdTrack = tracks.by_entity[String(cmd)]!;
+        const member = native.entities.find(e => e.role === 'squad' && e.id !== cmd)!;
+
+        // Remove every commander sample inside one whole second, so the
+        // member's samples for that second have no counterpart.
+        const holed = {
+            ...native,
+            blocks: {
+                ...native.blocks,
+                replay: {
+                    ...native.blocks.replay!,
+                    tracks: {
+                        ...tracks,
+                        by_entity: {
+                            ...tracks.by_entity,
+                            [String(cmd)]: {
+                                ...cmdTrack,
+                                samples: cmdTrack.samples.filter(([t]) => Math.floor(t / BUCKET_MS) !== 60),
+                            },
+                        },
+                    },
+                },
+            },
+        } as unknown as ReportV1;
+
+        expect(() => extractTimeline(holed, member.id, BUCKET_MS))
+            .toThrow(/no jointly-sampled replay poll in bucket 60/);
+    });
+
+    it('emits integer distance values, matching the EI lane\'s rounding', () => {
+        const native = loadNativeFixture();
+        const cmd = commanderId(native)!;
+        const nonInteger: string[] = [];
+        let checked = 0;
+        for (const e of native.entities.filter(x => x.role === 'squad')) {
+            if (e.id === cmd) continue;
+            for (const b of extractTimeline(native, e.id, BUCKET_MS).distanceToTag) {
+                checked++;
+                if (!Number.isInteger(b.value)) { nonInteger.push(`${e.account}@${b.time}`); break; }
+            }
+        }
+        expect(checked, 'distance buckets examined').toBeGreaterThan(6000);
+        expect(nonInteger, 'non-integer distance bucket values').toEqual([]);
+    });
+
+    /**
+     * `extractTimeline` copies the boon `states` and `health_percents` arrays
+     * out of the report rather than aliasing them. The report is memoized
+     * (the oracle helper here, and the production parse cache), so an aliased
+     * array would let one caller's mutation corrupt the document for every
+     * later caller. That was previously only a doc-comment claim -- the
+     * reviewer's alias mutation survived. This tests the contract.
+     */
+    it('hands out copies of states/healthPercent, so a caller cannot corrupt the memoized report', () => {
+        const native = loadNativeFixture();
+        const id = localPlayerId(native);
+
+        const first = extractTimeline(native, id, BUCKET_MS);
+        const originalStates = first.offensiveBoons[740].states.length;
+        const originalHealth = first.healthPercent.length;
+        expect(originalStates).toBeGreaterThan(1);
+        expect(originalHealth).toBeGreaterThan(1);
+
+        first.offensiveBoons[740].states.length = 1;
+        first.offensiveBoons[740].states[0] = [-1, -1];
+        first.healthPercent.length = 1;
+        first.healthPercent[0] = [-1, -1];
+
+        const second = extractTimeline(native, id, BUCKET_MS);
+        expect(second.offensiveBoons[740].states.length).toBe(originalStates);
+        expect(second.offensiveBoons[740].states[0]).not.toEqual([-1, -1]);
+        expect(second.healthPercent.length).toBe(originalHealth);
+        expect(second.healthPercent[0]).not.toEqual([-1, -1]);
     });
 
     it('throws on an unknown entity id rather than returning blanks', () => {

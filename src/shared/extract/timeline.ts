@@ -4,7 +4,7 @@ import { requireBlock, commanderId, decodeSeries } from '../report';
 import type { TimelineData, TimelineBucket, BuffStateEntry } from '../types';
 import { bucketTimeline, cumulativeToPerSecond } from '../timelineData';
 import {
-    OFFENSIVE_BOON_IDS, DEFENSIVE_BOON_IDS, HARD_CC_IDS, SOFT_CC_IDS, ALL_TRACKED_BUFF_IDS,
+    OFFENSIVE_BOON_IDS, DEFENSIVE_BOON_IDS, HARD_CC_IDS, SOFT_CC_IDS,
 } from '../boonData';
 
 /**
@@ -19,24 +19,32 @@ import {
  * the exact functions the EI path used, reused rather than reimplemented.
  *
  * `bucketTimeline` works in whole seconds because EI's grid was always
- * 1000ms. Native carries `interval_ms` per series, so that assumption is
- * checked rather than trusted: an off-grid series is bucketed on its own
- * interval instead.
+ * 1000ms, and every series this module reads carries `interval_ms: 1000`
+ * for all 46 squad members (measured). That assumption is CHECKED rather
+ * than trusted, and a violation throws instead of being papered over: the
+ * previous revision bucketed an off-grid series on its own interval, which
+ * silently emitted `time: i * intervalMs` and would have broken the
+ * `time === bucketIndex * bucketSizeMs` grid every other lane guarantees,
+ * while `round(bucketSizeMs / intervalMs)` truncated a non-integer ratio.
+ * Dead code that would be wrong if it ever ran is worse than no code.
+ *
+ * `undefined` is a legitimate input, not an error: `healing_received_1s` /
+ * `barrier_received_1s` are optional in the format (absent for enemies and
+ * for any log recorded without the arcdps healing extension), and an absent
+ * SERIES is not the same thing as a `not_computed` BLOCK -- the block-level
+ * hard error is `requireBlock`'s job, and it is applied to `series` in
+ * `extractTimeline`. An empty lane renders as "No data", not as a zero.
+ * Oracled directly by timeline.test.ts's absent-series test.
  */
 function seriesToBuckets(s: SeriesOut | undefined, bucketSizeMs: number): TimelineBucket[] {
     if (!s) return [];
-    const perInterval = cumulativeToPerSecond(decodeSeries(s));
-    const intervalMs = s.interval_ms;
-    if (intervalMs === 1000) return bucketTimeline(perInterval, bucketSizeMs);
-
-    const step = Math.max(1, Math.round(bucketSizeMs / intervalMs));
-    const buckets: TimelineBucket[] = [];
-    for (let i = 0; i < perInterval.length; i += step) {
-        let sum = 0;
-        for (let j = i; j < Math.min(i + step, perInterval.length); j++) sum += perInterval[j];
-        buckets.push({ time: i * intervalMs, value: sum });
+    if (s.interval_ms !== 1000) {
+        throw new Error(
+            `extractTimeline: series interval_ms is ${s.interval_ms}, expected 1000 --`
+            + ' the bucket grid this module emits assumes a one-second sample interval',
+        );
     }
-    return buckets;
+    return bucketTimeline(cumulativeToPerSecond(decodeSeries(s)), bucketSizeMs);
 }
 
 /**
@@ -57,12 +65,42 @@ function seriesToBuckets(s: SeriesOut | undefined, bucketSizeMs: number): Timeli
  *
  * Downed/dead samples are NOT dropped: the lane wants a position for every
  * tick the game reported one, and the EI path it replaces did not drop them
- * either. Buckets with no jointly-sampled tick get 0.
+ * either.
+ *
+ * TODO(Task 11): `computeDistanceToTagStats` in `extractPlayerData.ts` is
+ * the consumer that turns this lane into the average/median distance, and
+ * it applies the post-death runback exclusion using
+ * `player.combatReplayData.dead`. That field is `[]` for the whole frozen
+ * fixture, so the exclusion never executes today and no test can catch its
+ * omission. Task 11 MUST feed that function
+ * `blocks.replay.by_entity[id].dead` instead. This lane deliberately KEEPS
+ * downed/dead buckets so the consumer has something to exclude; do not move
+ * the exclusion in here, it would double-exclude and also strip buckets
+ * from the rendered lane.
+ *
+ * SHAPE -- the lane is TRUNCATED to the ticks actually sampled on both
+ * sides, never padded to the damage grid. A bucket with no jointly-sampled
+ * poll is an ABSENCE and must not be rendered as distance 0, which reads as
+ * "standing on the commander" and would drag the consumer's average toward
+ * zero. This matches `extractDistanceToTagTimelineEi`, which built its
+ * per-second array only from the samples it had and never padded. Measured
+ * on this fixture: 52 unsampled buckets across the 45 non-commander squad
+ * members, ALL of them trailing (the last replay poll is t=138300, bucket
+ * 138, against a 140-bucket damage grid) and ZERO interior. Because
+ * `TimelineBucket` carries an explicit `time`, a lane that starts late or
+ * ends early renders correctly against the shared time axis.
+ *
+ * Interior/leading gaps cannot occur while every track's samples are
+ * contiguous multiples of `poll_ms` (asserted for all 93 tracks in the
+ * test): each track then covers one contiguous time range, and the
+ * intersection of two contiguous ranges is contiguous. If that invariant
+ * ever breaks, this throws rather than inventing a value for the hole --
+ * there is no EI behaviour to copy for a case EI's index join could not
+ * represent, so a loud failure is the only non-inventing option.
  */
 function distanceToTagBuckets(
     r: ReportV1,
     id: number,
-    bucketCount: number,
     bucketSizeMs: number,
 ): TimelineBucket[] {
     const cmdId = commanderId(r);
@@ -76,23 +114,40 @@ function distanceToTagBuckets(
     const cmdByTime = new Map<number, [number, number, number]>();
     for (const s of cmdSamples) cmdByTime.set(s[0], s);
 
-    const sums = new Array<number>(bucketCount).fill(0);
-    const counts = new Array<number>(bucketCount).fill(0);
+    const sums = new Map<number, number>();
+    const counts = new Map<number, number>();
     for (const [t, x, y] of selfSamples) {
         const cmd = cmdByTime.get(t);
         if (!cmd) continue;
         const b = Math.floor(t / bucketSizeMs);
-        if (b < 0 || b >= bucketCount) continue;
+        if (b < 0) continue;
         const d = Math.hypot(x - cmd[1], y - cmd[2]);
         if (!Number.isFinite(d)) continue;
-        sums[b] += d;
-        counts[b]++;
+        sums.set(b, (sums.get(b) ?? 0) + d);
+        counts.set(b, (counts.get(b) ?? 0) + 1);
     }
+    if (counts.size === 0) return [];
 
-    return Array.from({ length: bucketCount }, (_, b) => ({
-        time: b * bucketSizeMs,
-        value: counts[b] > 0 ? Math.round(sums[b] / counts[b]) : 0,
-    }));
+    const occupied = [...counts.keys()].sort((a, b) => a - b);
+    const first = occupied[0];
+    const last = occupied[occupied.length - 1];
+
+    const buckets: TimelineBucket[] = [];
+    for (let b = first; b <= last; b++) {
+        const n = counts.get(b);
+        if (n === undefined) {
+            throw new Error(
+                `extractTimeline: entity ${id} has no jointly-sampled replay poll in bucket ${b}`
+                + ` of [${first}, ${last}] -- an interior gap cannot be filled without`
+                + ' inventing a distance',
+            );
+        }
+        // Rounded to an integer for parity with the EI lane
+        // (`bucketTimelineAvg` rounded); asserted by the test so removing
+        // the rounding is a visible change rather than a silent one.
+        buckets.push({ time: b * bucketSizeMs, value: Math.round(sums.get(b)! / n) });
+    }
+    return buckets;
 }
 
 /**
@@ -125,17 +180,38 @@ export function extractTimeline(r: ReportV1, id: number, bucketSizeMs: number): 
     const incomingHealing = seriesToBuckets(series.healing_received_1s, bucketSizeMs);
     const incomingBarrier = seriesToBuckets(series.barrier_received_1s, bucketSizeMs);
 
-    const distanceToTag = distanceToTagBuckets(r, id, damageDealt.length, bucketSizeMs);
+    const distanceToTag = distanceToTagBuckets(r, id, bucketSizeMs);
 
     const offensiveBoons: Record<number, BuffStateEntry> = {};
     const defensiveBoons: Record<number, BuffStateEntry> = {};
     const hardCC: Record<number, BuffStateEntry> = {};
     const softCC: Record<number, BuffStateEntry> = {};
 
-    const boonRow = requireBlock(r, 'boons').by_entity[String(id)] ?? {};
+    // No `?? {}`: a squad entity with no boons row at all is a data gap, not
+    // "this player held no boons" -- native emits a row per tracked boon id
+    // for every entity it analysed, so an absent row means the entity was
+    // not analysed and eight lanes would silently render empty.
+    const boonRow = requireBlock(r, 'boons').by_entity[String(id)];
+    if (!boonRow) throw new Error(`extractTimeline: no boons row for entity ${id}`);
     for (const [key, row] of Object.entries(boonRow)) {
         const buffId = Number(key);
-        if (!ALL_TRACKED_BUFF_IDS.has(buffId)) continue;
+        // Classify FIRST. The previous revision pre-filtered on
+        // `ALL_TRACKED_BUFF_IDS` and then classified, which was exactly
+        // redundant -- the four lane sets are a subset of
+        // `ALL_TRACKED_BUFF_IDS`, so the pre-filter could never change the
+        // outcome (proven by mutation: deleting it left all 223 tests
+        // passing). Worse, it was a footgun: adding an id to a lane set
+        // without also adding it to `ALL_TRACKED_BUFF_IDS` would have
+        // silently dropped it, which is the exact shape of the Fear-785 bug.
+        // Classifying first makes the lane sets the single source of truth,
+        // and scopes the `states` hard error to ids this module actually
+        // renders rather than to every id the block happens to carry.
+        const lane = OFFENSIVE_BOON_IDS.has(buffId) ? offensiveBoons
+            : DEFENSIVE_BOON_IDS.has(buffId) ? defensiveBoons
+                : HARD_CC_IDS.has(buffId) ? hardCC
+                    : SOFT_CC_IDS.has(buffId) ? softCC
+                        : null;
+        if (lane === null) continue;
         if (row.states === undefined) {
             throw new Error(
                 `extractTimeline: blocks.boons.by_entity[${id}][${buffId}] has no \`states\``
@@ -146,10 +222,19 @@ export function extractTimeline(r: ReportV1, id: number, bucketSizeMs: number): 
         // document carries it (this file's test asserts every one of the
         // 322 comparable rows matches EI's `buffMap` icon exactly), so it
         // is read through a narrow structural cast rather than dropped.
+        //
+        // Neither a missing catalog entry nor a missing icon gets a silent
+        // fallback: the previous `?? \`Buff ${id}\`` / `?? ''` would have
+        // rendered a nameless, iconless lane that looks like a real one.
+        // The catalog is the document's own index of every buff id it
+        // emitted, so a boons row referencing an id it does not define is a
+        // broken document.
         const def = r.catalogs.buffs[key] as { name: string; icon?: string } | undefined;
+        if (!def) throw new Error(`extractTimeline: buff ${buffId} is missing from catalogs.buffs`);
+        if (!def.icon) throw new Error(`extractTimeline: buff ${buffId} has no icon in catalogs.buffs`);
         const entry: BuffStateEntry = {
-            name: def?.name ?? `Buff ${buffId}`,
-            icon: def?.icon ?? '',
+            name: def.name,
+            icon: def.icon,
             // Copied, not aliased: the ReportV1 is memoized (the oracle
             // helper, and the production parse cache), so handing out the
             // live array would let any consumer that mutates it corrupt the
@@ -157,10 +242,7 @@ export function extractTimeline(r: ReportV1, id: number, bucketSizeMs: number): 
             // copies.
             states: (row.states as [number, number][]).map(([t, v]) => [t, v] as [number, number]),
         };
-        if (OFFENSIVE_BOON_IDS.has(buffId)) offensiveBoons[buffId] = entry;
-        else if (DEFENSIVE_BOON_IDS.has(buffId)) defensiveBoons[buffId] = entry;
-        else if (HARD_CC_IDS.has(buffId)) hardCC[buffId] = entry;
-        else if (SOFT_CC_IDS.has(buffId)) softCC[buffId] = entry;
+        lane[buffId] = entry;
     }
 
     return {

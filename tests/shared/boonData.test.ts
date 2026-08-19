@@ -6,7 +6,7 @@ import {
 } from '../../src/shared/boonData';
 import type { EiPlayer } from '../../src/shared/types';
 import { squadMembers } from '../../src/shared/report';
-import { loadNativeFixture } from './oracle';
+import { loadEiFixture, loadNativeFixture } from './oracle';
 
 function makePlayer(overrides: Partial<EiPlayer> = {}): EiPlayer {
     return {
@@ -34,6 +34,39 @@ function makePlayer(overrides: Partial<EiPlayer> = {}): EiPlayer {
         ...overrides,
     } as EiPlayer;
 }
+
+/**
+ * Fix round 1, finding 4. `HARD_CC_IDS` carried `785` for Fear. That id
+ * exists in NEITHER document -- native's `catalogs.buffs` has no `785` and
+ * EI's `buffMap` has no `b785`; both define `791` as Fear. The consequence
+ * was a live silent drop on the still-active EI path: `buildTimeline`'s hard
+ * CC lane filters `player.buffUptimes` by `ALL_TRACKED_BUFF_IDS`, so every
+ * Fear timeline in the log was discarded. This pins the corrected id against
+ * both documents rather than against the constant itself.
+ */
+describe('HARD_CC_IDS Fear id', () => {
+    it('uses 791, the id both documents actually define for Fear', () => {
+        const ei = loadEiFixture();
+        const native = loadNativeFixture();
+
+        expect(HARD_CC_IDS.has(791), 'Fear (791) is tracked').toBe(true);
+        expect(HARD_CC_IDS.has(785), 'the phantom id 785 is not tracked').toBe(false);
+
+        // The oracle: both documents, not the constant.
+        expect(native.catalogs.buffs['785'], 'native catalog entry for 785').toBeUndefined();
+        expect(ei.buffMap?.['b785'], 'EI buffMap entry for b785').toBeUndefined();
+        expect(native.catalogs.buffs['791']?.name).toBe('Fear');
+        expect(ei.buffMap?.['b791']?.name).toBe('Fear');
+
+        // And the data the wrong id was dropping: EI players carrying a Fear
+        // state timeline. Vacuity guard -- if this were 0 the fix would be
+        // untestable and the id would be a coin flip.
+        const withFear = ei.players.filter(p => (p.buffUptimes ?? [])
+            .some(b => b.id === 791 && (b.states?.length ?? 0) > 0));
+        expect(withFear.length, 'EI players whose Fear timeline the wrong id dropped').toBe(7);
+    });
+});
+
 
 describe('extractBoonUptimes', () => {
     it('extracts uptime for known boons', () => {

@@ -39,6 +39,22 @@ function computeFightPosition(player: EiPlayer): [number, number] | null {
     return [xs[mid], ys[mid]];
 }
 
+/**
+ * TODO(Task 11): this is the consumer of `TimelineData.distanceToTag`, and
+ * the ONLY place the post-death runback exclusion lives -- `extractTimeline`
+ * (the native replacement) deliberately keeps downed/dead buckets so this
+ * function has something to exclude, and moving the exclusion in there would
+ * double-exclude and strip buckets from the rendered lane.
+ *
+ * When Task 11 recomposes this pipeline onto the native extract units it MUST
+ * replace `player.combatReplayData?.dead` below with
+ * `blocks.replay.by_entity[id].dead`. `combatReplayData` is EMPTY for every
+ * player in the frozen EI fixture, so the exclusion never executes under test
+ * today and NO TEST WILL FAIL if this swap is forgotten -- the runback would
+ * then silently inflate every player's average distance. (The
+ * `refDist = ... ?? 0` fallback below is a pre-existing silent zero that
+ * should be revisited at the same time.)
+ */
 function computeDistanceToTagStats(
     timeline: TimelineData,
     player: EiPlayer,
