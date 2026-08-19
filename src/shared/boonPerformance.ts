@@ -457,14 +457,50 @@ export function computeBoonPerformance(
 
     const boons = requireBlock(r, 'boons');
     const replay = requireBlock(r, 'replay');
+    // `tracks` is the separately gated half of `blocks.replay` -- axilog's
+    // own doc warns `coverage.replay === "present"` does NOT mean positions
+    // are available. Without it every bucket of every party member would
+    // take the `dist_to_com` fallback, i.e. the chart would draw one flat
+    // line per member and look like a measurement. The app's fixed
+    // `PARSE_OPTS` always passes `replay: true`, so absence is a broken
+    // parse, and it now fails the same way the absent `dist_to_com` two
+    // lines down does.
     const tracks = replay.tracks;
+    if (!tracks) {
+        throw new Error(
+            'computeBoonPerformance: blocks.replay has no `tracks` -- the log was parsed'
+            + ' without `replay: true`, so there are no positions to measure distance from',
+        );
+    }
 
     const cmdId = commanderId(r) ?? id;
-    const cmdSamples = tracks?.by_entity[String(cmdId)]?.samples ?? [];
+    const cmdTrack = tracks.by_entity[String(cmdId)];
+    if (!cmdTrack) {
+        throw new Error(`computeBoonPerformance: no replay track for commander entity ${cmdId}`);
+    }
+    const cmdSamples = cmdTrack.samples;
 
     const partyMembers: BoonPerfPartyMember[] = partyEntities.map(e => {
+        // Native emits a row per tracked boon id for EVERY entity it
+        // analysed, so an absent row is "this entity was not analysed", not
+        // "this player held no Stability" -- the `?? []` that used to stand
+        // here rendered the first as the second, a flat zero lane. A row
+        // with no `states` is the `timeseries` gate being off, which
+        // `computeSelfGenerationPerBucketNative` already throws for.
         const row = boons.by_entity[String(e.id)]?.[String(buffId)];
-        const states = (row?.states ?? []) as Array<[number, number]>;
+        if (!row) {
+            throw new Error(
+                `computeBoonPerformance: no blocks.boons row for squad entity ${e.id}`
+                + ` and buff ${buffId}`,
+            );
+        }
+        if (row.states === undefined) {
+            throw new Error(
+                `computeBoonPerformance: blocks.boons.by_entity[${e.id}][${buffId}] has no`
+                + ' `states` timeline -- it was parsed without `timeseries: true`',
+            );
+        }
+        const states = row.states as Array<[number, number]>;
         // `blocks.replay.by_entity` is keyed by SQUAD entity and `partyEntities`
         // is a subset of `squadMembers(r)`, so a missing row is a broken
         // document rather than "this player has no intervals". The previous
@@ -474,7 +510,14 @@ export function computeBoonPerformance(
             throw new Error(`computeBoonPerformance: no replay intervals row for squad entity ${e.id}`);
         }
         const dead = intervals.dead;
-        const memberSamples = tracks?.by_entity[String(e.id)]?.samples ?? [];
+        // Same reasoning as the commander's track above: a squad member with
+        // no track is a data gap, and silently handing the distance join an
+        // empty sample list makes every bucket take the fallback.
+        const memberTrack = tracks.by_entity[String(e.id)];
+        if (!memberTrack) {
+            throw new Error(`computeBoonPerformance: no replay track for squad entity ${e.id}`);
+        }
+        const memberSamples = memberTrack.samples;
         const fallbackDist = requireFallbackDist(intervals.dist_to_com, e.id);
         return {
             key: String(e.id),

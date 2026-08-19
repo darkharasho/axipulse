@@ -1,6 +1,7 @@
 // src/shared/extract/movement.ts
 import type { Arena, ReplayTrack } from '@axiapps/axilog/types';
 import type { ReportV1 } from '../report';
+import { requireBlock } from '../report';
 import type { MovementData, SquadMemberMovement, SkillCast } from '../types';
 import { ALL_TRACKED_BUFF_IDS } from '../boonData';
 
@@ -22,9 +23,11 @@ import { ALL_TRACKED_BUFF_IDS } from '../boonData';
  * The squeeze is checkable rather than assumed: this fixture's map (GW2 map
  * id 95, Green Alpine Borderlands) carries `arena` 697x1000, and
  * 697 * 750/1000 = 522.75, which rounds to the 523 already in
- * `wvwTiles.ts`. `movement.test.ts` pins that agreement for every map in the
- * table so a future arena change fails loudly instead of shifting the map
- * under the markers.
+ * `wvwTiles.ts`. `tests/shared/extract/movement.test.ts` pins that agreement
+ * for GREEN ONLY -- it is the only map with an `arena` in this fixture, and
+ * an arena cannot be synthesised for the other three without assuming the
+ * answer. EBG (716x750 over a SQUARE world rect), Blue and Red are
+ * unpinned; the tile-rect agreement asserted there is likewise Green's.
  */
 export const EI_MAX_IMAGE_DIM = 750;
 
@@ -52,10 +55,30 @@ function arenaSpans(a: Arena): { spanX: number; spanY: number } {
     return { spanX, spanY };
 }
 
-/** The arena image rescaled into GW2EI's squeezed combat-replay pixel space. */
+/**
+ * The arena image rescaled into GW2EI's squeezed combat-replay pixel space.
+ *
+ * A SQUEEZE, never a stretch. `EI_MAX_IMAGE_DIM / max(w, h)` is a downscale
+ * only while the arena image is at least 750px on its longest side; a
+ * smaller image would be UPSCALED into a space this app's landmark tables do
+ * not share, silently displacing every marker on that map. Unreachable on
+ * this fixture (max dimension 1000) and not checkable against any other map
+ * without a second arena, so it is made loud rather than guessed at: whether
+ * GW2EI clamps at 1 or scales both ways is UNKNOWN to me, and picking one
+ * silently would be inventing a behaviour. Exercised by
+ * `tests/shared/extract/movement.test.ts` with a synthetic sub-750px arena.
+ */
 export function arenaPixelSize(a: Arena): [number, number] {
     arenaSpans(a);
-    const squeeze = EI_MAX_IMAGE_DIM / Math.max(a.image_width, a.image_height);
+    const longest = Math.max(a.image_width, a.image_height);
+    if (longest < EI_MAX_IMAGE_DIM) {
+        throw new Error(
+            `extractMovement: arena image is ${a.image_width}x${a.image_height}, whose longest`
+            + ` side is below GW2EI's ${EI_MAX_IMAGE_DIM}px cap -- squeezing it would UPSCALE`
+            + " into a pixel space this app's landmark and tile tables do not share",
+        );
+    }
+    const squeeze = EI_MAX_IMAGE_DIM / longest;
     return [a.image_width * squeeze, a.image_height * squeeze];
 }
 
@@ -342,7 +365,19 @@ export function extractMovement(r: ReportV1, id: number): MovementData | null {
 
     const skillIcons = buildSkillIcons(r);
     const boonIcons = buildBoonIcons(r);
-    const series = r.blocks.series;
+    // BLOCK-level absence throws; per-ENTITY absence does not. The two are
+    // different facts and the previous `r.blocks.series` + optional chaining
+    // collapsed them:
+    //   - an absent `blocks.series` means the `timeseries` gate was off, the
+    //     same gate that makes `boons[].states` throw two functions away.
+    //     Under the app's fixed `PARSE_OPTS` it is always on, so absence is
+    //     a broken parse -- and swallowing it renders every member with a
+    //     flat 100% health bar (`MovementView.getHealthPercent` returns 100
+    //     when it finds no timeline), which reads as "everyone was fine".
+    //   - an absent `health_percents` on a PRESENT row is documented as
+    //     legitimate ("the entity emitted no health updates at all"), and
+    //     stays an absent field rather than an invented `[]`.
+    const series = requireBlock(r, 'series');
 
     const members: SquadMemberMovement[] = [];
     for (const e of r.entities) {
@@ -403,7 +438,7 @@ export function extractMovement(r: ReportV1, id: number): MovementData | null {
             // Copied, not aliased, for the same reason `extract/timeline.ts`
             // copies: a `ReportV1` is a parsed input document and the test
             // fixture is memoized across every call in a file.
-            healthPercents: series?.by_entity[String(e.id)]?.health_percents
+            healthPercents: series.by_entity[String(e.id)]?.health_percents
                 ?.map(([t, v]) => [t, v] as [number, number]),
             skillCasts: buildSkillCasts(r, e.id, skillIcons),
         });

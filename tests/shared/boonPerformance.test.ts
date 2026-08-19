@@ -414,6 +414,104 @@ describe('party member distances: the unsampled-bucket fallback (native)', () =>
     });
 
     /**
+     * The three absences that sit two lines from `requireFallbackDist` and
+     * used to degrade instead of failing: the whole `tracks` half of the
+     * replay block, the commander's track, and a party member's own track.
+     * All three would have made every bucket take the fallback -- one flat
+     * line per member, indistinguishable from a measurement. Unreachable on
+     * this fixture, so reached by editing a clone.
+     */
+    it('throws when the replay tracks, the commander\'s track or a member\'s track is missing', () => {
+        const native = loadNativeFixture();
+        const local = localPlayerId(native);
+        const cmd = commanderId(native)!;
+        const partyKey = computeBoonPerformance(native, local, 1000, STABILITY_BUFF_ID)!.partyMembers[0].key;
+
+        const edit = (fn: (replay: any) => void): ReportV1 => {
+            const replay = structuredClone(native.blocks.replay!);
+            fn(replay);
+            return { ...native, blocks: { ...native.blocks, replay } } as ReportV1;
+        };
+        expect(() => computeBoonPerformance(edit(rp => { delete rp.tracks; }), local, 1000, STABILITY_BUFF_ID))
+            .toThrow(/has no `tracks`/);
+        expect(() => computeBoonPerformance(edit(rp => { delete rp.tracks.by_entity[String(cmd)]; }), local, 1000, STABILITY_BUFF_ID))
+            .toThrow(/no replay track for commander/);
+        expect(() => computeBoonPerformance(edit(rp => { delete rp.tracks.by_entity[partyKey]; }), local, 1000, STABILITY_BUFF_ID))
+            .toThrow(/no replay track for squad entity/);
+
+        // ... and the boons side of the same class.
+        const boons = structuredClone(native.blocks.boons!);
+        delete (boons.by_entity as any)[partyKey][String(STABILITY_BUFF_ID)];
+        expect(() => computeBoonPerformance(
+            { ...native, blocks: { ...native.blocks, boons } } as ReportV1, local, 1000, STABILITY_BUFF_ID,
+        )).toThrow(/no blocks.boons row/);
+
+        const boons2 = structuredClone(native.blocks.boons!);
+        delete ((boons2.by_entity as any)[partyKey][String(STABILITY_BUFF_ID)]).states;
+        expect(() => computeBoonPerformance(
+            { ...native, blocks: { ...native.blocks, boons: boons2 } } as ReportV1, local, 1000, STABILITY_BUFF_ID,
+            // Anchored on the FUNCTION NAME: `computeSelfGenerationPerBucketNative`
+            // throws a message with identical wording for the same row, so an
+            // unanchored regex passes even when this check is removed (proved
+            // by mutation).
+        )).toThrow(/computeBoonPerformance: blocks\.boons\.by_entity\[\d+\]\[\d+\] has no `states` timeline/);
+    });
+
+    /**
+     * KNOWN DIVERGENCE, accepted as-is by controller ruling rather than
+     * chased: the padding RULE matches EI (pad an unsampled bucket with the
+     * actor's mean distance to the commander), but the padded NUMBER does
+     * not always match EI's own `statsAll[0].distToCom`.
+     *
+     * Measured across all 46 squad members: median relative difference
+     * 0.55%, 38 within 1%, 44 within 2%, and two far-from-tag players at
+     * 26.5% (19861.4 vs 15695.9) and 16.3% (19130.5 vs 16455.1). That is an
+     * upstream difference in which polls each parser counts as "active" -- a
+     * coverage-population difference, the class this plan documents rather
+     * than reconciles. The MECHANISM behind the two outliers specifically is
+     * UNKNOWN; only the population hypothesis is stated, and it is not
+     * proven here.
+     *
+     * Pinned so the divergence cannot widen unnoticed.
+     */
+    it('pins the native-vs-EI dist_to_com divergence the padded value inherits', () => {
+        const native = loadNativeFixture();
+        const ei = loadEiFixture();
+        const replay = native.blocks.replay!;
+
+        const rels: number[] = [];
+        const worst: string[] = [];
+        for (const e of squadMembers(native)) {
+            const p = ei.players.find(q => q.account === e.account);
+            expect(p, `EI player for ${e.account}`).toBeDefined();
+            const nat = replay.by_entity[String(e.id)]!.dist_to_com!;
+            const eiv = p!.statsAll![0].distToCom!;
+            if (eiv === 0) {
+                // The commander's own row: distance to self. Both parsers
+                // agree exactly, and it stays in the population so the
+                // percentile counts below cover all 46.
+                expect(e.commander, `${e.account} has distToCom 0`).toBeDefined();
+                expect(nat).toBe(0);
+                rels.push(0);
+                continue;
+            }
+            const rel = Math.abs(nat - eiv) / eiv;
+            rels.push(rel);
+            if (rel > 0.02) worst.push(`${e.account} ${nat.toFixed(1)} vs ${eiv.toFixed(1)}`);
+        }
+        expect(rels.length).toBe(46);
+        rels.sort((a, b) => a - b);
+        expect(rels[Math.floor(rels.length / 2)]).toBeCloseTo(0.00554, 4);
+        expect(rels.filter(x => x <= 0.01).length).toBe(38);
+        expect(rels.filter(x => x <= 0.02).length).toBe(44);
+        expect(worst.sort()).toEqual([
+            'Anon151.6587 19861.4 vs 15695.9',
+            'Anon175.7475 19130.5 vs 16455.1',
+        ]);
+        expect(rels[rels.length - 1]).toBeCloseTo(0.2654, 4);
+    });
+
+    /**
      * The two non-values `dist_to_com` can carry are NOT distances and are
      * no longer collapsed to zero. Both are unreachable on this fixture (all
      * 47 rows carry a real `>= 0` value, asserted here so the mutation is

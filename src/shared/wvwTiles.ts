@@ -56,9 +56,11 @@ export interface TileInfo {
  * positions being plotted, so an override guarantees the tiles and the
  * markers cannot disagree even if the two ever drift apart.
  *
- * They do not disagree today, and `wvwTiles.test.ts` pins that: 697x1000
- * squeezed to a 750px maximum dimension is 522.75x750, which rounds to the
- * table's [523, 750] for Green Alpine. `continentRect` has no counterpart in
+ * They do not disagree today, and `tests/shared/extract/movement.test.ts`
+ * pins that FOR GREEN ALPINE, the only map with an `arena` in the fixture:
+ * 697x1000 squeezed to a 750px maximum dimension is 522.75x750, which rounds
+ * to the table's [523, 750]. The other three entries are unpinned against an
+ * arena and remain hand-transcribed. `continentRect` has no counterpart in
  * `arena` (it is GW2 continent space, not world space) and stays tabular --
  * every one of the four rects is verified against that map's
  * `continent_rect` from `https://api.guildwars2.com/v2/maps/<id>`.
