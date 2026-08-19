@@ -2,8 +2,89 @@ import { describe, it, expect } from 'vitest';
 import { extractBoons } from '../../../src/shared/extract/boons';
 import { computeBoonPerformance, STABILITY_BUFF_ID, MIGHT_BUFF_ID } from '../../../src/shared/boonPerformance';
 import { localPlayerId, squadMembers } from '../../../src/shared/report';
-import { WVW_BOON_IDS, INTENSITY_STACKING_BOON_IDS } from '../../../src/shared/boonData';
+import type { ReportV1 } from '../../../src/shared/report';
+import { WVW_BOON_IDS } from '../../../src/shared/boonData';
 import { loadEiFixture, loadNativeFixture } from '../oracle';
+
+/**
+ * The EXACT set of (member, buff, scope) generation figures where EI and
+ * native disagree by more than `GEN_TOLERANCE`. Pinned rather than absorbed
+ * into a loose tolerance so the suite fails if the divergence widens or
+ * spreads to a boon that is currently clean.
+ *
+ * Ruled on by the reviewer after Task 7: this divergence is REAL, not an
+ * oracle artifact. The per-member TOTALS agree to <0.1% and sum-over-sources
+ * equals the total on both sides -- only the SPLIT among concurrent sources
+ * differs, because EI and axilog resolve the overlapping-source queue
+ * differently. Hence Regeneration (718), the longest-duration and most
+ * heavily overlapped boon here, dominates: 38 of these 46 entries.
+ *
+ * Currently clean and expected to STAY clean: Aegis (743), Vigor (726),
+ * Alacrity (30328), Might (740), Stability (1122).
+ */
+const GENERATION_MISMATCHES = [
+    'Anon150.6550:718:group',
+    'Anon150.6550:718:self',
+    'Anon150.6550:718:squad',
+    'Anon150.6550:719:self',
+    'Anon154.6698:725:self',
+    'Anon155.6735:718:group',
+    'Anon155.6735:718:self',
+    'Anon158.6846:718:group',
+    'Anon158.6846:718:self',
+    'Anon158.6846:718:squad',
+    'Anon159.6883:718:self',
+    'Anon160.6920:719:group',
+    'Anon161.6957:718:group',
+    'Anon161.6957:718:self',
+    'Anon162.6994:718:group',
+    'Anon162.6994:718:self',
+    'Anon164.7068:718:squad',
+    'Anon165.7105:718:self',
+    'Anon166.7142:718:group',
+    'Anon166.7142:718:squad',
+    'Anon169.7253:718:group',
+    'Anon169.7253:718:self',
+    'Anon170.7290:725:group',
+    'Anon171.7327:718:group',
+    'Anon171.7327:718:self',
+    'Anon171.7327:718:squad',
+    'Anon176.7512:718:group',
+    'Anon177.7549:718:group',
+    'Anon177.7549:718:self',
+    'Anon178.7586:718:group',
+    'Anon179.7623:718:group',
+    'Anon180.7660:718:self',
+    'Anon184.7808:718:group',
+    'Anon184.7808:718:squad',
+    'Anon185.7845:718:group',
+    'Anon185.7845:718:self',
+    'Anon187.7919:718:self',
+    'Anon189.7993:1187:self',
+    'Anon189.7993:26980:self',
+    'Anon189.7993:717:self',
+    'Anon189.7993:873:self',
+    'Anon195.8215:718:group',
+    'Anon195.8215:718:self',
+    'Anon195.8215:718:squad',
+    'Anon209.8733:718:group',
+    'Anon209.8733:718:self',
+];
+
+const GEN_TOLERANCE = 0.5;
+const SQUAD_SIZE = 46;
+
+/** A shallow copy of the report with one buff's catalog entry replaced. */
+function withCatalogBuff(
+    r: ReportV1,
+    buffId: number,
+    patch: Partial<ReportV1['catalogs']['buffs'][string]> | null,
+): ReportV1 {
+    const buffs = { ...r.catalogs.buffs };
+    if (patch === null) delete buffs[String(buffId)];
+    else buffs[String(buffId)] = { ...buffs[String(buffId)], ...patch };
+    return { ...r, catalogs: { ...r.catalogs, buffs } };
+}
 
 describe('extractBoons', () => {
     // Same vacuity-guard convention as support.test.ts/defense.test.ts: every
@@ -13,7 +94,7 @@ describe('extractBoons', () => {
     // zero entities, those checks would pass vacuously.
     it('has the full 46-member squad roster this file\'s full-roster tests assume', () => {
         const native = loadNativeFixture();
-        expect(squadMembers(native).length).toBe(46);
+        expect(squadMembers(native).length).toBe(SQUAD_SIZE);
     });
 
     // Step 1's oracle, strengthened per the controller ruling to the full
@@ -51,7 +132,9 @@ describe('extractBoons', () => {
                 expect(entry, `extractBoons(${e.account}) missing uptime entry for ${buff.id}`).toBeDefined();
 
                 const eiUptime = buff.buffData[0]?.uptime ?? 0;
-                const tolerance = INTENSITY_STACKING_BOON_IDS.has(buff.id) ? 0.1 : 1;
+                // Which tolerance applies is decided by the catalog, the same
+                // source the implementation reads -- not a hardcoded id list.
+                const tolerance = native.catalogs.buffs[String(buff.id)].stacking === 'intensity' ? 0.1 : 1;
                 if (Math.abs(entry!.uptime - eiUptime) > tolerance) {
                     mismatches.push(`${e.account}:${buff.id}`);
                 }
@@ -63,88 +146,109 @@ describe('extractBoons', () => {
         expect(mismatches, 'uptime mismatches beyond tolerance').toEqual(['Anon189.7993:1122']);
     });
 
-    // `catalogs.buffs[id].stacking` (not the id) drives which field
-    // (`avg_stacks` vs `uptime_pct`) and stacking tag extractBoons uses --
-    // verified against the full roster, not just Might/Stability.
-    it('tags stacking from catalogs.buffs, not a hardcoded id list', () => {
+    it('tags stacking from catalogs.buffs for every squad member', () => {
         const native = loadNativeFixture();
+        let checkedAny = 0;
         for (const e of squadMembers(native)) {
             const actual = extractBoons(native, e.id);
             for (const entry of actual.uptimes) {
-                const def = native.catalogs.buffs[String(entry.id)];
-                expect(entry.stacking).toBe(def.stacking);
+                checkedAny++;
+                expect(entry.stacking).toBe(native.catalogs.buffs[String(entry.id)].stacking);
             }
         }
+        expect(checkedAny).toBe(SQUAD_SIZE * WVW_BOON_IDS.size);
     });
 
-    // Generation for the two INTENSITY boons this app ever computes
-    // `boonPerformance` for (Stability, Might) agrees closely with EI's
-    // squadBuffs/groupBuffs/selfBuffs generation figures -- same
-    // measurement support.test.ts already relies on for stabilityGeneration.
-    //
-    // NOTE on the other 10 (duration-stacking) boon ids: measured, not
-    // asserted here -- generation for several duration boons (most visibly
-    // Regeneration, id 718) diverges substantially between EI and native
-    // for a large minority of the 46-member roster (tens of members, up to
-    // ~11pp), in BOTH directions (native higher on some accounts, lower on
-    // others, EI-zero/native-nonzero on some). This was measured directly
-    // against the fixture, not assumed. No consistent structural condition
-    // (self-inclusion, coverage, roster gap) explaining it was found within
-    // this task's scope, so per the "verify or say unknown" instruction, no
-    // root cause is asserted here -- flagged in the task report instead of
-    // filed as a specific (possibly wrong) explanation. The extraction
-    // itself is not in question: `extractBoons` maps `generation.*_pct`
-    // exactly as the brief specifies, and duration-boon generation values
-    // are still checked below for the real, cheap invariant a wiring bug
-    // WOULD violate (finite, non-negative).
-    it('matches EI\'s squadBuffs/groupBuffs/selfBuffs generation oracle for Might and Stability, for every squad member', () => {
+    // The real catalog-vs-id-list test: the previous version compared the
+    // extract's `stacking` to the catalog on a fixture where the catalog and
+    // `INTENSITY_STACKING_BOON_IDS` never disagree, so it passed with the
+    // catalog lookup ripped out. Here the two are forced to DISAGREE.
+    it('lets catalogs.buffs override the id list when the two disagree', () => {
+        const native = loadNativeFixture();
+        const id = localPlayerId(native);
+        const row = native.blocks.boons!.by_entity[String(id)][String(MIGHT_BUFF_ID)];
+        // Vacuity guard: the two candidate fields must actually differ, or
+        // reading the wrong one would be undetectable.
+        expect(row.avg_stacks).toBeDefined();
+        expect(row.avg_stacks).not.toBeCloseTo(row.uptime_pct, 3);
+        expect(native.catalogs.buffs[String(MIGHT_BUFF_ID)].stacking).toBe('intensity');
+
+        // Might is intensity-stacking in both the catalog and the legacy id
+        // list. Flip ONLY the catalog: the extract must follow the catalog.
+        const flipped = withCatalogBuff(native, MIGHT_BUFF_ID, { stacking: 'duration' });
+        const entry = extractBoons(flipped, id).uptimes.find(u => u.id === MIGHT_BUFF_ID)!;
+        expect(entry.stacking).toBe('duration');
+        expect(entry.uptime).toBe(row.uptime_pct);
+    });
+
+    it('throws rather than inferring stacking when the catalog entry is missing', () => {
+        const native = loadNativeFixture();
+        const id = localPlayerId(native);
+        const stripped = withCatalogBuff(native, MIGHT_BUFF_ID, null);
+        expect(() => extractBoons(stripped, id)).toThrow(String(MIGHT_BUFF_ID));
+    });
+
+    // The banned silent zero: `avg_stacks` is documented as present for
+    // intensity-stacking buffs only. Forcing a duration boon (one chosen
+    // from the catalog, not hardcoded) to intensity produces a row with no
+    // `avg_stacks` -- which must throw, never render 0.
+    it('throws instead of rendering 0 when an intensity buff row has no avg_stacks', () => {
+        const native = loadNativeFixture();
+        const id = localPlayerId(native);
+        const durationBoonId = [...WVW_BOON_IDS]
+            .find(b => native.catalogs.buffs[String(b)].stacking === 'duration');
+        expect(durationBoonId, 'fixture has no duration-stacking WvW boon').toBeDefined();
+        expect(native.blocks.boons!.by_entity[String(id)][String(durationBoonId!)].avg_stacks).toBeUndefined();
+
+        const flipped = withCatalogBuff(native, durationBoonId!, { stacking: 'intensity' });
+        expect(() => extractBoons(flipped, id)).toThrow(/avg_stacks/);
+    });
+
+    // ONE mismatch-set pin over all 12 WVW buff ids x all 46 squad members x
+    // all three generation scopes, replacing the previous split of "tight
+    // oracle for Might/Stability, finite/non-negative hand-wave for the other
+    // 10". `GENERATION_MISMATCHES` documents what is known about the
+    // divergence; the point of pinning is that it cannot widen unnoticed.
+    it('pins the exact EI/native generation mismatch set for all 12 boons x all 46 squad members', () => {
         const ei = loadEiFixture();
         const native = loadNativeFixture();
-        const mismatches: string[] = [];
-        let checkedAny = 0;
+        const roster = squadMembers(native);
+        expect(roster.length).toBe(SQUAD_SIZE);
 
-        for (const e of squadMembers(native)) {
-            const eiPlayer = ei.players.find(p => p.account === e.account)!;
+        const mismatches: string[] = [];
+        let comparedPairs = 0;
+
+        for (const e of roster) {
+            const eiPlayer = ei.players.find(p => p.account === e.account);
+            expect(eiPlayer, `no EI player for ${e.account}`).toBeDefined();
             const actual = extractBoons(native, e.id);
-            for (const buffId of [STABILITY_BUFF_ID, MIGHT_BUFF_ID]) {
+
+            for (const buffId of WVW_BOON_IDS) {
                 const entry = actual.generation.find(g => g.id === buffId);
                 expect(entry, `extractBoons(${e.account}) missing generation entry for ${buffId}`).toBeDefined();
-                checkedAny++;
+                comparedPairs++;
 
-                const eiSelf = (eiPlayer.selfBuffs ?? []).find(b => b.id === buffId)?.buffData[0]?.generation ?? 0;
-                const eiGroup = (eiPlayer.groupBuffs ?? []).find(b => b.id === buffId)?.buffData[0]?.generation ?? 0;
-                const eiSquad = (eiPlayer.squadBuffs ?? []).find(b => b.id === buffId)?.buffData[0]?.generation ?? 0;
+                const gen = (buffs: { id: number; buffData: { generation: number }[] }[] | undefined) =>
+                    (buffs ?? []).find(b => b.id === buffId)?.buffData[0]?.generation ?? 0;
 
-                const tol = 0.5;
-                if (Math.abs(entry!.selfGeneration - eiSelf) > tol
-                    || Math.abs(entry!.groupGeneration - eiGroup) > tol
-                    || Math.abs(entry!.squadGeneration - eiSquad) > tol) {
-                    mismatches.push(`${e.account}:${buffId}`);
+                const scopes: Array<[string, number, number]> = [
+                    ['self', entry!.selfGeneration, gen(eiPlayer!.selfBuffs)],
+                    ['group', entry!.groupGeneration, gen(eiPlayer!.groupBuffs)],
+                    ['squad', entry!.squadGeneration, gen(eiPlayer!.squadBuffs)],
+                ];
+                for (const [scope, nativeValue, eiValue] of scopes) {
+                    expect(Number.isFinite(nativeValue)).toBe(true);
+                    expect(nativeValue).toBeGreaterThanOrEqual(0);
+                    if (Math.abs(nativeValue - eiValue) > GEN_TOLERANCE) {
+                        mismatches.push(`${e.account}:${buffId}:${scope}`);
+                    }
                 }
             }
         }
 
-        expect(checkedAny).toBeGreaterThan(0);
-        expect(mismatches, 'Might/Stability generation mismatches beyond tolerance').toEqual([]);
-    });
-
-    it('produces finite, non-negative generation figures for every boon and every squad member (duration boons included)', () => {
-        const native = loadNativeFixture();
-        let checkedAny = 0;
-        for (const e of squadMembers(native)) {
-            const actual = extractBoons(native, e.id);
-            expect(actual.generation.length).toBeGreaterThan(0);
-            for (const entry of actual.generation) {
-                checkedAny++;
-                expect(Number.isFinite(entry.selfGeneration)).toBe(true);
-                expect(Number.isFinite(entry.groupGeneration)).toBe(true);
-                expect(Number.isFinite(entry.squadGeneration)).toBe(true);
-                expect(entry.selfGeneration).toBeGreaterThanOrEqual(0);
-                expect(entry.groupGeneration).toBeGreaterThanOrEqual(0);
-                expect(entry.squadGeneration).toBeGreaterThanOrEqual(0);
-            }
-        }
-        expect(checkedAny).toBeGreaterThan(0);
+        // Vacuity guards: the full cross-product really was walked.
+        expect(comparedPairs).toBe(SQUAD_SIZE * WVW_BOON_IDS.size);
+        expect([...mismatches].sort()).toEqual(GENERATION_MISMATCHES);
     });
 
     it('is non-null for stability and might, with a populated party, for every squad member', () => {
@@ -168,7 +272,7 @@ describe('extractBoons', () => {
                 }
             }
         }
-        expect(checkedAny).toBe(46);
+        expect(checkedAny).toBe(SQUAD_SIZE);
     });
 
     // The rekeying itself: `BoonPerfPartyMember.key` is now the entity id

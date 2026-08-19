@@ -125,7 +125,8 @@ export function extractBoonGenerationEi(player: EiPlayer): BoonGenerationEntry[]
  * members carries exactly the 12 `WVW_BOON_IDS` keys, no more, no fewer.
  * `uptime` reads `avg_stacks` for intensity-stacking buffs (Might,
  * Stability) and `uptime_pct` for duration-stacking ones -- chosen from
- * `catalogs.buffs[id].stacking`, never inferred from the id.
+ * `catalogs.buffs[id].stacking`, never inferred from the id, and a missing
+ * catalog entry throws rather than falling back to an id list.
  */
 export function extractBoonUptimes(r: ReportV1, id: number): BoonUptimeEntry[] {
     const boons = requireBlock(r, 'boons').by_entity[String(id)];
@@ -135,12 +136,32 @@ export function extractBoonUptimes(r: ReportV1, id: number): BoonUptimeEntry[] {
     for (const buffId of WVW_BOON_IDS) {
         const row = boons[String(buffId)];
         if (!row) continue;
+        // `catalogs.buffs[buffId].stacking` is the ONLY source of truth for
+        // which field to read. There is deliberately no `INTENSITY_STACKING_BOON_IDS`
+        // fallback: a hardcoded id list silently winning over the catalog on
+        // a log whose catalog entry is missing is exactly the failure mode
+        // the `coverage: not_computed` rule forbids, so a missing entry is a
+        // hard error instead.
         const def = r.catalogs.buffs[String(buffId)];
-        const name = def?.name ?? BOON_NAMES[buffId] ?? `Boon ${buffId}`;
-        const stacking: 'duration' | 'intensity' = def?.stacking
-            ?? (INTENSITY_STACKING_BOON_IDS.has(buffId) ? 'intensity' : 'duration');
-        const uptime = stacking === 'intensity' ? (row.avg_stacks ?? 0) : row.uptime_pct;
-        uptimes.push({ id: buffId, name, uptime, stacking });
+        if (!def?.stacking) {
+            throw new Error(
+                `extractBoonUptimes: catalogs.buffs[${buffId}] has no \`stacking\` for entity ${id}`
+                + ' -- refusing to infer it from a hardcoded id list',
+            );
+        }
+        const stacking = def.stacking;
+        // `avg_stacks` is documented as always present for intensity-stacking
+        // buffs and omitted (not a meaningless 0) for duration ones
+        // (`@axiapps/axilog/types.d.ts`, `BoonOut`). Rendering a 0 for a
+        // missing one is the banned silent zero.
+        if (stacking === 'intensity' && row.avg_stacks === undefined) {
+            throw new Error(
+                `extractBoonUptimes: buff ${buffId} is intensity-stacking but`
+                + ` blocks.boons.by_entity[${id}][${buffId}].avg_stacks is absent`,
+            );
+        }
+        const uptime = stacking === 'intensity' ? row.avg_stacks! : row.uptime_pct;
+        uptimes.push({ id: buffId, name: def.name, uptime, stacking });
     }
     return uptimes;
 }

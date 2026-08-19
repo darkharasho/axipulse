@@ -248,35 +248,50 @@ function computeDeathsPerBucketNative(
 /**
  * Positions in `blocks.replay.tracks` are raw world inches already -- no
  * `inchToPixel` conversion needed here (unlike the EI path, whose combat
- * replay positions were image pixels). Samples for different entities can
- * have different lengths (players join/leave at different times), so this
- * indexes each side independently and skips a tick where either is absent.
+ * replay positions were image pixels).
+ *
+ * Member and commander samples are joined on the sample TIMESTAMP, never on
+ * the array index. Tracks in this format do not all start at the same tick
+ * (this fixture has tracks starting at both t=0 and t=300 with poll_ms=300)
+ * and they do not all have the same length, so index `i` is a different
+ * instant for different entities -- an index join silently compares a
+ * member's position against the commander's position one poll earlier.
+ * A tick with no sample on either side is skipped.
+ *
+ * Oracle for this function (see `boonPerformance.test.ts`):
+ * `blocks.replay.by_entity[id].dist_to_com` is documented as "mean distance
+ * to the commander over this actor's ACTIVE polls". Measured against the
+ * fixture, the sample mean of the distances this function computes, taken
+ * over samples outside the actor's `down`/`dead` intervals, reproduces
+ * `dist_to_com` to within 0.005% for all 46 squad members -- so the two are
+ * the same quantity and the field is a genuine independent check, not a
+ * restatement. Note this function itself does NOT drop downed/dead samples
+ * (neither did the EI path it replaces); the chart wants a position for
+ * every tick. Only the oracle applies the liveness filter.
  */
 function computeDistancesPerBucketNative(
     memberSamples: [number, number, number][],
     cmdSamples: [number, number, number][],
-    pollMs: number,
     fallbackDist: number,
     bucketCount: number,
     bucketSizeMs: number,
 ): number[] {
-    return Array.from({ length: bucketCount }, (_, b) => {
-        if (cmdSamples.length === 0 || memberSamples.length === 0 || pollMs <= 0) return fallbackDist;
-        const bucketStart = b * bucketSizeMs;
-        const bucketEnd = bucketStart + bucketSizeMs;
-        const startIdx = Math.max(0, Math.floor(bucketStart / pollMs));
-        const endIdx = Math.ceil(bucketEnd / pollMs);
-        let sum = 0;
-        let count = 0;
-        for (let i = startIdx; i < endIdx; i++) {
-            const cmd = cmdSamples[i];
-            const mem = memberSamples[i];
-            if (!cmd || !mem) continue;
-            const d = Math.hypot(mem[1] - cmd[1], mem[2] - cmd[2]);
-            if (Number.isFinite(d)) { sum += d; count++; }
-        }
-        return count > 0 ? sum / count : fallbackDist;
-    });
+    const cmdByTime = new Map<number, [number, number, number]>();
+    for (const s of cmdSamples) cmdByTime.set(s[0], s);
+
+    const sums = new Array<number>(bucketCount).fill(0);
+    const counts = new Array<number>(bucketCount).fill(0);
+    for (const [t, x, y] of memberSamples) {
+        const cmd = cmdByTime.get(t);
+        if (!cmd) continue;
+        const idx = Math.min(bucketCount - 1, Math.floor(t / bucketSizeMs));
+        if (idx < 0) continue;
+        const d = Math.hypot(x - cmd[1], y - cmd[2]);
+        if (!Number.isFinite(d)) continue;
+        sums[idx] += d;
+        counts[idx]++;
+    }
+    return sums.map((sum, i) => (counts[i] > 0 ? sum / counts[i] : fallbackDist));
 }
 
 /**
@@ -285,6 +300,18 @@ function computeDistancesPerBucketNative(
  * `statesPerSource[localName]`. Native's `per_source.by_source` is keyed by
  * the APPLYING entity's id, so no name join (and no name-collision hazard)
  * is needed.
+ *
+ * There is no "no `per_source` anywhere" fallback. Under the app's fixed
+ * `PARSE_OPTS` (`timeseries: true`) `per_source` is present on every row
+ * whose `states` timeline is non-empty; it is omitted only where `states`
+ * is `[]`, i.e. that entity never held the buff, which carries no source
+ * attribution to lose. A row with a non-empty `states` and no `per_source`
+ * is a real data gap and throws rather than being papered over.
+ *
+ * An all-zero result is therefore a REAL zero (this entity applied the buff
+ * to nobody), not a stand-in for missing data -- measured on the fixture:
+ * 15 of 46 squad members generate no Stability for anyone, and their own
+ * `generation.{self,group,squad}_pct` are all exactly 0, agreeing.
  */
 function computeSelfGenerationPerBucketNative(
     r: ReportV1,
@@ -295,28 +322,27 @@ function computeSelfGenerationPerBucketNative(
 ): number[] {
     const boons = requireBlock(r, 'boons');
     const summed = new Array<number>(bucketCount).fill(0);
-    let anyPerSource = false;
     for (const member of squadMembers(r)) {
         const row = boons.by_entity[String(member.id)]?.[String(buffId)];
-        const sourceStates = row?.per_source?.by_source?.[String(localId)];
+        if (!row) continue;
+        if (row.states === undefined) {
+            throw new Error(
+                `computeSelfGenerationPerBucketNative: blocks.boons.by_entity[${member.id}][${buffId}]`
+                + ' has no `states` timeline -- it was parsed without `timeseries: true`',
+            );
+        }
+        if (row.states.length > 0 && !row.per_source) {
+            throw new Error(
+                `computeSelfGenerationPerBucketNative: blocks.boons.by_entity[${member.id}][${buffId}]`
+                + ' has a non-empty `states` timeline but no `per_source` attribution',
+            );
+        }
+        const sourceStates = row.per_source?.by_source?.[String(localId)];
         if (!sourceStates || sourceStates.length === 0) continue;
-        anyPerSource = true;
         const perBucket = integrateStatesPerBucket(sourceStates as Array<[number, number]>, bucketCount, bucketSizeMs);
         for (let b = 0; b < bucketCount; b++) summed[b] += perBucket[b];
     }
-    if (anyPerSource) return summed;
-
-    // Fallback: distribute the local entity's own attributed generation
-    // evenly across buckets. Unlike the EI fallback, no ms->fraction
-    // conversion is needed -- `generation.*_pct` for the intensity boons
-    // this function is ever called with (Stability, Might) is already on
-    // the avg-concurrent-stack scale `selfGeneration` returns.
-    const localRow = boons.by_entity[String(localId)]?.[String(buffId)];
-    const fallback = (localRow?.generation.self_pct ?? 0)
-        + (localRow?.generation.group_pct ?? 0)
-        + (localRow?.generation.squad_pct ?? 0);
-    if (fallback <= 0) return summed;
-    return summed.map(() => fallback);
+    return summed;
 }
 
 function computePartyIncomingDamageNative(
@@ -383,7 +409,6 @@ export function computeBoonPerformance(
 
     const cmdId = commanderId(r) ?? id;
     const cmdSamples = tracks?.by_entity[String(cmdId)]?.samples ?? [];
-    const pollMs = tracks?.poll_ms ?? 0;
 
     const partyMembers: BoonPerfPartyMember[] = partyEntities.map(e => {
         const row = boons.by_entity[String(e.id)]?.[String(buffId)];
@@ -401,7 +426,6 @@ export function computeBoonPerformance(
             distances: computeDistancesPerBucketNative(
                 memberSamples,
                 cmdSamples,
-                pollMs,
                 fallbackDist,
                 bucketCount,
                 effectiveBucketMs,
