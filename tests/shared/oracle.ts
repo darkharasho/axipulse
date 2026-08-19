@@ -3,17 +3,14 @@ import { join } from 'node:path';
 import { parseFile } from '@axiapps/axilog';
 import type { ReportV1, EntityOut } from '@axiapps/axilog/types';
 import type { EiJson } from './ei/types';
+import { PARSE_OPTS } from '../../src/main/axilogParser';
 
 const FIXTURES = join(__dirname, '..', 'fixtures');
 
-/** The exact options this app parses with in production. Keep in sync
- *  with src/main/axilogParser.ts — the coverage test guards the drift. */
-export const PARSE_OPTS = {
-    replay: true,
-    skillDamage: true,
-    timeseries: true,
-    rotation: true,
-} as const;
+// PARSE_OPTS is production's, imported rather than restated: a copy here
+// could drift from src/main/axilogParser.ts and every oracle would keep
+// passing against options the app no longer uses.
+export { PARSE_OPTS };
 
 let cachedNative: ReportV1 | null = null;
 

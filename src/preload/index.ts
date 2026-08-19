@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { ReportV1 } from '../shared/report'
 
 contextBridge.exposeInMainWorld('electronAPI', {
     // Window controls
@@ -19,11 +20,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('parse-started', (_event, value) => callback(value))
         return () => ipcRenderer.removeAllListeners('parse-started')
     },
-    onParseProgress: (callback: (data: { logId: string; line: string }) => void) => {
-        ipcRenderer.on('parse-progress', (_event, value) => callback(value))
-        return () => ipcRenderer.removeAllListeners('parse-progress')
-    },
-    onParseComplete: (callback: (data: { logId: string; logPath: string; data: unknown }) => void) => {
+    onParseComplete: (callback: (data: { logId: string; logPath: string; data: ReportV1 }) => void) => {
         ipcRenderer.on('parse-complete', (_event, value) => callback(value))
         return () => ipcRenderer.removeAllListeners('parse-complete')
     },
@@ -85,30 +82,4 @@ contextBridge.exposeInMainWorld('electronAPI', {
     troubleshootCheckLogDir: (dir: string) => ipcRenderer.invoke('troubleshoot:check-log-dir', dir),
     troubleshootCheckArcdps: () => ipcRenderer.invoke('troubleshoot:check-arcdps'),
     troubleshootParseTest: () => ipcRenderer.invoke('troubleshoot:parse-test'),
-
-    // EI Management
-    eiGetStatus: () => ipcRenderer.invoke('ei:get-status'),
-    eiInstall: () => ipcRenderer.invoke('ei:install'),
-    eiUpdate: () => ipcRenderer.invoke('ei:update'),
-    eiReinstall: () => ipcRenderer.invoke('ei:reinstall'),
-    eiUninstall: () => ipcRenderer.invoke('ei:uninstall'),
-    eiCheckUpdate: () => ipcRenderer.invoke('ei:check-update'),
-    eiGetSettings: () => ipcRenderer.invoke('ei:get-settings'),
-    eiSaveSettings: (settings: any) => ipcRenderer.send('ei:save-settings', settings),
-    eiGetAutoManage: () => ipcRenderer.invoke('ei:get-auto-manage'),
-    eiSetAutoManage: (enabled: boolean) => ipcRenderer.send('ei:set-auto-manage', enabled),
-    onEiDownloadProgress: (callback: (progress: any) => void) => {
-        ipcRenderer.on('ei:download-progress', (_event, value) => callback(value))
-        return () => ipcRenderer.removeAllListeners('ei:download-progress')
-    },
-    onEiStatusChanged: (callback: (status: any) => void) => {
-        ipcRenderer.on('ei:status-changed', (_event, value) => callback(value))
-        return () => ipcRenderer.removeAllListeners('ei:status-changed')
-    },
-    eiCheckDotnet: () => ipcRenderer.invoke('ei:check-dotnet'),
-    eiInstallDotnet: () => ipcRenderer.invoke('ei:install-dotnet'),
-    onEiDotnetInstallOutput: (callback: (line: string) => void) => {
-        ipcRenderer.on('ei:dotnet-install-output', (_event, value) => callback(value))
-        return () => ipcRenderer.removeAllListeners('ei:dotnet-install-output')
-    },
 })

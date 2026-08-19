@@ -5,8 +5,13 @@ interface Window {
         startWatching: (path: string) => void;
         onLogDetected: (callback: (path: string) => void) => () => void;
         onParseStarted: (callback: (data: { logId: string; logPath: string }) => void) => () => void;
-        onParseProgress: (callback: (data: { logId: string; line: string }) => void) => () => void;
-        onParseComplete: (callback: (data: { logId: string; logPath: string; data: unknown }) => void) => () => void;
+        // `data` is the native report the main process just produced. Typed
+        // via an inline import so this file stays a global script rather than
+        // becoming a module (a top-level import would stop it augmenting
+        // `Window`). Before the axilog cutover this was `unknown` and the
+        // renderer cast it, which is exactly how a main/renderer payload
+        // mismatch stays invisible across two separate tsconfigs.
+        onParseComplete: (callback: (data: { logId: string; logPath: string; data: import('../shared/report').ReportV1 }) => void) => () => void;
         onParseError: (callback: (data: { logId: string; logPath: string; error: string }) => void) => () => void;
         getSettings: () => Promise<{ logDirectory: string; devMinFileSize: number }>;
         saveSettings: (settings: any) => void;
@@ -26,21 +31,6 @@ interface Window {
         onUpdateProgress: (callback: (progress: any) => void) => () => void;
         onUpdateError: (callback: () => void) => () => void;
         devParseRandom: () => Promise<{ success?: boolean; logPath?: string; error?: string }>;
-        eiGetStatus: () => Promise<any>;
-        eiInstall: () => Promise<any>;
-        eiUpdate: () => Promise<any>;
-        eiReinstall: () => Promise<any>;
-        eiUninstall: () => Promise<any>;
-        eiCheckUpdate: () => Promise<{ updateAvailable: string | null }>;
-        eiGetSettings: () => Promise<any>;
-        eiSaveSettings: (settings: any) => void;
-        eiGetAutoManage: () => Promise<boolean>;
-        eiSetAutoManage: (enabled: boolean) => void;
-        onEiDownloadProgress: (callback: (progress: any) => void) => () => void;
-        onEiStatusChanged: (callback: (status: any) => void) => () => void;
-        eiCheckDotnet: () => Promise<{ available: boolean; managed: boolean; version?: string }>;
-        eiInstallDotnet: () => Promise<{ available: boolean; managed: boolean; version?: string }>;
-        onEiDotnetInstallOutput: (callback: (line: string) => void) => () => void;
         troubleshootCheckLogDir: (dir: string) => Promise<{ configured: boolean; exists: boolean; count: number }>;
         troubleshootCheckArcdps: () => Promise<{ found: boolean; wvwEnabled: boolean | null; configPath: string | null }>;
         troubleshootParseTest: () => Promise<{ success: boolean; logPath?: string; error?: string }>;

@@ -9,7 +9,6 @@ import { MapView } from '../views/MapView';
 import { HistoryView } from '../views/HistoryView';
 import { SettingsView } from '../views/SettingsView';
 import { useFightListener } from './useFightListener';
-import { DotnetModal } from './DotnetModal';
 import { WhatsNewModal } from '../WhatsNewModal';
 
 const NAV_ITEMS: { id: View; label: string; icon: typeof Activity }[] = [
@@ -34,7 +33,6 @@ export function AppLayout() {
     const [appVersion, setAppVersion] = useState<string | null>(null);
     const [updateDownloaded, setUpdateDownloaded] = useState(false);
     const [updateStatus, setUpdateStatus] = useState<string | null>(null);
-    const [showDotnetModal, setShowDotnetModal] = useState(false);
 
     useFightListener();
 
@@ -43,9 +41,6 @@ export function AppLayout() {
             if (s.logDirectory) useAppStore.getState().setLogDirectory(s.logDirectory);
         });
         window.electronAPI?.getAppVersion().then((v: string) => setAppVersion(v));
-        window.electronAPI?.eiCheckDotnet().then((result: { available: boolean }) => {
-            if (!result.available) setShowDotnetModal(true);
-        }).catch(() => {});
         const cleanupDownloaded = window.electronAPI?.onUpdateDownloaded(() => setUpdateDownloaded(true));
         let dismissTimer: ReturnType<typeof setTimeout>;
         let fallbackTimer: ReturnType<typeof setTimeout>;
@@ -247,15 +242,12 @@ export function AppLayout() {
                         {view === 'timeline' && <TimelineView />}
                         {view === 'map' && <MapView />}
                         {view === 'history' && <HistoryView />}
-                        {view === 'settings' && <SettingsView onOpenDotnetModal={() => setShowDotnetModal(true)} />}
+                        {view === 'settings' && <SettingsView />}
                     </>
                 )}
             </div>
 
             <ToastContainer />
-            <AnimatePresence>
-                {showDotnetModal && <DotnetModal onDismiss={() => setShowDotnetModal(false)} />}
-            </AnimatePresence>
             <WhatsNewModal
                 open={whatsNewRequest !== null}
                 version={whatsNewRequest?.version ?? ''}

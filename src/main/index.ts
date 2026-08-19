@@ -5,8 +5,7 @@ import { autoUpdater } from 'electron-updater'
 import log from 'electron-log'
 import Store from 'electron-store'
 import { LogWatcher } from './watcher'
-import { EiManager, DEFAULT_EI_SETTINGS, EiParserSettings } from './eiParser'
-import { registerEiHandlers } from './handlers/eiHandlers'
+import { parseLog } from './axilogParser'
 import { registerReleaseNotesHandlers } from './handlers/releaseNotesHandlers'
 import { checkArcdps } from './arcdpsDetect'
 
@@ -24,7 +23,6 @@ if (APP_PROFILE && !app.isPackaged) {
 const store = new Store();
 const logWatcher = new LogWatcher();
 let mainWindow: BrowserWindow | null = null;
-let eiManager: EiManager;
 
 function isWindowsTaskbarDark(): boolean {
     try {
@@ -168,7 +166,6 @@ function setupIpcHandlers(): void {
     ipcMain.handle('dev:parse-random', async () => {
         const logDir = store.get('logDirectory') as string | undefined;
         if (!logDir || !fs.existsSync(logDir)) return { error: 'No log directory configured' };
-        if (!eiManager.isInstalled()) return { error: 'EI not installed' };
 
         const allFiles: string[] = [];
         const walk = (dir: string, depth: number) => {
@@ -192,12 +189,8 @@ function setupIpcHandlers(): void {
         const logId = path.basename(logPath, path.extname(logPath));
         mainWindow?.webContents.send('parse-started', { logId, logPath });
 
-        eiManager.setParseProgressCallback((line: string) => {
-            mainWindow?.webContents.send('parse-progress', { logId, line });
-        });
-
         try {
-            const result = await eiManager.parseLog(logPath, logId);
+            const result = await parseLog(logPath);
             mainWindow?.webContents.send('parse-complete', { logId, logPath, data: result });
             return { success: true, logPath };
         } catch (err: any) {
@@ -228,7 +221,6 @@ function setupIpcHandlers(): void {
     ipcMain.handle('troubleshoot:parse-test', async () => {
         const logDir = store.get('logDirectory') as string | undefined;
         if (!logDir || !fs.existsSync(logDir)) return { success: false, error: 'No log directory configured' };
-        if (!eiManager.isInstalled()) return { success: false, error: 'EI not installed' };
         const minBytes = (store.get('devMinFileSize', 0) as number) * 1024;
         const allFiles: string[] = [];
         const walk = (d: string, depth: number) => {
@@ -246,10 +238,8 @@ function setupIpcHandlers(): void {
         walk(logDir, 0);
         if (allFiles.length === 0) return { success: false, error: 'No logs found' };
         const logPath = allFiles[Math.floor(Math.random() * allFiles.length)];
-        const logId = `ts_${path.basename(logPath, path.extname(logPath))}`;
-        eiManager.setParseProgressCallback(() => {});
         try {
-            await eiManager.parseLog(logPath, logId);
+            await parseLog(logPath);
             return { success: true, logPath };
         } catch (err: any) {
             return { success: false, error: err?.message ?? 'Parse failed' };
@@ -357,17 +347,11 @@ function setupLogWatcher(): void {
     logWatcher.on('log-detected', async (logPath: string) => {
         mainWindow?.webContents.send('log-detected', logPath);
 
-        if (!eiManager.isInstalled()) return;
-
         const logId = path.basename(logPath, path.extname(logPath));
         mainWindow?.webContents.send('parse-started', { logId, logPath });
 
-        eiManager.setParseProgressCallback((line: string) => {
-            mainWindow?.webContents.send('parse-progress', { logId, line });
-        });
-
         try {
-            const result = await eiManager.parseLog(logPath, logId);
+            const result = await parseLog(logPath);
             mainWindow?.webContents.send('parse-complete', { logId, logPath, data: result });
         } catch (err: any) {
             mainWindow?.webContents.send('parse-error', { logId, logPath, error: err?.message || 'Parse failed' });
@@ -378,22 +362,8 @@ function setupLogWatcher(): void {
 app.whenReady().then(() => {
     fs.writeFileSync(path.join(app.getPath('userData'), 'axiom-version'), app.getVersion(), 'utf8')
 
-    eiManager = new EiManager(app.getPath('userData'));
-    const AXIPULSE_EI_DEFAULTS = { ...DEFAULT_EI_SETTINGS, parseCombatReplay: true };
-    const savedEiSettings = store.get('eiParserSettings') as EiParserSettings | undefined;
-    if (savedEiSettings) {
-        eiManager.setSettings({ ...AXIPULSE_EI_DEFAULTS, ...savedEiSettings });
-    } else {
-        eiManager.setSettings(AXIPULSE_EI_DEFAULTS);
-    }
-
     setupIpcHandlers();
     setupAutoUpdate();
-    registerEiHandlers({
-        store,
-        getWindow: () => mainWindow,
-        getEiManager: () => eiManager,
-    });
 
     createWindow();
 

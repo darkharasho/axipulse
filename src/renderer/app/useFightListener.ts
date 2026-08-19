@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { useAppStore } from '../store';
 import { extractPlayerFightData } from '../../shared/extractPlayerData';
 import type { FightHistoryEntry } from '../../shared/types';
-import type { ReportV1 } from '../../shared/report';
 
 export function useFightListener() {
     useEffect(() => {
@@ -13,7 +12,7 @@ export function useFightListener() {
         const cleanupComplete = window.electronAPI?.onParseComplete((data) => {
             const state = useAppStore.getState();
             state.setIsParsing(false);
-            const report = data.data as ReportV1;
+            const report = data.data;
             const fightNumber = state.incrementFightCounter();
             const fightData = extractPlayerFightData(report, fightNumber, state.bucketSizeMs);
 
