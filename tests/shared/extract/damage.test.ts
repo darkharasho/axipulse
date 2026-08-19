@@ -62,6 +62,76 @@ describe('extractDamage', () => {
         }
     });
 
+    // Cross-checks the skill-id join itself, not just extractDamage's
+    // aggregate totals or topSkills' internal ordering/naming. Reads native's
+    // full `by_skill` map directly (not through extractDamage/topSkills,
+    // which only surfaces the top 8) and compares it against EI's
+    // `totalDamageDist[0]` -- phase 0, confirmed the whole fight: this
+    // fixture's `ei.phases.length === 1` and `dpsAll.length === 1`, the same
+    // single-phase convention every other test in this file already relies
+    // on for `dpsAll[0]`/`statsAll[0]`.
+    //
+    // EI's `totalDamageDist[].name` field exists in the TS type but the real
+    // fixture never populates it (every row's `name` is `undefined`, like
+    // `EiPlayer.elite_spec` elsewhere in this codebase) -- so id + damage
+    // total are the only fields on this shape that are actually comparable;
+    // asserting `name` would just encode the absence, not check anything.
+    it('cross-checks the per-skill damage join against EI\'s totalDamageDist for every squad member', () => {
+        const ei = loadEiFixture();
+        const native = loadNativeFixture();
+        const missingFromNative: string[] = [];
+        const totalMismatches: string[] = [];
+
+        for (const e of native.entities.filter(x => x.role === 'squad')) {
+            const eiPlayer = ei.players.find(p => p.account === e.account)!;
+            const bySkill = native.blocks.damage.by_entity[String(e.id)]?.by_skill ?? {};
+            const nativeIds = new Set(Object.keys(bySkill).map(Number));
+            const eiDist = eiPlayer.totalDamageDist[0] ?? [];
+            const eiIds = new Set(eiDist.map(row => row.id));
+
+            // A real join bug (off-by-one catalog key, wrong id space) would
+            // show up here: a skill id EI attributes damage to that native's
+            // join never produced. Collect and pin -- measured empty across
+            // the full roster today, so this is a live regression guard, not
+            // a vacuous one.
+            for (const id of eiIds) {
+                if (!nativeIds.has(id)) missingFromNative.push(`${e.account}:${id}`);
+            }
+
+            // Native is documented to fold pet/minion damage onto the owner
+            // under the pet's own skill id (SkillDamageOut's doc comment),
+            // "unlike GW2EI's totalDamageDist, which tracks the player actor
+            // only and excludes pet/minion damage entirely" -- so ids only
+            // native reports (pet/phantasm/minion skills) are EXPECTED and
+            // not a join defect; they're structurally incomparable, not
+            // wrong, so this test doesn't touch them.
+            //
+            // For ids BOTH sides report, the totals should agree -- except
+            // the same pet-fold phenomenon can still touch a shared id: a
+            // summon-cast skill id where EI's own row is the zero-damage
+            // cast-attempt event, while native's row for that id also
+            // carries the summoned pet's actual damage output. Detected by
+            // its real condition (the two totals disagreeing beyond a 1%
+            // float-drift tolerance) and pinned, not skipped.
+            for (const id of nativeIds) {
+                if (!eiIds.has(id)) continue;
+                const nativeTotal = bySkill[String(id)].total;
+                const eiTotal = eiDist.find(row => row.id === id)!.totalDamage;
+                if (eiTotal === 0 && nativeTotal === 0) continue;
+                const relErr = Math.abs(nativeTotal - eiTotal) / Math.max(1, eiTotal);
+                if (relErr > 0.01) totalMismatches.push(`${e.account}:${id}`);
+            }
+        }
+
+        expect(missingFromNative, 'EI skill ids absent from native\'s join').toEqual([]);
+        // Pinned, not tolerated: if a regenerated fixture widens this set,
+        // the test fails and the gap gets re-examined rather than quietly
+        // growing.
+        expect(totalMismatches, 'skill ids present on both sides with mismatched totals').toEqual([
+            'Anon180.7660:71953',
+        ]);
+    });
+
     it('matches the EI oracle on damage totals for every squad member', () => {
         const ei = loadEiFixture();
         const native = loadNativeFixture();
