@@ -261,9 +261,10 @@ describe('computeRatio', () => {
      * absence -- there is no field to name -- but a divide-by-zero guard on
      * computed values. Measured: a one-row squad is NOT enough to reach them
      * (its single score is 0.4 against a 0.5 threshold, so both spans are
-     * 0.1); what is enough is every score landing exactly ON the threshold,
-     * which happens when every score is 0 -- a squad that registered on none
-     * of the six metrics. Without the `|| 1` that is 0/0 = NaN confidence.
+     * 0.1). What IS enough is a score landing exactly on the threshold, and
+     * because the threshold comes off the MEDIAN score, a squad that is
+     * merely majority-idle gets there -- an all-zero squad is sufficient but
+     * far from necessary. Without the `|| 1` those members are 0/0 = NaN.
      */
     it('is 0.1, not 0, for a one-row squad -- the span guard does not fire there', () => {
         const out = classifyFromMetrics([[100, 10, 50, 1000, 100000, 500]]);
@@ -277,5 +278,25 @@ describe('computeRatio', () => {
         expect(out.map(c => c.supportScore)).toEqual([0, 0]);
         expect(out.map(c => c.confidenceScore)).toEqual([0, 0]);
         expect(out.every(c => !Number.isNaN(c.confidenceScore))).toBe(true);
+    });
+
+    // The span guard's real reach, and the reason the docblock above no
+    // longer says "all-zero": a majority-idle squad is enough. Two members
+    // who registered on nothing plus one who played drives the median score
+    // to 0, so `threshold` is 0 and `minScore` is 0, and `damageSpan`
+    // collapses -- while the active member scores a perfectly ordinary 0.4.
+    // Removing the `|| 1` on `damageSpan` turns both idle members NaN here.
+    it('gives a majority-idle squad finite confidence, not NaN', () => {
+        const out = classifyFromMetrics([
+            [0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0],
+            [1000, 500, 300, 200, 100, 50],
+        ]);
+        expect(out.map(c => c.role)).toEqual(['damage', 'damage', 'support']);
+        expect(out[2].supportScore).toBeCloseTo(0.4, 10);
+        // The two idle members are the ones the guard rescues.
+        expect(out[0].confidenceScore).toBe(0);
+        expect(out[1].confidenceScore).toBe(0);
+        expect(out.every(c => Number.isFinite(c.confidenceScore))).toBe(true);
     });
 });

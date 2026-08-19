@@ -121,15 +121,17 @@ export function classifyFromMetrics(rows: number[][]): RoleClassification[] {
     const minScore = Math.min(...scores);
     // KEPT, and not an absence: these are divide-by-zero guards on COMPUTED
     // values, so there is no field to name and nothing to report as missing.
-    // A span collapses to 0 only when every score lands exactly ON the
-    // threshold, and since `threshold = medianScore * 1.25` (for a
-    // non-negative median) that means every score is 0 -- a squad that
-    // registered on none of the six metrics. Measured, and NOT the same as a
-    // one-member squad: a single row scores 0.4 against a 0.5 threshold, so
-    // both spans are 0.1 there. Without the `|| 1` the all-zero case is
-    // 0/0 = NaN confidence; with it, every member gets 0, which is the
-    // honest answer. Unreachable on the fixture, whose 46 members score from
-    // -106.40 to 28.87. Both cases are legitimate logs, so this stays a
+    // A span collapses when a score lands exactly ON the threshold, and
+    // `threshold` is derived from the MEDIAN score -- so this needs far less
+    // than an all-zero squad. Measured: two idle members plus one active one
+    // puts the median at 0, hence the threshold at 0, hence `minScore` at 0,
+    // and `damageSpan` collapses while the active member scores 0.4. Without
+    // the `|| 1` both idle members come back NaN. Any squad where at least
+    // half registered on none of the six metrics reaches this -- a wipe, a
+    // pile of AFKs, a short log -- and all of them are legitimate. Measured,
+    // and NOT reached by a one-member squad: a single row scores 0.4 against
+    // a 0.5 threshold, so both spans are 0.1 there. Unreachable on the
+    // fixture, whose 46 members score from -106.40 to 28.87. This stays a
     // guard rather than becoming a throw.
     const supportSpan = Math.abs(maxScore - threshold) || 1;
     const damageSpan = Math.abs(threshold - minScore) || 1;
