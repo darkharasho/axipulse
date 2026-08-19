@@ -90,11 +90,24 @@ function seriesToBuckets(s: SeriesOut | undefined, bucketSizeMs: number): Timeli
  * `TimelineBucket` carries an explicit `time`, a lane that starts late or
  * ends early renders correctly against the shared time axis.
  *
- * Interior/leading gaps cannot occur while every track's samples are
- * contiguous multiples of `poll_ms` (asserted for all 93 tracks in the
- * test): each track then covers one contiguous time range, and the
- * intersection of two contiguous ranges is contiguous. If that invariant
- * ever breaks, this throws rather than inventing a value for the hole --
+ * Interior/leading gaps cannot occur under TWO preconditions, both of which
+ * the previous revision's proof was missing one of:
+ *
+ *  1. every track's samples are contiguous multiples of `poll_ms` -- each
+ *     track then covers one contiguous time RANGE, and the intersection of
+ *     two contiguous ranges is contiguous. Asserted for all 93 tracks of
+ *     this log by the test. NOTE this is a property of the LOG, not a
+ *     guarantee of the format.
+ *  2. `poll_ms <= bucketSizeMs` -- a contiguous run of ticks only covers a
+ *     contiguous run of BUCKETS if consecutive ticks are at most one bucket
+ *     apart. At `poll_ms = 300` and `bucketSizeMs = 200` every third bucket
+ *     is legitimately empty, and the throw below would fire on a perfectly
+ *     healthy log. `extractTimeline` checks that precondition up front and
+ *     fails with a message naming both numbers, so the failure is legible
+ *     rather than surfacing here as a confusing "interior gap".
+ *
+ * With both preconditions held, a hole reaching the throw below is a
+ * genuine data gap, and this throws rather than inventing a value for it --
  * there is no EI behaviour to copy for a case EI's index join could not
  * represent, so a loud failure is the only non-inventing option.
  */
@@ -172,8 +185,37 @@ function distanceToTagBuckets(
 export function extractTimeline(r: ReportV1, id: number, bucketSizeMs: number): TimelineData {
     const series = requireBlock(r, 'series').by_entity[String(id)];
     if (!series) throw new Error(`extractTimeline: no series row for entity ${id}`);
-    const replay = requireBlock(r, 'replay').by_entity[String(id)];
+    const replayBlock = requireBlock(r, 'replay');
+    const replay = replayBlock.by_entity[String(id)];
     if (!replay) throw new Error(`extractTimeline: no replay row for entity ${id}`);
+
+    // Precondition for `distanceToTagBuckets`' interior-gap detection: a
+    // poll interval wider than a bucket leaves buckets legitimately empty,
+    // which is EXPECTED ABSENCE, not a gap in the data. Checked here so the
+    // failure names both numbers instead of surfacing as an "interior gap"
+    // error from inside the distance join.
+    //
+    // Unreachable today, and structurally so rather than by luck:
+    //   - axilog's poll interval is the fixed constant `DEFAULT_POLL_MS =
+    //     300` (`axilog-core/src/analysis/replay.rs:84`). It does NOT scale
+    //     with fight length. The Node binding this app parses through passes
+    //     that constant unconditionally
+    //     (`axilog-node/src/lib.rs:209-213`) and its `ParseOptions`
+    //     (`axilog-node/src/lib.rs:78-97`) exposes no poll override at all,
+    //     so no parse this app can issue produces a different value.
+    //   - the only bucket sizes the UI offers are 1000/2000/3000/5000ms
+    //     (`src/renderer/views/SettingsView.tsx:234`), default 1000
+    //     (`src/renderer/store.ts:136`) -- every one of them >= 300.
+    // It exists because both of those are external facts that can change
+    // without this file noticing.
+    const pollMs = replayBlock.tracks?.poll_ms;
+    if (pollMs !== undefined && pollMs > bucketSizeMs) {
+        throw new Error(
+            `extractTimeline: replay poll_ms (${pollMs}) exceeds bucketSizeMs (${bucketSizeMs})`
+            + ' -- buckets narrower than the poll interval cannot all be sampled, so the'
+            + ' distance lane would report absence it cannot distinguish from a data gap',
+        );
+    }
 
     const damageDealt = seriesToBuckets(series.damage, bucketSizeMs);
     const damageTaken = seriesToBuckets(series.damage_taken, bucketSizeMs);
@@ -235,11 +277,19 @@ export function extractTimeline(r: ReportV1, id: number, bucketSizeMs: number): 
         const entry: BuffStateEntry = {
             name: def.name,
             icon: def.icon,
-            // Copied, not aliased: the ReportV1 is memoized (the oracle
-            // helper, and the production parse cache), so handing out the
-            // live array would let any consumer that mutates it corrupt the
-            // document for everyone else -- the same reason `decodeSeries`
-            // copies.
+            // Copied, not aliased. There is no production parse cache --
+            // that claim was in an earlier revision of this comment and was
+            // simply false; `extractTimeline` has no production caller yet
+            // (Task 11 wires it). The two REAL reasons:
+            //   - a `ReportV1` is a parsed input document, and an extract
+            //     that returns interior pointers into it makes the
+            //     document's immutability depend on every caller's
+            //     discipline forever. Defensive copying at the extract
+            //     boundary is the whole justification.
+            //   - it is already load-bearing under test: `loadNativeFixture`
+            //     memoizes ONE report per test file, shared by every
+            //     `extractTimeline` call in it, so an aliased array mutated
+            //     by one caller would corrupt every later one.
             states: (row.states as [number, number][]).map(([t, v]) => [t, v] as [number, number]),
         };
         lane[buffId] = entry;
@@ -252,7 +302,13 @@ export function extractTimeline(r: ReportV1, id: number, bucketSizeMs: number): 
         distanceToTag,
         incomingHealing,
         incomingBarrier,
-        // Copied for the same reason as `states` above.
+        // Copied for the same reasons as `states` above. Absence is
+        // legitimate and stays an empty lane: `health_percents` is optional
+        // in the format and is omitted for an entity that emitted no health
+        // updates at all (the format's own doc notes EI omits
+        // `healthPercents` for such a player rather than writing `[]`), so
+        // this is a real absence rather than a `not_computed` block. Oracled
+        // by timeline.test.ts's absent-health-percents test.
         healthPercent: (series.health_percents ?? []).map(([t, v]) => [t, v] as [number, number]),
         offensiveBoons,
         defensiveBoons,

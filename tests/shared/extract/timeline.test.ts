@@ -1112,11 +1112,22 @@ describe('extractTimeline', () => {
 
     /**
      * `extractTimeline` copies the boon `states` and `health_percents` arrays
-     * out of the report rather than aliasing them. The report is memoized
-     * (the oracle helper here, and the production parse cache), so an aliased
-     * array would let one caller's mutation corrupt the document for every
-     * later caller. That was previously only a doc-comment claim -- the
-     * reviewer's alias mutation survived. This tests the contract.
+     * out of the report rather than aliasing them.
+     *
+     * Fix round 2, N2: an earlier version of this comment justified that by
+     * "the production parse cache". No such thing exists -- `src/main` has no
+     * axilog code at all and `extractTimeline` has no production caller yet
+     * (Task 11 wires it). The real justification is smaller and true: a
+     * `ReportV1` is a parsed INPUT document, and an extract that hands back
+     * interior pointers into it makes that document's immutability the
+     * permanent responsibility of every caller. Defensive copying at the
+     * extract boundary is the whole reason.
+     *
+     * It is also already load-bearing HERE: `loadNativeFixture` memoizes one
+     * report per test file and every test in this file shares it, so an
+     * aliased array mutated by one test would corrupt the rest. That is what
+     * this test exercises directly -- two calls against the same memoized
+     * report, the first result mutated, the second checked.
      */
     it('hands out copies of states/healthPercent, so a caller cannot corrupt the memoized report', () => {
         const native = loadNativeFixture();
@@ -1138,6 +1149,62 @@ describe('extractTimeline', () => {
         expect(second.offensiveBoons[740].states[0]).not.toEqual([-1, -1]);
         expect(second.healthPercent.length).toBe(originalHealth);
         expect(second.healthPercent[0]).not.toEqual([-1, -1]);
+    });
+
+    it('returns an empty step function, not a fake reading, when health_percents is absent', () => {
+        const native = loadNativeFixture();
+        const id = localPlayerId(native);
+        expect(extractTimeline(native, id, BUCKET_MS).healthPercent.length).toBeGreaterThan(1);
+
+        // `health_percents` is optional in the format -- omitted entirely for
+        // an entity that emitted no health updates. That absence must render
+        // as an empty lane, never as a synthesised reading such as
+        // `[[0, 0]]` (which draws as "dead from second zero") or `[[0, 100]]`
+        // (which draws as "never took a scratch"). Both are inventions.
+        const stripped = withSeriesRow(native, id, row => { delete row.health_percents; });
+        expect(extractTimeline(stripped, id, BUCKET_MS).healthPercent).toEqual([]);
+    });
+
+    /**
+     * Fix round 2, N1. The interior-gap throw's correctness argument needs
+     * `poll_ms <= bucketSizeMs`, not just track contiguity: a contiguous run
+     * of ticks only covers a contiguous run of BUCKETS when consecutive
+     * ticks are at most one bucket apart. Without this precondition check,
+     * `bucketSizeMs = 200` against `poll_ms = 300` made the interior-gap
+     * throw fire on a perfectly healthy log and took down all 11 lanes.
+     *
+     * Unreachable in production -- `poll_ms` is axilog's fixed
+     * `DEFAULT_POLL_MS = 300` constant, not a fight-length-scaled value, and
+     * the UI only offers 1000/2000/3000/5000ms buckets -- so this test
+     * supplies the sub-poll bucket size directly. Both bounds are covered:
+     * `poll_ms` exactly equal to the bucket size must still WORK.
+     */
+    it('rejects a bucket size narrower than the replay poll interval, naming both numbers', () => {
+        const native = loadNativeFixture();
+        const id = localPlayerId(native);
+        const poll = native.blocks.replay!.tracks!.poll_ms;
+        expect(poll).toBe(300);
+
+        expect(() => extractTimeline(native, id, poll - 100))
+            .toThrow(/poll_ms \(300\) exceeds bucketSizeMs \(200\)/);
+
+        // The boundary is inclusive: a bucket exactly one poll wide is fine,
+        // and produces a lane with one sample in every bucket.
+        const exact = extractTimeline(native, id, poll);
+        expect(exact.distanceToTag.length).toBeGreaterThan(400);
+        expect(exact.distanceToTag.every(b => Number.isFinite(b.value))).toBe(true);
+        expect(exact.distanceToTag[1].time - exact.distanceToTag[0].time).toBe(poll);
+    });
+
+    it('pins the UI bucket sizes as all being at least the replay poll interval', () => {
+        const native = loadNativeFixture();
+        const id = localPlayerId(native);
+        const poll = native.blocks.replay!.tracks!.poll_ms;
+        // Mirrors SettingsView.tsx's selector; store.ts defaults to 1000.
+        for (const ms of [1000, 2000, 3000, 5000]) {
+            expect(ms, `UI bucket size ${ms} vs poll_ms ${poll}`).toBeGreaterThanOrEqual(poll);
+            expect(() => extractTimeline(native, id, ms)).not.toThrow();
+        }
     });
 
     it('throws on an unknown entity id rather than returning blanks', () => {
