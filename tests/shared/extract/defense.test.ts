@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { extractDefense } from '../../../src/shared/extract/defense';
-import { localPlayerId } from '../../../src/shared/report';
-import { loadEiFixture, loadNativeFixture } from '../oracle';
+import { localPlayerId, requireBlock } from '../../../src/shared/report';
+import { loadEiFixture, loadNativeFixture, accountOf } from '../oracle';
 
 function eiLocal(ei: ReturnType<typeof loadEiFixture>) {
     return ei.players.find(p => p.account === ei.recordedAccountBy)
@@ -101,7 +101,7 @@ describe('extractDefense', () => {
 
         for (const e of native.entities.filter(x => x.role === 'squad')) {
             const eiPlayer = ei.players.find(p => p.account === e.account)!;
-            const bySkillTaken = native.blocks.damage.by_entity[String(e.id)]?.by_skill_taken ?? {};
+            const bySkillTaken = requireBlock(native, 'damage').by_entity[String(e.id)]?.by_skill_taken ?? {};
             const nativeIds = new Set(Object.keys(bySkillTaken).map(Number));
             const eiDist = eiPlayer.totalDamageTaken[0] ?? [];
             const eiIds = new Set(eiDist.map(row => row.id));
@@ -146,7 +146,7 @@ describe('extractDefense', () => {
         let checkedAny = false;
 
         for (const e of native.entities.filter(x => x.role === 'squad')) {
-            const bySkillTaken = native.blocks.damage.by_entity[String(e.id)]?.by_skill_taken ?? {};
+            const bySkillTaken = requireBlock(native, 'damage').by_entity[String(e.id)]?.by_skill_taken ?? {};
             const actual = extractDefense(native, e.id);
 
             for (const skill of actual.topDamageTakenSkills) {
@@ -202,9 +202,9 @@ describe('extractDefense', () => {
             // see the NOTE above the single-player tests.
             expect(actual.downTimes.length).toBeLessThanOrEqual(actual.downs);
 
-            if (actual.downs !== d.downCount) downCountMismatches.push(e.account);
-            if (actual.downTimes.length !== actual.downs) downIntervalUndercounts.push(e.account);
-            if (actual.downTimes.length !== d.downCount) downIntervalVsEiMismatches.push(e.account);
+            if (actual.downs !== d.downCount) downCountMismatches.push(accountOf(e));
+            if (actual.downTimes.length !== actual.downs) downIntervalUndercounts.push(accountOf(e));
+            if (actual.downTimes.length !== d.downCount) downIntervalVsEiMismatches.push(accountOf(e));
         }
 
         // Pinned, not tolerated: `downs_taken` disagreeing with EI's

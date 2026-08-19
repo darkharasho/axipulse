@@ -4,7 +4,8 @@ import { useAppStore } from '../store';
 import { SubviewCapsule } from '../app/SubviewCapsule';
 import type { MapSubview } from '../store';
 import { WVW_LANDMARKS, type WvwLandmark } from '../../shared/wvwLandmarks';
-import { resolveMapFromZone } from '../../shared/mapUtils';
+import { resolveMapFromMapId } from '../../shared/mapUtils';
+import { getMapPixelSize } from '../../shared/wvwTiles';
 import { MovementView } from './map/MovementView';
 
 const MAP_PILLS = [
@@ -158,11 +159,11 @@ function MapOverview() {
         );
     }
 
-    const { mapImageUrl, mapSize, avgPosition, mapName } = currentFight;
-    const map = resolveMapFromZone(mapName);
+    const { mapImageUrl, mapSize, mapId, avgPosition, mapName } = currentFight;
+    // By map ID, not by display name -- see MovementView.
+    const map = mapId === null ? null : resolveMapFromMapId(mapId);
     const landmarks = map ? WVW_LANDMARKS[map] : [];
-    const width = mapSize?.[0] ?? 523;
-    const height = mapSize?.[1] ?? 750;
+    const [width, height] = mapSize ?? (map ? getMapPixelSize(map) : [0, 0]);
 
     return (
         <div className="flex flex-col h-full gap-3">

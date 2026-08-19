@@ -8,7 +8,22 @@ interface PositionPanelProps {
 }
 
 export function PositionPanel({ distanceToTag, startMs, endMs }: PositionPanelProps) {
-    const { avg, max } = getAvgDistanceInRange(distanceToTag, startMs, endMs);
+    const stats = getAvgDistanceInRange(distanceToTag, startMs, endMs);
+    // `null` means no replay sample in this window -- for the commander that
+    // is permanent (no distance to their own tag). Rendering 0 would paint a
+    // green "perfectly stacked" readout over an absence.
+    if (stats === null) {
+        return (
+            <div className="bg-[#111] rounded-[5px] p-2.5 border border-[#1a1a1a]">
+                <div className="text-[9px] text-[#f59e0b] mb-2 uppercase tracking-wider">Positioning</div>
+                <div className="text-center py-3">
+                    <div className="text-[28px] font-bold text-[#555]">—</div>
+                    <div className="text-[9px] text-[#888]">no distance data in this range</div>
+                </div>
+            </div>
+        );
+    }
+    const { avg, max } = stats;
     const distColor = avg < 600 ? '#10b981' : avg < 1200 ? '#f59e0b' : '#ef4444';
     const barPct = Math.min(100, (avg / 2400) * 100);
 

@@ -2,8 +2,8 @@ import { useRef, useState, useCallback, useEffect, useMemo, type MouseEvent } fr
 import { ChevronRight, Crosshair, MapPin, Pause, Play, RotateCcw, Users, ZoomIn, ZoomOut } from 'lucide-react';
 import { useAppStore } from '../../store';
 import { WVW_LANDMARKS, WvwMap, type WvwLandmark } from '../../../shared/wvwLandmarks';
-import { resolveMapFromZone } from '../../../shared/mapUtils';
-import { getMapTiles, hasTileData } from '../../../shared/wvwTiles';
+import { resolveMapFromMapId } from '../../../shared/mapUtils';
+import { getMapTiles, hasTileData, getMapPixelSize } from '../../../shared/wvwTiles';
 import type { SkillCast, SquadMemberMovement } from '../../../shared/types';
 import { lerpPos, memberFrame, memberPosAt } from '../../../shared/movementFrame';
 import { getProfessionIconPath } from '../../classIconUtils';
@@ -278,16 +278,23 @@ export function MovementView() {
         );
     }
 
-    const { mapImageUrl, mapSize, mapName, movementData } = currentFight;
-    const map = resolveMapFromZone(mapName);
+    const { mapImageUrl, mapSize, mapId, mapName, movementData } = currentFight;
+    // By map ID, not by display name. `resolveMapFromMapId` covers all four
+    // WvW maps and cannot be broken by a localisation or a rewording.
+    const map = mapId === null ? null : resolveMapFromMapId(mapId);
     const landmarks = map ? WVW_LANDMARKS[map] : [];
-    const width = mapSize?.[0] ?? 523;
-    const height = mapSize?.[1] ?? 750;
+    // `mapSize` is the log's own arena, squeezed into EI pixel space. The
+    // per-map table is the fallback for a log with no arena; the bare
+    // `?? 523 / ?? 750` this replaced was Alpine's size applied to EBG and
+    // Red Desert too.
+    const [width, height] = mapSize ?? (map ? getMapPixelSize(map) : [0, 0]);
     const useTiles = map && hasTileData(map);
     const tileZoom = tileZoomForScale(view.scale);
     const tiles = useMemo(
-        () => (useTiles ? getMapTiles(map as WvwMap, tileZoom) : []),
-        [useTiles, map, tileZoom],
+        // Third argument: the tiles are laid out in the SAME pixel space the
+        // markers are, so they cannot drift from the table.
+        () => (useTiles ? getMapTiles(map as WvwMap, tileZoom, mapSize ?? undefined) : []),
+        [useTiles, map, tileZoom, mapSize],
     );
 
     if (!movementData || movementData.members.length === 0) {

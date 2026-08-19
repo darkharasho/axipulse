@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { extractComposition, extractSquadContext } from '../../../src/shared/extract/composition';
 import { localPlayerId } from '../../../src/shared/report';
 import type { ReportV1 } from '../../../src/shared/report';
-import type { EiJson, EiPlayer } from '../../../src/shared/types';
-import { loadEiFixture, loadNativeFixture } from '../oracle';
+import type { EiJson, EiPlayer } from '../ei/types';
+import { loadEiFixture, loadNativeFixture, accountOf } from '../oracle';
 
 /** A shallow-cloned report with one surgical change, so a path the fixture
  *  cannot reach is still executed rather than left as untested dead code.
@@ -342,7 +342,7 @@ describe('extractSquadContext', () => {
                 const p = players.find(x => x.account === e.account)!;
                 const expected = eiRank(eiValues, value(p));
                 const actual = extractSquadContext(native, e.id)[field];
-                if (actual !== expected) mismatches.push([e.account, expected, actual]);
+                if (actual !== expected) mismatches.push([accountOf(e), expected, actual]);
             }
             expect(mismatches, field).toEqual([]);
         }
@@ -400,7 +400,7 @@ describe('extractSquadContext', () => {
             }
             const adjusted = row.taken - (selfCast ? selfCast.total : 0);
             if (adjusted !== p.defenses[0]!.damageTaken) {
-                residues.push([e.account, p.defenses[0]!.damageTaken, row.taken, adjusted]);
+                residues.push([accountOf(e), p.defenses[0]!.damageTaken, row.taken, adjusted]);
             }
         }
         expect(residues, 'members still disagreeing after removing skill 23279').toEqual([]);

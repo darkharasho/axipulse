@@ -6,18 +6,18 @@ import { extractBoonUptimes, extractBoonGeneration } from '../boonData';
 import { computeBoonPerformance, STABILITY_BUFF_ID, MIGHT_BUFF_ID } from '../boonPerformance';
 
 /**
- * The bucket size baked into the `boonPerformance` breakdown this function
- * returns. `extractBoons`'s interface (per the migration brief) takes no
- * `bucketSizeMs` parameter -- matches the renderer store's default
- * (`src/renderer/store.ts`'s initial `bucketSizeMs: 1000`). A caller that
- * needs a different bucket size (e.g. the user's saved setting) calls
- * `computeBoonPerformance` directly rather than through this function.
- */
-const DEFAULT_BUCKET_MS = 1000;
-
-/**
  * Boon stats for one entity: uptimes, self/group/squad generation, and the
  * stability/might per-bucket party breakdown.
+ *
+ * `bucketSizeMs` is a PARAMETER, not a constant. It was hardcoded to 1000
+ * when this unit was written in isolation, which matched the renderer
+ * store's default -- but the value is user-mutable in-session
+ * (`SettingsView.tsx`'s bucket-size control) and `useFightListener` passes
+ * the live `state.bucketSizeMs` into `extractPlayerFightData`. Baking the
+ * default in would have turned that control into a silent no-op for the two
+ * boon-performance charts, which is a user-visible regression the cutover
+ * would have introduced. `boons.test.ts` pins that a non-default value
+ * changes the bucket count.
  *
  * `uptimes`/`generation` read `blocks.boons.by_entity[id]` directly (see
  * `boonData.ts`). `boonPerformance` additionally needs `blocks.replay` (for
@@ -25,15 +25,15 @@ const DEFAULT_BUCKET_MS = 1000;
  * party incoming damage) -- `computeBoonPerformance` requires those itself,
  * so this function only guards `boons`, the block both halves share.
  */
-export function extractBoons(r: ReportV1, id: number): BoonStats {
+export function extractBoons(r: ReportV1, id: number, bucketSizeMs: number): BoonStats {
     requireBlock(r, 'boons');
 
     return {
         uptimes: extractBoonUptimes(r, id),
         generation: extractBoonGeneration(r, id),
         boonPerformance: {
-            stability: computeBoonPerformance(r, id, DEFAULT_BUCKET_MS, STABILITY_BUFF_ID),
-            might: computeBoonPerformance(r, id, DEFAULT_BUCKET_MS, MIGHT_BUFF_ID),
+            stability: computeBoonPerformance(r, id, bucketSizeMs, STABILITY_BUFF_ID),
+            might: computeBoonPerformance(r, id, bucketSizeMs, MIGHT_BUFF_ID),
         },
     };
 }

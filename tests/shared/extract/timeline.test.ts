@@ -4,9 +4,9 @@ import { extractDefense } from '../../../src/shared/extract/defense';
 import { localPlayerId, commanderId } from '../../../src/shared/report';
 import { extractDamageTimeline } from '../../../src/shared/timelineData';
 import { HARD_CC_IDS, SOFT_CC_IDS, WVW_BOON_IDS } from '../../../src/shared/boonData';
-import { loadEiFixture, loadNativeFixture } from '../oracle';
+import { loadEiFixture, loadNativeFixture, accountOf } from '../oracle';
 import type { ReportV1 } from '../../../src/shared/report';
-import type { EiPlayer } from '../../../src/shared/types';
+import type { EiPlayer } from '../ei/types';
 
 const BUCKET_MS = 1000;
 
@@ -255,10 +255,10 @@ describe('extractTimeline', () => {
                 if (d > 1) takenOverTolerance.push(`${e.account}@${i} ${t.damageTaken[i].value}/${eiTaken[i].value}`);
                 if (d > 2) takenFarOverTolerance.push(`${e.account}@${i} ${t.damageTaken[i].value}/${eiTaken[i].value}`);
             }
-            if (anyDiff) takenAnyDiff.push(e.account);
+            if (anyDiff) takenAnyDiff.push(accountOf(e));
             const eiTotal = sum(eiTaken);
             if (eiTotal > 0 && Math.abs(sum(t.damageTaken) - eiTotal) / eiTotal > 1e-3) {
-                takenTotalDrift.push(e.account);
+                takenTotalDrift.push(accountOf(e));
             }
         }
 
@@ -468,9 +468,9 @@ describe('extractTimeline', () => {
             const t = extractTimeline(native, e.id, BUCKET_MS);
             compared++;
 
-            if (t.healthPercent.length === 0) empty.push(e.account);
+            if (t.healthPercent.length === 0) empty.push(accountOf(e));
             for (let i = 1; i < t.healthPercent.length; i++) {
-                if (t.healthPercent[i][0] < t.healthPercent[i - 1][0]) { nonMonotonic.push(e.account); break; }
+                if (t.healthPercent[i][0] < t.healthPercent[i - 1][0]) { nonMonotonic.push(accountOf(e)); break; }
             }
             if (JSON.stringify(t.healthPercent) !== JSON.stringify(p.healthPercents ?? [])) {
                 mismatches.push(`${e.account} ${t.healthPercent.length}/${p.healthPercents?.length ?? 0}`);
@@ -654,12 +654,12 @@ describe('extractTimeline', () => {
 
             if (JSON.stringify(t.deathEvents) !== JSON.stringify(d.deathTimes)
                 || JSON.stringify(t.downEvents) !== JSON.stringify(d.downTimes)) {
-                defenseDisagreements.push(e.account);
+                defenseDisagreements.push(accountOf(e));
             }
             if (t.deathEvents.length > 0) membersWithDeaths++;
             if (t.downEvents.length > 0) membersWithDowns++;
-            if (t.deathEvents.length !== p.defenses[0].deadCount) deathCountMismatches.push(e.account);
-            if (t.downEvents.length !== p.defenses[0].downCount) downCountMismatches.push(e.account);
+            if (t.deathEvents.length !== p.defenses[0].deadCount) deathCountMismatches.push(accountOf(e));
+            if (t.downEvents.length !== p.defenses[0].downCount) downCountMismatches.push(accountOf(e));
 
             for (const ms of [...t.deathEvents, ...t.downEvents]) {
                 expect(ms, `${e.account} event time`).toBeGreaterThanOrEqual(0);
@@ -745,8 +745,8 @@ describe('extractTimeline', () => {
             // Tri-state: absent = the position pass never ran, -1 = an EI
             // sentinel, >= 0 = a real distance. Neither non-real state may
             // be averaged in as if it were a distance.
-            if (expected === undefined) { absentDistToCom.push(e.account); continue; }
-            if (expected < 0) { sentinelDistToCom.push(e.account); continue; }
+            if (expected === undefined) { absentDistToCom.push(accountOf(e)); continue; }
+            if (expected < 0) { sentinelDistToCom.push(accountOf(e)); continue; }
 
             const intervals = [...row.dead, ...row.down];
             const isLive = (ts: number) => !intervals.some(([from, to]) => ts >= from && ts <= to);
@@ -771,7 +771,7 @@ describe('extractTimeline', () => {
                 total += t.distanceToTag[b].value * matched[b];
                 weight += matched[b];
             }
-            if (weight === 0) { emptyComparison.push(e.account); continue; }
+            if (weight === 0) { emptyComparison.push(accountOf(e)); continue; }
 
             compared++;
             const actual = total / weight;
@@ -859,7 +859,7 @@ describe('extractTimeline', () => {
             expect(before.length, `${e.account} baseline lane`).toBeGreaterThan(0);
             expect(after.length, `${e.account} shifted lane`).toBeGreaterThan(0);
             if (JSON.stringify(before.map(b => b.value)) === JSON.stringify(after.map(b => b.value))) {
-                unchanged.push(e.account);
+                unchanged.push(accountOf(e));
             }
         }
 

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { resolveMapFromZone, resolveMapFromMapId, normalizeMapName } from '../../src/shared/mapUtils';
+import { resolveMapFromMapId, normalizeMapName } from '../../src/shared/mapUtils';
+import { resolveMapFromZone } from './ei/mapUtils';
 import { WvwMap } from '../../src/shared/wvwLandmarks';
 
 describe('resolveMapFromZone', () => {

@@ -1,14 +1,14 @@
-import type { EiJson, EiPlayer, BoonPerfBreakdown, BoonPerfPartyMember } from './types';
+import type { BoonPerfBreakdown, BoonPerfPartyMember } from './types';
 import type { ReportV1 } from './report';
 import { requireBlock, squadMembers, commanderId, decodeSeries } from './report';
 
 export const STABILITY_BUFF_ID = 1122;
 export const MIGHT_BUFF_ID = 740;
 
-const DEATH_SKILL_ID = -28;
 
-// ---- Shared pure bucket arithmetic -- unchanged by the native migration,
-// used by both the legacy EI path and the native path below. ----
+// ---- Pure bucket arithmetic. Carried through the native migration
+// unchanged -- these two functions were shared with the EI path that Task 11
+// deleted, and are identical to what it used. ----
 
 function integrateStatesPerBucket(
     states: Array<[number, number]>,
@@ -43,191 +43,6 @@ function integrateStatesPerBucket(
 
 function cumulativeToDeltas(cum: number[]): number[] {
     return cum.map((v, i) => i === 0 ? 0 : Math.max(0, Number(v || 0) - Number(cum[i - 1] || 0)));
-}
-
-// ---- EI-shaped (legacy pipeline) -- kept verbatim under an `Ei` suffix so
-// `extractPlayerData.ts` keeps compiling and behaving identically until
-// Task 11 recomposes it onto the native extract units. Not part of this
-// task's native migration. ----
-
-function getBuffUptime(player: EiPlayer, buffId: number) {
-    return (player.buffUptimes ?? []).find(b => Number(b?.id) === buffId);
-}
-
-function computeDeathsPerBucketEi(player: EiPlayer, bucketCount: number, bucketSizeMs: number): number[] {
-    const out = new Array<number>(bucketCount).fill(0);
-    const deathSkill = (player.rotation ?? []).find(r => Number(r?.id) === DEATH_SKILL_ID);
-    if (!deathSkill || !Array.isArray(deathSkill.skills)) return out;
-    for (const skill of deathSkill.skills) {
-        const idx = Math.min(bucketCount - 1, Math.floor(Number(skill?.castTime || 0) / bucketSizeMs));
-        if (idx >= 0) out[idx]++;
-    }
-    return out;
-}
-
-function computePartyIncomingDamageEi(
-    partyPlayers: EiPlayer[],
-    bucketCount: number,
-    bucketSizeMs: number,
-): number[] {
-    const out = new Array<number>(bucketCount).fill(0);
-    const bucketSizeSec = Math.max(1, Math.round(bucketSizeMs / 1000));
-    for (const p of partyPlayers) {
-        const row = (p.damageTaken1S ?? [])[0] ?? [];
-        if (row.length === 0) continue;
-        const deltas = cumulativeToDeltas(row.map(Number));
-        for (let s = 0; s < deltas.length; s++) {
-            const bucketIdx = Math.min(bucketCount - 1, Math.floor(s / bucketSizeSec));
-            out[bucketIdx] += deltas[s];
-        }
-    }
-    return out;
-}
-
-function computeSelfGenerationPerBucketEi(
-    json: EiJson,
-    localPlayer: EiPlayer,
-    buffId: number,
-    bucketCount: number,
-    bucketSizeMs: number,
-    durationMs: number,
-): number[] {
-    const localName = localPlayer.name;
-    const squadMembersEi = json.players.filter(p => p && !p.notInSquad && !p.isFake);
-    let anyStatesPerSource = false;
-    const summed = new Array<number>(bucketCount).fill(0);
-    for (const member of squadMembersEi) {
-        const buff = getBuffUptime(member, buffId);
-        const sps = buff?.statesPerSource;
-        if (!sps || typeof sps !== 'object') continue;
-        const sourceStates = sps[localName];
-        if (!Array.isArray(sourceStates) || sourceStates.length === 0) continue;
-        anyStatesPerSource = true;
-        const states = sourceStates.map(s => [Number(s[0]), Number(s[1])] as [number, number]);
-        const perBucket = integrateStatesPerBucket(states, bucketCount, bucketSizeMs);
-        for (let b = 0; b < bucketCount; b++) summed[b] += perBucket[b];
-    }
-    if (anyStatesPerSource) return summed;
-
-    // Fallback: distribute total generation evenly. Less accurate; statesPerSource is preferred.
-    let totalGenMs = 0;
-    for (const buff of localPlayer.selfBuffs ?? []) {
-        if (Number(buff?.id) === buffId) totalGenMs += Number(buff.buffData?.[0]?.generation || 0);
-    }
-    for (const buff of localPlayer.groupBuffs ?? []) {
-        if (Number(buff?.id) === buffId) totalGenMs += Number(buff.buffData?.[0]?.generation || 0);
-    }
-    for (const buff of localPlayer.squadBuffs ?? []) {
-        if (Number(buff?.id) === buffId) totalGenMs += Number(buff.buffData?.[0]?.generation || 0);
-    }
-    if (totalGenMs <= 0 || durationMs <= 0) return summed;
-    const uptimeFraction = totalGenMs / durationMs;
-    return summed.map(() => uptimeFraction);
-}
-
-function resolveCommanderEi(json: EiJson, localPlayer: EiPlayer): EiPlayer {
-    if (localPlayer.hasCommanderTag) return localPlayer;
-    const tagged = json.players.find(p => p?.hasCommanderTag && !p.notInSquad && !p.isFake);
-    return tagged ?? localPlayer;
-}
-
-function computeDistancesPerBucketEi(
-    player: EiPlayer,
-    cmdPositions: Array<[number, number]>,
-    cmdStartMs: number,
-    pollingRate: number,
-    inchToPixel: number,
-    fallbackDist: number,
-    bucketCount: number,
-    bucketSizeMs: number,
-): number[] {
-    const playerPositions = player.combatReplayData?.positions ?? [];
-    const playerStartMs = Number(player.combatReplayData?.start ?? 0);
-    const cmdOffset = Math.floor(cmdStartMs / pollingRate);
-    const playerOffset = Math.floor(playerStartMs / pollingRate);
-
-    return Array.from({ length: bucketCount }, (_, b) => {
-        if (cmdPositions.length === 0 || playerPositions.length === 0) return fallbackDist;
-        const bucketStart = b * bucketSizeMs;
-        const bucketEnd = bucketStart + bucketSizeMs;
-        let sum = 0;
-        let count = 0;
-        for (let t = bucketStart; t < bucketEnd; t += pollingRate) {
-            const tick = Math.floor(t / pollingRate);
-            const cmdIdx = tick - cmdOffset;
-            const playerIdx = tick - playerOffset;
-            if (cmdIdx < 0 || cmdIdx >= cmdPositions.length) continue;
-            if (playerIdx < 0 || playerIdx >= playerPositions.length) continue;
-            const [cx, cy] = cmdPositions[cmdIdx];
-            const [px, py] = playerPositions[playerIdx];
-            const d = Math.hypot(px - cx, py - cy) / inchToPixel;
-            if (Number.isFinite(d)) { sum += d; count++; }
-        }
-        return count > 0 ? sum / count : fallbackDist;
-    });
-}
-
-export function computeBoonPerformanceEi(
-    json: EiJson,
-    localPlayer: EiPlayer,
-    bucketSizeMs: number,
-    buffId: number,
-): BoonPerfBreakdown | null {
-    const durationMs = Number(json?.durationMS || 0);
-    if (durationMs <= 0) return null;
-
-    const effectiveBucketMs = Math.max(1000, Math.round(bucketSizeMs / 1000) * 1000);
-    const bucketCount = Math.max(1, Math.ceil(durationMs / effectiveBucketMs));
-    const buckets = Array.from({ length: bucketCount }, (_, i) => ({
-        startMs: i * effectiveBucketMs,
-        label: `${Math.round((i * effectiveBucketMs) / 1000)}s`,
-    }));
-
-    const localGroup = Number(localPlayer?.group || 0);
-    const partyPlayers = localGroup > 0
-        ? json.players.filter(p =>
-            p && !p.notInSquad && !p.isFake
-            && Number(p.group || 0) === localGroup
-            && p.account !== localPlayer.account)
-        : [];
-
-    const meta = json.combatReplayMetaData ?? {};
-    const inchToPixel = Number(meta.inchToPixel || 0) > 0 ? Number(meta.inchToPixel) : 1;
-    const pollingRate = Number(meta.pollingRate || 0) > 0 ? Number(meta.pollingRate) : 500;
-    const commander = resolveCommanderEi(json, localPlayer);
-    const cmdPositions = (commander.combatReplayData?.positions ?? []) as Array<[number, number]>;
-    const cmdStartMs = Number(commander.combatReplayData?.start ?? 0);
-
-    const partyMembers: BoonPerfPartyMember[] = partyPlayers.map(p => {
-        const buff = getBuffUptime(p, buffId);
-        const states = (buff?.states ?? []).map(s => [Number(s[0]), Number(s[1])] as [number, number]);
-        return {
-            key: p.account,
-            displayName: p.account.split('.')[0],
-            profession: p.profession,
-            stacks: integrateStatesPerBucket(states, bucketCount, effectiveBucketMs),
-            deaths: computeDeathsPerBucketEi(p, bucketCount, effectiveBucketMs),
-            distances: computeDistancesPerBucketEi(
-                p,
-                cmdPositions,
-                cmdStartMs,
-                pollingRate,
-                inchToPixel,
-                Number(p.statsAll?.[0]?.distToCom ?? 0),
-                bucketCount,
-                effectiveBucketMs,
-            ),
-        };
-    });
-
-    return {
-        bucketSizeMs: effectiveBucketMs,
-        bucketCount,
-        buckets,
-        selfGeneration: computeSelfGenerationPerBucketEi(json, localPlayer, buffId, bucketCount, effectiveBucketMs, durationMs),
-        partyIncomingDamage: computePartyIncomingDamageEi(partyPlayers, bucketCount, effectiveBucketMs),
-        partyMembers,
-    };
 }
 
 // ---- Native (axilog ReportV1) ----

@@ -75,13 +75,22 @@ describe('getAvgDistanceInRange', () => {
             { time: 4000, value: 500 },
         ];
         const result = getAvgDistanceInRange(buckets, 1000, 3000);
-        expect(result.avg).toBe(300);
-        expect(result.max).toBe(400);
+        expect(result).not.toBeNull();
+        expect(result!.avg).toBe(300);
+        expect(result!.max).toBe(400);
     });
 
-    it('returns 0 for empty range', () => {
-        const result = getAvgDistanceInRange([], 0, 5000);
-        expect(result.avg).toBe(0);
-        expect(result.max).toBe(0);
+    /**
+     * `null`, not `{ avg: 0, max: 0 }` -- changed by Task 11. Zero inches
+     * from the tag is a claim ("perfectly stacked", painted green, warning
+     * suppressed); an unsampled range is an absence. Under Elite Insights
+     * the two were indistinguishable because the EI `distanceToTag` lane was
+     * empty for every player on the frozen fixture, so this branch was the
+     * ONLY one that ever ran and it always lied. `PositionPanel` renders the
+     * null as an em dash.
+     */
+    it('returns null, not zero, when no bucket falls in the range', () => {
+        expect(getAvgDistanceInRange([], 0, 5000)).toBeNull();
+        expect(getAvgDistanceInRange([{ time: 0, value: 500 }], 9000, 10000)).toBeNull();
     });
 });

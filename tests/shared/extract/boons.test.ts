@@ -6,6 +6,12 @@ import type { ReportV1 } from '../../../src/shared/report';
 import { WVW_BOON_IDS } from '../../../src/shared/boonData';
 import { loadEiFixture, loadNativeFixture } from '../oracle';
 
+/** The renderer store's default bucket size. `extractBoons` takes it as a
+ *  PARAMETER since Task 11 -- it used to be a module constant, which would
+ *  have made the Settings bucket-size control a silent no-op for the two
+ *  boon-performance charts. */
+const BUCKET_MS = 1000;
+
 /**
  * The EXACT set of (member, buff, scope) generation figures where EI and
  * native disagree by more than `GEN_TOLERANCE`. Pinned rather than absorbed
@@ -118,7 +124,7 @@ describe('extractBoons', () => {
         for (const e of squadMembers(native)) {
             const eiPlayer = ei.players.find(p => p.account === e.account);
             expect(eiPlayer, `no EI player for ${e.account}`).toBeDefined();
-            const actual = extractBoons(native, e.id);
+            const actual = extractBoons(native, e.id, BUCKET_MS);
             const nativeBoons = native.blocks.boons!.by_entity[String(e.id)];
 
             for (const buff of eiPlayer!.buffUptimes ?? []) {
@@ -150,7 +156,7 @@ describe('extractBoons', () => {
         const native = loadNativeFixture();
         let checkedAny = 0;
         for (const e of squadMembers(native)) {
-            const actual = extractBoons(native, e.id);
+            const actual = extractBoons(native, e.id, BUCKET_MS);
             for (const entry of actual.uptimes) {
                 checkedAny++;
                 expect(entry.stacking).toBe(native.catalogs.buffs[String(entry.id)].stacking);
@@ -176,7 +182,7 @@ describe('extractBoons', () => {
         // Might is intensity-stacking in both the catalog and the legacy id
         // list. Flip ONLY the catalog: the extract must follow the catalog.
         const flipped = withCatalogBuff(native, MIGHT_BUFF_ID, { stacking: 'duration' });
-        const entry = extractBoons(flipped, id).uptimes.find(u => u.id === MIGHT_BUFF_ID)!;
+        const entry = extractBoons(flipped, id, BUCKET_MS).uptimes.find(u => u.id === MIGHT_BUFF_ID)!;
         expect(entry.stacking).toBe('duration');
         expect(entry.uptime).toBe(row.uptime_pct);
     });
@@ -185,7 +191,7 @@ describe('extractBoons', () => {
         const native = loadNativeFixture();
         const id = localPlayerId(native);
         const stripped = withCatalogBuff(native, MIGHT_BUFF_ID, null);
-        expect(() => extractBoons(stripped, id)).toThrow(String(MIGHT_BUFF_ID));
+        expect(() => extractBoons(stripped, id, BUCKET_MS)).toThrow(String(MIGHT_BUFF_ID));
     });
 
     // The banned silent zero: `avg_stacks` is documented as present for
@@ -201,7 +207,7 @@ describe('extractBoons', () => {
         expect(native.blocks.boons!.by_entity[String(id)][String(durationBoonId!)].avg_stacks).toBeUndefined();
 
         const flipped = withCatalogBuff(native, durationBoonId!, { stacking: 'intensity' });
-        expect(() => extractBoons(flipped, id)).toThrow(/avg_stacks/);
+        expect(() => extractBoons(flipped, id, BUCKET_MS)).toThrow(/avg_stacks/);
     });
 
     // ONE mismatch-set pin over all 12 WVW buff ids x all 46 squad members x
@@ -221,7 +227,7 @@ describe('extractBoons', () => {
         for (const e of roster) {
             const eiPlayer = ei.players.find(p => p.account === e.account);
             expect(eiPlayer, `no EI player for ${e.account}`).toBeDefined();
-            const actual = extractBoons(native, e.id);
+            const actual = extractBoons(native, e.id, BUCKET_MS);
 
             for (const buffId of WVW_BOON_IDS) {
                 const entry = actual.generation.find(g => g.id === buffId);
@@ -255,7 +261,7 @@ describe('extractBoons', () => {
         const native = loadNativeFixture();
         let checkedAny = 0;
         for (const e of squadMembers(native)) {
-            const actual = extractBoons(native, e.id);
+            const actual = extractBoons(native, e.id, BUCKET_MS);
             checkedAny++;
             expect(actual.boonPerformance).not.toBeNull();
             expect(actual.boonPerformance!.stability).not.toBeNull();
@@ -282,7 +288,7 @@ describe('extractBoons', () => {
     it('rekeys BoonPerfPartyMember.key by entity id, not account', () => {
         const native = loadNativeFixture();
         const id = localPlayerId(native);
-        const actual = extractBoons(native, id);
+        const actual = extractBoons(native, id, BUCKET_MS);
         const breakdown = actual.boonPerformance!.stability!;
 
         expect(breakdown.partyMembers.length).toBeGreaterThan(0);
@@ -314,7 +320,39 @@ describe('extractBoons', () => {
         expect(b!.bucketCount).toBeLessThan(a!.bucketCount);
     });
 
+    /**
+     * The Task 7 amendment's acceptance test. `extractBoons` hardcoded
+     * `DEFAULT_BUCKET_MS = 1000`; `SettingsView` offers 1000/2000/3000/5000
+     * and `useFightListener` passes the live value into
+     * `extractPlayerFightData`, so a baked-in constant would have silently
+     * ignored the user's setting on these two charts only. Asserted through
+     * `extractBoons` itself -- the test below it exercises
+     * `computeBoonPerformance` directly and would NOT have caught the
+     * constant.
+     */
+    it('threads a non-default bucketSizeMs through to both breakdowns', () => {
+        const native = loadNativeFixture();
+        const id = localPlayerId(native);
+        const at1s = extractBoons(native, id, 1000).boonPerformance!;
+        const at5s = extractBoons(native, id, 5000).boonPerformance!;
+
+        for (const [name, a, b] of [
+            ['stability', at1s.stability!, at5s.stability!],
+            ['might', at1s.might!, at5s.might!],
+        ] as const) {
+            expect(a.bucketSizeMs, name).toBe(1000);
+            expect(b.bucketSizeMs, name).toBe(5000);
+            expect(a.bucketCount, name).toBe(139);
+            expect(b.bucketCount, name).toBe(28);
+            expect(b.partyMembers.length, name).toBe(a.partyMembers.length);
+            for (let i = 0; i < a.partyMembers.length; i++) {
+                expect(a.partyMembers[i].stacks.length, name).toBe(139);
+                expect(b.partyMembers[i].stacks.length, name).toBe(28);
+            }
+        }
+    });
+
     it('throws on an unknown entity id rather than returning blanks', () => {
-        expect(() => extractBoons(loadNativeFixture(), 999_999)).toThrow();
+        expect(() => extractBoons(loadNativeFixture(), 999_999, BUCKET_MS)).toThrow();
     });
 });

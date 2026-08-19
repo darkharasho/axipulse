@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { extractSupport } from '../../../src/shared/extract/support';
-import { localPlayerId } from '../../../src/shared/report';
+import { localPlayerId, requireBlock } from '../../../src/shared/report';
 import { STABILITY_BUFF_ID } from '../../../src/shared/boonPerformance';
-import { loadEiFixture, loadNativeFixture } from '../oracle';
+import { loadEiFixture, loadNativeFixture, accountOf } from '../oracle';
 
 function eiLocal(ei: ReturnType<typeof loadEiFixture>) {
     return ei.players.find(p => p.account === ei.recordedAccountBy)
@@ -85,7 +85,7 @@ describe('extractSupport', () => {
         for (const e of native.entities.filter(x => x.role === 'squad')) {
             const eiPlayer = ei.players.find(p => p.account === e.account);
             expect(eiPlayer, `no EI player for ${e.account}`).toBeDefined();
-            const healing = native.blocks.healing.by_entity[String(e.id)];
+            const healing = requireBlock(native, 'healing').by_entity[String(e.id)];
             expect(healing, `no native healing row for ${e.account}`).toBeDefined();
 
             const eiHealingTotal = eiPlayer!.extHealingStats?.totalHealingDist?.[0]
@@ -142,7 +142,7 @@ describe('extractSupport', () => {
             const eiPlayer = ei.players[eiIndex];
             expect(eiPlayer, `no EI player for ${e.account}`).toBeDefined();
             const actual = extractSupport(native, e.id);
-            const healing = native.blocks.healing.by_entity[String(e.id)];
+            const healing = requireBlock(native, 'healing').by_entity[String(e.id)];
 
             const alliedHealingSum = (eiPlayer.extHealingStats?.alliedHealingDist ?? [])
                 .reduce((total, entry) => total + (entry[0] ?? []).reduce((a, b) => a + b.totalHealing, 0), 0);
@@ -152,9 +152,9 @@ describe('extractSupport', () => {
             // both sides cover the same friendlies roster).
             const byAllySum = Object.values(healing!.detail?.by_ally ?? {}).reduce((a, b) => a + b.healing, 0);
             if (alliedHealingSum === 0) {
-                if (byAllySum > 1) byAllyVsAlliedDistMismatches.push(e.account);
+                if (byAllySum > 1) byAllyVsAlliedDistMismatches.push(accountOf(e));
             } else if (Math.abs(byAllySum - alliedHealingSum) / alliedHealingSum >= 0.01) {
-                byAllyVsAlliedDistMismatches.push(e.account);
+                byAllyVsAlliedDistMismatches.push(accountOf(e));
             }
 
             const eiTotalHealing = eiPlayer.extHealingStats?.totalHealingDist?.[0]
@@ -162,7 +162,7 @@ describe('extractSupport', () => {
             const eiSelfHealing = (eiPlayer.extHealingStats?.alliedHealingDist?.[eiIndex]?.[0] ?? [])
                 .reduce((a, b) => a + b.totalHealing, 0);
             const eiAlliesOnly = eiTotalHealing - eiSelfHealing;
-            if (actual.healingOutput !== eiAlliesOnly) healingMismatches.push(e.account);
+            if (actual.healingOutput !== eiAlliesOnly) healingMismatches.push(accountOf(e));
 
             // One account (Anon178.7586, a Specter with an EMPTY `minions`
             // list -- there is no summon/pet to fold, ruling out the
@@ -179,9 +179,9 @@ describe('extractSupport', () => {
             const eiBarrierTotal = eiPlayer.extBarrierStats?.totalBarrierDist?.[0]
                 ?.reduce((a, b) => a + b.totalBarrier, 0) ?? 0;
             if (eiBarrierTotal === 0) {
-                if (actual.barrierOutput > 1) barrierMismatches.push(e.account);
+                if (actual.barrierOutput > 1) barrierMismatches.push(accountOf(e));
             } else if (Math.abs(actual.barrierOutput - eiBarrierTotal) / eiBarrierTotal >= 0.01) {
-                barrierMismatches.push(e.account);
+                barrierMismatches.push(accountOf(e));
             }
         }
 
@@ -231,7 +231,7 @@ describe('extractSupport', () => {
             const actual = extractSupport(native, e.id);
             const stabBuff = (eiPlayer.squadBuffs ?? []).find(b => b.id === STABILITY_BUFF_ID);
             const eiVal = stabBuff?.buffData[0]?.generation ?? 0;
-            if (Math.abs(actual.stabilityGeneration - eiVal) > 0.005) mismatches.push(e.account);
+            if (Math.abs(actual.stabilityGeneration - eiVal) > 0.005) mismatches.push(accountOf(e));
         }
 
         expect(mismatches, 'stabilityGeneration vs EI\'s squadBuffs[1122].buffData[0].generation').toEqual([]);
@@ -263,7 +263,7 @@ describe('extractSupport', () => {
 
         for (const e of native.entities.filter(x => x.role === 'squad')) {
             const eiPlayer = ei.players.find(p => p.account === e.account)!;
-            const bySkill = native.blocks.healing.by_entity[String(e.id)]?.detail?.by_skill ?? {};
+            const bySkill = requireBlock(native, 'healing').by_entity[String(e.id)]?.detail?.by_skill ?? {};
             const nativeIds = new Set(Object.keys(bySkill).map(Number));
             const eiDist = eiPlayer.extHealingStats?.totalHealingDist?.[0] ?? [];
             const eiIds = new Set(eiDist.map(row => row.id));
@@ -294,7 +294,7 @@ describe('extractSupport', () => {
 
         for (const e of native.entities.filter(x => x.role === 'squad')) {
             const eiPlayer = ei.players.find(p => p.account === e.account)!;
-            const bySkill = native.blocks.healing.by_entity[String(e.id)]?.detail?.barrier_by_skill ?? {};
+            const bySkill = requireBlock(native, 'healing').by_entity[String(e.id)]?.detail?.barrier_by_skill ?? {};
             const nativeIds = new Set(Object.keys(bySkill).map(Number));
             const eiDist = eiPlayer.extBarrierStats?.totalBarrierDist?.[0] ?? [];
             const eiIds = new Set(eiDist.map(row => row.id));

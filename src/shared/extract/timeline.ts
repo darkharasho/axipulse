@@ -51,8 +51,8 @@ function seriesToBuckets(s: SeriesOut | undefined, bucketSizeMs: number): Timeli
  * Per-bucket mean distance from this entity to the commander, world inches.
  *
  * Positions in `blocks.replay.tracks` are raw world inches -- there is no
- * `inchToPixel` divisor here, unlike `extractDistanceToTagTimelineEi`'s EI
- * combat-replay pixels. (On this fixture EI's own
+ * `inchToPixel` divisor here, unlike the EI lane's combat-replay pixels
+ * (`extractDistanceToTagTimelineEi`, deleted by Task 11). (On this fixture EI's own
  * `combatReplayMetaData.pollingRate`/`inchToPixel` are BOTH absent, so the
  * EI timeline path produced an empty `distanceToTag` for every player; the
  * native path is the first one that populates this lane at all.)
@@ -67,23 +67,23 @@ function seriesToBuckets(s: SeriesOut | undefined, bucketSizeMs: number): Timeli
  * tick the game reported one, and the EI path it replaces did not drop them
  * either.
  *
- * TODO(Task 11): `computeDistanceToTagStats` in `extractPlayerData.ts` is
- * the consumer that turns this lane into the average/median distance, and
- * it applies the post-death runback exclusion using
- * `player.combatReplayData.dead`. That field is `[]` for the whole frozen
- * fixture, so the exclusion never executes today and no test can catch its
- * omission. Task 11 MUST feed that function
- * `blocks.replay.by_entity[id].dead` instead. This lane deliberately KEEPS
- * downed/dead buckets so the consumer has something to exclude; do not move
- * the exclusion in here, it would double-exclude and also strip buckets
- * from the rendered lane.
+ * `computeDistanceToTagStats` in `extractPlayerData.ts` is the consumer
+ * that turns this lane into the average/median distance, and it is where
+ * the post-death runback exclusion lives. This lane deliberately KEEPS
+ * downed/dead buckets so that consumer has something to exclude; do not
+ * move the exclusion in here, it would double-exclude and also strip
+ * buckets from the rendered lane. Task 11 wired that consumer to
+ * `blocks.replay.by_entity[id].dead` -- three squad members carry real dead
+ * intervals natively (EI's `combatReplayData.dead` was `[]` for all 46), and
+ * for two of them the exclusion moves the average by an order of magnitude.
+ * `extractPlayerData.test.ts` pins both the excluded and unexcluded values.
  *
  * SHAPE -- the lane is TRUNCATED to the ticks actually sampled on both
  * sides, never padded to the damage grid. A bucket with no jointly-sampled
  * poll is an ABSENCE and must not be rendered as distance 0, which reads as
  * "standing on the commander" and would drag the consumer's average toward
- * zero. This matches `extractDistanceToTagTimelineEi`, which built its
- * per-second array only from the samples it had and never padded. Measured
+ * zero. This matched the EI lane, which built its per-second array only
+ * from the samples it had and never padded. Measured
  * on this fixture: 52 unsampled buckets across the 45 non-commander squad
  * members, ALL of them trailing (the last replay poll is t=138300, bucket
  * 138, against a 140-bucket damage grid) and ZERO interior. Because
@@ -155,9 +155,10 @@ function distanceToTagBuckets(
                 + ' inventing a distance',
             );
         }
-        // Rounded to an integer for parity with the EI lane
-        // (`bucketTimelineAvg` rounded); asserted by the test so removing
-        // the rounding is a visible change rather than a silent one.
+        // Rounded to an integer for parity with the EI lane, whose
+        // `bucketTimelineAvg` rounded (that function died with the EI
+        // cutover in Task 11); asserted by the test so removing the
+        // rounding is a visible change rather than a silent one.
         buckets.push({ time: b * bucketSizeMs, value: Math.round(sums.get(b)! / n) });
     }
     return buckets;
@@ -279,8 +280,7 @@ export function extractTimeline(r: ReportV1, id: number, bucketSizeMs: number): 
             icon: def.icon,
             // Copied, not aliased. There is no production parse cache --
             // that claim was in an earlier revision of this comment and was
-            // simply false; `extractTimeline` has no production caller yet
-            // (Task 11 wires it). The two REAL reasons:
+            // simply false. The two REAL reasons:
             //   - a `ReportV1` is a parsed input document, and an extract
             //     that returns interior pointers into it makes the
             //     document's immutability depend on every caller's

@@ -1,10 +1,11 @@
 // tests/shared/boonData.test.ts
 import { describe, it, expect } from 'vitest';
 import {
-    extractBoonUptimesEi, extractBoonGenerationEi, extractBoonUptimes, extractBoonGeneration,
+    extractBoonUptimes, extractBoonGeneration,
     WVW_BOON_IDS, OFFENSIVE_BOON_IDS, DEFENSIVE_BOON_IDS, HARD_CC_IDS, SOFT_CC_IDS, CONDITION_NAMES,
 } from '../../src/shared/boonData';
-import type { EiPlayer } from '../../src/shared/types';
+import { extractBoonUptimesEi, extractBoonGenerationEi } from './ei/boonData';
+import type { EiPlayer } from './ei/types';
 import { squadMembers } from '../../src/shared/report';
 import { loadEiFixture, loadNativeFixture } from './oracle';
 

@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 const win = path.win32;
-const posix = path.posix;
 import { buildArcdpsCandidates, findArcdpsConfig, checkArcdps, type ArcdpsFsOps } from '../../src/main/arcdpsDetect';
 
 // Helpers

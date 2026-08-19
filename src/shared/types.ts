@@ -1,106 +1,6 @@
 // src/shared/types.ts
 import type { RoleClassification } from './classifyRole';
 
-// --- Raw EI JSON types (subset we use) ---
-
-export interface EiPlayer {
-    name: string;
-    account: string;
-    profession: string;
-    elite_spec: string;
-    group: number;
-    hasCommanderTag: boolean;
-    notInSquad: boolean;
-    isFake: boolean;
-    teamID?: number;
-    teamId?: number;
-    activeTimes: number[];
-    dpsAll: { damage: number; dps: number; breakbarDamage: number }[];
-    statsAll: { downContribution: number; distToCom: number; stackDist: number; appliedCrowdControl: number; appliedCrowdControlDuration: number }[];
-    defenses: {
-        damageTaken: number; deadCount: number; downCount: number;
-        dodgeCount: number; blockedCount: number; evadedCount: number;
-        missedCount: number; invulnedCount: number; interruptedCount: number;
-        receivedCrowdControl: number; receivedCrowdControlDuration: number;
-        boonStrips: number; boonStripsTime: number;
-    }[];
-    support: { condiCleanse: number; condiCleanseSelf: number; boonStrips: number; boonStripsTime: number }[];
-    damage1S: number[][];
-    targetDamage1S?: number[][];
-    damageTaken1S?: number[][];
-    totalDamageDist: { id: number; name: string; totalDamage: number; connectedHits: number; min: number; max: number; downContribution?: number }[][];
-    totalDamageTaken: { id: number; totalDamage: number; connectedHits: number; indirectDamage: boolean }[][];
-    buffUptimes?: { id: number; buffData: { uptime: number; generation: number; overstack: number; wasted: number }[]; states?: [number, number][]; statesPerSource?: Record<string, [number, number][]> }[];
-    selfBuffs?: { id: number; buffData: { generation: number; overstack: number; wasted: number }[] }[];
-    groupBuffs?: { id: number; buffData: { generation: number; overstack: number; wasted: number }[] }[];
-    squadBuffs?: { id: number; buffData: { generation: number; overstack: number; wasted: number }[] }[];
-    extHealingStats?: {
-        outgoingHealingAllies: { healing: number }[][];
-        totalHealingDist: { id: number; name: string; totalHealing: number; totalDownedHealing: number; hits: number }[][];
-        healingReceived1S?: number[][];
-        // Keyed by ALLY index into `players` (positional, like `outgoingHealingAllies`),
-        // then by phase, then the per-skill rows healing that ally. Includes the
-        // healer's own index (self-healing), unlike the field name's "allied"
-        // implies -- see extract/support.test.ts's healingOutput oracle notes.
-        alliedHealingDist?: { id: number; totalHealing: number; totalDownedHealing: number; hits: number }[][][];
-    };
-    extBarrierStats?: {
-        outgoingBarrierAllies: { barrier: number }[][];
-        totalBarrierDist: { id: number; name: string; totalBarrier: number; hits: number }[][];
-        barrierReceived1S?: number[][];
-        // Same shape as `alliedHealingDist`, for barrier.
-        alliedBarrierDist?: { id: number; totalBarrier: number; hits: number }[][][];
-    };
-    rotation: { id: number; skills: { castTime: number; duration: number }[] }[];
-    healthPercents?: [number, number][];
-    combatReplayData?: {
-        positions?: [number, number][];
-        dead?: [number, number][];
-        down?: [number, number][];
-        start?: number;
-    };
-}
-
-export interface EiTarget {
-    name: string;
-    totalDamageDist: { id: number; name: string; totalDamage: number; connectedHits: number; min: number; max: number }[][];
-    damage1S?: number[][];
-    enemyPlayer: boolean;
-    isFake: boolean;
-    teamID?: number;
-    teamId?: number;
-    profession?: string;
-    combatReplayData?: {
-        positions?: [number, number][];
-        dead?: [number, number][];
-        down?: [number, number][];
-        start?: number;
-    };
-}
-
-export interface EiJson {
-    fightName: string;
-    zone?: string;
-    mapName?: string;
-    map?: string;
-    durationMS: number;
-    success: boolean;
-    uploadTime?: string;
-    timeStartStd?: string;
-    recordedBy?: string;
-    recordedAccountBy?: string;
-    players: EiPlayer[];
-    targets: EiTarget[];
-    skillMap: Record<string, { name: string; icon: string; autoAttack: boolean }>;
-    buffMap: Record<string, { name: string; stacking: string; icon: string; classification?: string }>;
-    combatReplayMetaData?: {
-        inchToPixel?: number;
-        pollingRate?: number;
-        sizes?: [number, number];
-        maps?: { url: string; interval: [number, number]; position: [number, number] }[];
-    };
-}
-
 // --- Movement replay data ---
 
 export interface SkillCast {
@@ -158,6 +58,16 @@ export interface PlayerFightData {
     fightLabel: string;
     fightNumber: number;
     mapName: string;
+    /**
+     * `encounter.map_id` -- the GW2 map id, the join key into this app's
+     * landmark and tile assets (`resolveMapFromMapId`). Carried alongside
+     * `mapName` rather than instead of it: the name is for people, the id
+     * is for lookups. `null` when the log carries no MAP_ID event.
+     *
+     * Added by Task 11 so the renderer can stop fuzzy-matching the
+     * localised display string.
+     */
+    mapId: number | null;
     nearestLandmark: string | null;
     mapImageUrl: string | null;
     mapSize: [number, number] | null;
@@ -166,7 +76,14 @@ export interface PlayerFightData {
     deathPositions: [number, number][];
     duration: number;
     durationFormatted: string;
-    timestamp: string;
+    /**
+     * Wall-clock fight start, ISO 8601 -- or `null` when the log carries no
+     * `CBTS_LOGSTART` event. The native format documents that absence as
+     * deliberately distinguishable from epoch zero, so it is NOT defaulted:
+     * the EI path's `?? new Date().toISOString()` silently stamped old logs
+     * with the time they were parsed. Renderers must handle `null`.
+     */
+    timestamp: string | null;
     playerName: string;
     accountName: string;
     profession: string;
@@ -337,7 +254,8 @@ export interface FightComposition {
 export interface FightHistoryEntry {
     fightNumber: number;
     fightLabel: string;
-    timestamp: string;
+    /** See `PlayerFightData.timestamp` -- `null` when the log has no start event. */
+    timestamp: string | null;
     profession: string;
     eliteSpec: string;
     duration: number;

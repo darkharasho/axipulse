@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { useAppStore } from '../store';
 import { extractPlayerFightData } from '../../shared/extractPlayerData';
-import type { EiJson, FightHistoryEntry } from '../../shared/types';
+import type { FightHistoryEntry } from '../../shared/types';
+import type { ReportV1 } from '../../shared/report';
 
 export function useFightListener() {
     useEffect(() => {
@@ -12,9 +13,9 @@ export function useFightListener() {
         const cleanupComplete = window.electronAPI?.onParseComplete((data) => {
             const state = useAppStore.getState();
             state.setIsParsing(false);
-            const json = data.data as EiJson;
+            const report = data.data as ReportV1;
             const fightNumber = state.incrementFightCounter();
-            const fightData = extractPlayerFightData(json, fightNumber, state.bucketSizeMs);
+            const fightData = extractPlayerFightData(report, fightNumber, state.bucketSizeMs);
 
             const toHistoryEntry = (fight: typeof fightData): FightHistoryEntry => ({
                 fightNumber: fight.fightNumber,

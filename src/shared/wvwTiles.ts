@@ -110,6 +110,21 @@ export function getMapTiles(
     return tiles;
 }
 
+/**
+ * The hand-transcribed combat-replay pixel size for a map, for a log whose
+ * `blocks.replay.tracks.arena` is absent (no positions to plot, but the
+ * landmark overlay still has a coordinate space).
+ *
+ * Prefer `arenaPixelSize(arena)` -- `PlayerFightData.mapSize` -- whenever it
+ * is available: it travels with the positions being plotted. This exists so
+ * the renderer stops carrying bare `?? 523` / `?? 750` literals, which were
+ * Alpine's numbers applied to every map including EBG (716x750) and Red
+ * Desert (750x750).
+ */
+export function getMapPixelSize(map: WvwMap): [number, number] {
+    return WVW_TILE_DATA[map].pixelSize;
+}
+
 export function hasTileData(map: WvwMap): boolean {
     return map in WVW_TILE_DATA;
 }

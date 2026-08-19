@@ -1,8 +1,8 @@
 import { WvwMap } from './wvwLandmarks';
 
-const ZONE_PREFIXES = ['Detailed WvW - ', 'World vs World - ', 'WvW - '];
+export const ZONE_PREFIXES = ['Detailed WvW - ', 'World vs World - ', 'WvW - '];
 
-function stripPrefix(zone: string): string {
+export function stripPrefix(zone: string): string {
     for (const prefix of ZONE_PREFIXES) {
         if (zone.startsWith(prefix)) return zone.slice(prefix.length);
     }
@@ -14,8 +14,9 @@ function stripPrefix(zone: string): string {
  *
  * The native format carries `encounter.map_id`, which is the join key GW2's
  * own API uses, so identification no longer has to fuzzy-match a localised
- * display name (`resolveMapFromZone` below, kept for the EI path and for
- * logs with no `map_id`).
+ * display name. Task 11 made this the only production path and moved the
+ * display-name matcher to `tests/shared/ei/mapUtils.ts`, where it survives
+ * as the oracle that the two agree on all four maps.
  *
  * Every entry is verified against `https://api.guildwars2.com/v2/maps/<id>`,
  * whose `type` field names the WvW slot directly:
@@ -48,15 +49,6 @@ const MAP_ID_TO_WVW_MAP: Record<number, WvwMap> = {
  *  that; nothing here substitutes a default map. */
 export function resolveMapFromMapId(mapId: number): WvwMap | null {
     return MAP_ID_TO_WVW_MAP[mapId] ?? null;
-}
-
-export function resolveMapFromZone(zone: string): WvwMap | null {
-    const clean = stripPrefix(zone).toLowerCase();
-    if (clean.includes('eternal') || clean === 'ebg') return WvwMap.EternalBattlegrounds;
-    if (clean.includes('green')) return WvwMap.GreenBorderlands;
-    if (clean.includes('blue')) return WvwMap.BlueBorderlands;
-    if (clean.includes('red')) return WvwMap.RedBorderlands;
-    return null;
 }
 
 export function normalizeMapName(zone: string): string {

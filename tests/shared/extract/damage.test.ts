@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { extractDamage } from '../../../src/shared/extract/damage';
-import { localPlayerId } from '../../../src/shared/report';
-import { loadEiFixture, loadNativeFixture } from '../oracle';
+import { localPlayerId, requireBlock } from '../../../src/shared/report';
+import { loadEiFixture, loadNativeFixture, accountOf } from '../oracle';
 
 function eiLocal(ei: ReturnType<typeof loadEiFixture>) {
     return ei.players.find(p => p.account === ei.recordedAccountBy)
@@ -84,7 +84,7 @@ describe('extractDamage', () => {
 
         for (const e of native.entities.filter(x => x.role === 'squad')) {
             const eiPlayer = ei.players.find(p => p.account === e.account)!;
-            const bySkill = native.blocks.damage.by_entity[String(e.id)]?.by_skill ?? {};
+            const bySkill = requireBlock(native, 'damage').by_entity[String(e.id)]?.by_skill ?? {};
             const nativeIds = new Set(Object.keys(bySkill).map(Number));
             const eiDist = eiPlayer.totalDamageDist[0] ?? [];
             const eiIds = new Set(eiDist.map(row => row.id));
@@ -149,7 +149,7 @@ describe('extractDamage', () => {
             // condition -- both engines agreeing on zero -- and compare
             // with an absolute bound instead of skipping the member.
             if (eiDamage === 0) {
-                zeroDamageMembers.push(e.account);
+                zeroDamageMembers.push(accountOf(e));
                 expect(actual.totalDamage).toBeLessThanOrEqual(1);
             } else {
                 expect(Math.abs(actual.totalDamage - eiDamage) / eiDamage).toBeLessThan(0.01);

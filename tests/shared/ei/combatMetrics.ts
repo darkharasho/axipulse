@@ -1,5 +1,8 @@
-// src/shared/combatMetrics.ts
-import type { EiPlayer, EiJson, SkillDamage } from './types';
+// tests/shared/ei/combatMetrics.ts -- EI-shaped oracle accessors, moved out of
+// src/ by Task 11. No production caller; the equality oracles are the only
+// consumers.
+import type { EiPlayer, EiJson } from './types';
+import type { SkillDamage } from '../../../src/shared/types';
 
 type SkillMap = EiJson['skillMap'];
 type BuffMap = EiJson['buffMap'];

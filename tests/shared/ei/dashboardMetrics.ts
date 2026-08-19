@@ -1,4 +1,6 @@
-// src/shared/dashboardMetrics.ts
+// tests/shared/ei/dashboardMetrics.ts -- EI-shaped oracle accessors, moved out of
+// src/ by Task 11. No production caller; the equality oracles are the only
+// consumers.
 import type { EiPlayer } from './types';
 
 export function getDamage(player: EiPlayer): number {

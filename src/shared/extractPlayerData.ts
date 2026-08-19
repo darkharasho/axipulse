@@ -1,80 +1,80 @@
 // src/shared/extractPlayerData.ts
-import type { EiJson, EiPlayer, PlayerFightData, TimelineData, TimelineBucket, SquadContext, MovementData, SquadMemberMovement, BuffStateEntry, FightComposition } from './types';
-import { getDamage, getDps, getBreakbarDamage, getCleanses, getCleanseSelf, getStrips, getDamageTaken, getDeaths, getDowns, getDodges, getDownContribution, getIncomingCC, getIncomingStrips, getBlocked, getEvaded, getMissed, getInvulned, getInterrupted } from './dashboardMetrics';
-import { getHealingOutput, getBarrierOutput, getStabilityGeneration, getTopSkillDamage, getTopHealingSkills, getTopBarrierSkills, getTopDamageTakenSkills, getSquadRank, getDeathTimes, getDownTimes } from './combatMetrics';
-import { classifySquadRoles } from './classifyRole';
-import { extractBoonUptimesEi, extractBoonGenerationEi } from './boonData';
-import { computeBoonPerformanceEi, STABILITY_BUFF_ID, MIGHT_BUFF_ID } from './boonPerformance';
-import { extractDamageTimeline, extractDistanceToTagTimelineEi } from './timelineData';
-import { OFFENSIVE_BOON_IDS, DEFENSIVE_BOON_IDS, HARD_CC_IDS, SOFT_CC_IDS, ALL_TRACKED_BUFF_IDS } from './boonData';
-import { resolveMapFromZone, normalizeMapName, formatDuration } from './mapUtils';
+//
+// The composer. Every number in `PlayerFightData` is produced by one of the
+// `extract/*` units, each of which was migrated and oracled against Elite
+// Insights independently (Tasks 3-10). This file's only jobs are to resolve
+// the local player once, hand each unit the report and that id, and derive
+// the handful of fields that belong to no unit -- the map identity, the
+// fight label, and the distance-to-tag summary.
+import type { Arena } from '@axiapps/axilog/types';
+import type { PlayerFightData, TimelineData, SquadMemberMovement } from './types';
+import type { ReportV1 } from './report';
+import { localPlayerId, requireBlock } from './report';
+import { extractIdentity } from './extract/identity';
+import { extractDamage } from './extract/damage';
+import { extractSupport } from './extract/support';
+import { extractDefense } from './extract/defense';
+import { extractBoons } from './extract/boons';
+import { extractTimeline } from './extract/timeline';
+import { extractComposition, extractSquadContext } from './extract/composition';
+import { extractMovement, arenaPixelSize } from './extract/movement';
+import { memberPosAt } from './movementFrame';
+import { classifyRole } from './classifyRole';
+import { resolveMapFromMapId, normalizeMapName, formatDuration } from './mapUtils';
 import { findNearestLandmark } from './wvwLandmarks';
 
-function findLocalPlayer(json: EiJson): EiPlayer {
-    if (json.recordedAccountBy) {
-        const byAccount = json.players.find(p => p.account === json.recordedAccountBy);
-        if (byAccount) return byAccount;
-    }
-    if (json.recordedBy) {
-        const byName = json.players.find(p => p.name === json.recordedBy);
-        if (byName) return byName;
-    }
-    const candidate = json.players.find(p => !p.isFake && !p.notInSquad);
-    return candidate ?? json.players[0];
-}
-
-function findCommander(players: EiPlayer[]): EiPlayer | null {
-    const commanders = players.filter(p => p.hasCommanderTag);
-    if (commanders.length === 0) return null;
-    commanders.sort((a, b) => (b.activeTimes[0] ?? 0) - (a.activeTimes[0] ?? 0));
-    return commanders[0];
-}
-
-function computeFightPosition(player: EiPlayer): [number, number] | null {
-    const positions = player.combatReplayData?.positions;
-    if (!positions || positions.length === 0) return null;
-    const xs = positions.map(p => p[0]).sort((a, b) => a - b);
-    const ys = positions.map(p => p[1]).sort((a, b) => a - b);
-    const mid = Math.floor(positions.length / 2);
-    return [xs[mid], ys[mid]];
-}
+/**
+ * How far past a death the runback exclusion keeps excluding: until the
+ * distance falls back to `RUNBACK_MULTIPLIER` times the pre-death distance,
+ * or `RUNBACK_FLOOR_INCHES`, whichever is larger. Both carried verbatim from
+ * the EI-path implementation this replaces.
+ */
+const RUNBACK_MULTIPLIER = 1.5;
+const RUNBACK_FLOOR_INCHES = 400;
 
 /**
- * TODO(Task 11): this is the consumer of `TimelineData.distanceToTag`, and
- * the ONLY place the post-death runback exclusion lives -- `extractTimeline`
- * (the native replacement) deliberately keeps downed/dead buckets so this
- * function has something to exclude, and moving the exclusion in there would
- * double-exclude and strip buckets from the rendered lane.
+ * Average and median distance to the commander, excluding deaths and runbacks.
  *
- * When Task 11 recomposes this pipeline onto the native extract units it MUST
- * replace `player.combatReplayData?.dead` below with
- * `blocks.replay.by_entity[id].dead`. `combatReplayData` is EMPTY for every
- * player in the frozen EI fixture, so the exclusion never executes under test
- * today and NO TEST WILL FAIL if this swap is forgotten -- the runback would
- * then silently inflate every player's average distance. (The
- * `refDist = ... ?? 0` fallback below is a pre-existing silent zero that
- * should be revisited at the same time.)
+ * `deadRanges` is `blocks.replay.by_entity[id].dead`, and passing it is the
+ * whole point of this signature. `extract/timeline.ts` deliberately does NOT
+ * apply the exclusion -- that reading was reviewed and upheld in Task 8, on
+ * the grounds that doing it in both places would double-exclude and would
+ * also strip buckets out of the RENDERED lane, which wants a point for every
+ * tick the game sampled. So the `distanceToTag` lane arrives here still
+ * carrying its dead-interval buckets, and this is the only place they are
+ * dropped. Omitting the argument would silently average every corpse-run
+ * into the player's distance to tag.
+ *
+ * That omission was untestable on the EI path: `combatReplayData.dead` is
+ * `[]` for all 46 players in the frozen EI fixture, so the exclusion never
+ * executed and no oracle could see it missing. It is testable now --
+ * `blocks.replay.by_entity` carries three real dead intervals on this
+ * fixture's local player -- and `extractPlayerData.test.ts` pins both the
+ * excluded and the unexcluded average so removing the argument fails.
+ *
+ * No `?? 0` on the pre-death reference distance. A death with no earlier
+ * sampled bucket has no reference, which is a different thing from a
+ * reference of zero (that would read as "was standing on the tag" and set
+ * the return threshold to the bare floor by accident rather than on
+ * purpose); the floor is applied explicitly instead.
  */
-function computeDistanceToTagStats(
+export function computeDistanceToTagStats(
     timeline: TimelineData,
-    player: EiPlayer,
+    deadRanges: [number, number][],
+    isCommander: boolean,
 ): { average: number; median: number } | null {
-    if (player.hasCommanderTag) return null;
+    if (isCommander) return null;
     const buckets = timeline.distanceToTag;
     if (buckets.length === 0) return null;
 
-    // Exclude dead periods and the subsequent runback. After respawn, keep
-    // excluding until the distance-to-tag returns to within 50% of the
-    // pre-death value (floor 400 units), so the runback leg doesn't inflate
-    // the average. dead[] entries are [startMs, endMs] pairs.
-    const deadRanges = player.combatReplayData?.dead ?? [];
     let effective = buckets;
     if (deadRanges.length > 0) {
         const excluded = new Set<number>();
         for (const [s, e] of deadRanges) {
             const preDeathBucket = buckets.filter(b => b.time < s).at(-1);
-            const refDist = preDeathBucket?.value ?? 0;
-            const returnThreshold = Math.max(refDist * 1.5, 400);
+            const returnThreshold = preDeathBucket === undefined
+                ? RUNBACK_FLOOR_INCHES
+                : Math.max(preDeathBucket.value * RUNBACK_MULTIPLIER, RUNBACK_FLOOR_INCHES);
             let inExcluded = false;
             for (let i = 0; i < buckets.length; i++) {
                 const b = buckets[i];
@@ -105,420 +105,180 @@ function computeDistanceToTagStats(
     return { average, median };
 }
 
-function buildSquadContext(squadPlayers: EiPlayer[], player: EiPlayer): SquadContext {
-    return {
-        squadSize: squadPlayers.length,
-        damageRank: getSquadRank(squadPlayers, player, getDamage),
-        downContributionRank: getSquadRank(squadPlayers, player, getDownContribution),
-        stripsRank: getSquadRank(squadPlayers, player, getStrips),
-        cleanseRank: getSquadRank(squadPlayers, player, getCleanses),
-        healingRank: getSquadRank(squadPlayers, player, getHealingOutput),
-        damageTakenRank: getSquadRank(squadPlayers, player, getDamageTaken),
-    };
-}
-
-function buildTimeline(json: EiJson, player: EiPlayer, bucketSizeMs: number): TimelineData {
-    const damage1S = player.damage1S?.[0] ?? [];
-    const damageDealt = extractDamageTimeline(damage1S, bucketSizeMs);
-
-    const damageTaken1S = player.damageTaken1S?.[0] ?? [];
-    const damageTaken = extractDamageTimeline(damageTaken1S, bucketSizeMs);
-
-    const healingReceived1S = player.extHealingStats?.healingReceived1S?.[0] ?? [];
-    const incomingHealing = extractDamageTimeline(healingReceived1S, bucketSizeMs);
-
-    const barrierReceived1S = player.extBarrierStats?.barrierReceived1S?.[0] ?? [];
-    const incomingBarrier = extractDamageTimeline(barrierReceived1S, bucketSizeMs);
-
-    let distanceToTag: TimelineBucket[] = [];
-    const commander = findCommander(json.players);
-    const meta = json.combatReplayMetaData;
-    if (commander && player !== commander && meta?.pollingRate && meta?.inchToPixel) {
-        const playerPos = player.combatReplayData?.positions ?? [];
-        const tagPos = commander.combatReplayData?.positions ?? [];
-        if (playerPos.length > 0 && tagPos.length > 0) {
-            distanceToTag = extractDistanceToTagTimelineEi(
-                playerPos, tagPos, meta.pollingRate, meta.inchToPixel, bucketSizeMs,
-            );
-        }
-    }
-
-    const healthPercent: [number, number][] = player.healthPercents ?? [];
-
-    const offensiveBoons: Record<number, BuffStateEntry> = {};
-    const defensiveBoons: Record<number, BuffStateEntry> = {};
-    const hardCC: Record<number, BuffStateEntry> = {};
-    const softCC: Record<number, BuffStateEntry> = {};
-
-    for (const buff of player.buffUptimes ?? []) {
-        if (!buff.states || !ALL_TRACKED_BUFF_IDS.has(buff.id)) continue;
-        const buffMeta = json.buffMap?.[`b${buff.id}`];
-        const entry: BuffStateEntry = {
-            name: buffMeta?.name ?? `Buff ${buff.id}`,
-            icon: buffMeta?.icon ?? '',
-            states: buff.states,
-        };
-        if (OFFENSIVE_BOON_IDS.has(buff.id)) offensiveBoons[buff.id] = entry;
-        else if (DEFENSIVE_BOON_IDS.has(buff.id)) defensiveBoons[buff.id] = entry;
-        else if (HARD_CC_IDS.has(buff.id)) hardCC[buff.id] = entry;
-        else if (SOFT_CC_IDS.has(buff.id)) softCC[buff.id] = entry;
-    }
-
-    return {
-        bucketSizeMs,
-        damageDealt,
-        damageTaken,
-        distanceToTag,
-        incomingHealing,
-        incomingBarrier,
-        healthPercent,
-        offensiveBoons,
-        defensiveBoons,
-        hardCC,
-        softCC,
-        deathEvents: getDeathTimes(player),
-        downEvents: getDownTimes(player),
-    };
+/**
+ * The median x and the median y of the local player's projected track --
+ * NOT a position they ever occupied, and not meant to be. It is the "where
+ * was this fight" marker, and the median is used rather than the mean
+ * because a single runback across the map would drag a mean off the field.
+ * Carried verbatim from the EI path (which took the same two independent
+ * medians).
+ */
+function computeFightPosition(local: SquadMemberMovement | undefined): [number, number] | null {
+    if (!local || local.positions.length === 0) return null;
+    const xs = local.positions.map(p => p[0]).sort((a, b) => a - b);
+    const ys = local.positions.map(p => p[1]).sort((a, b) => a - b);
+    const mid = Math.floor(local.positions.length / 2);
+    return [xs[mid], ys[mid]];
 }
 
 /**
- * The absolute fight time of `combatReplayData.positions[0]`, for the EI
- * path -- the value `SquadMemberMovement.positionsStartMs` carries.
+ * Where the player was at each of `times`, in the same squeezed
+ * combat-replay pixel space the map view draws in.
  *
- * NOT `start` verbatim. GW2EI's own JSON model documents the index->time
- * mapping for `positions` as
+ * Through `memberPosAt`, i.e. through TIME -- never `positions[floor(t /
+ * pollingRate)]`, which is what the EI path did. Position tracks do not
+ * share a start tick (this fixture: ten distinct start instants across 93
+ * tracks), so an index computed from an absolute time is only correct for a
+ * member whose track happens to begin at 0. This is the fourth appearance of
+ * that bug class in this migration.
  *
- *   `ceil(Start / PollingRate) * PollingRate + i * PollingRate`
- *
- * (`GW2EIJSON/JsonActorUtilities/JsonActorCombatReplayData.cs`), i.e. the
- * first sample is at the first POLL TICK at or after `Start`, not at `Start`
- * itself. Read from EI's source rather than assumed. (`boonPerformance.ts`'
- * `computeDistancesPerBucketEi` uses `floor` for the same quantity, which is
- * off by one poll whenever `Start` is not already on the grid -- a
- * pre-existing EI-path bug, dormant on the frozen fixture, carried to Task
- * 11 rather than fixed here.)
- *
- * No `?? 0`. `Start` is a NON-NULLABLE `long` in EI's model, assigned
- * unconditionally by `JsonActorCombatReplayDataBuilder`, and EI's serializer
- * is configured `DefaultIgnoreCondition = WhenWritingNull` -- so it omits
- * nulls only, never a zero-valued value type. `start` is therefore present
- * on every `combatReplayData` EI emits, and this producer only reaches here
- * for a player it has already established HAS a `combatReplayData` with a
- * non-empty `positions` array. An absent `start` is a broken document, and
- * defaulting it to 0 would silently assert the track began at fight start --
- * the same silent zero this migration has already removed twice.
+ * `null` for a time before the track begins is DROPPED rather than clamped
+ * to the first sample: a death recorded before the player's first position
+ * poll has no known location, and pinning a skull to wherever they later
+ * appeared would be inventing one. The EI path's `positions[idx] ?? null`
+ * filter had the same effect for out-of-range indices.
  */
-function eiPositionsStartMs(
-    replay: { start?: number },
+function positionsAt(
+    local: SquadMemberMovement | undefined,
+    times: number[],
     pollingRate: number,
-    who: string,
-): number {
-    if (replay.start === undefined) {
-        throw new Error(
-            `buildMovementData: ${who} has combatReplayData positions but no \`start\` --`
-            + ' Elite Insights always emits it, so the index-to-time mapping for those'
-            + ' positions is unrecoverable',
-        );
-    }
-    return Math.ceil(replay.start / pollingRate) * pollingRate;
+): [number, number][] {
+    if (!local) return [];
+    return times
+        .map(t => memberPosAt(local, t, pollingRate))
+        .filter((p): p is [number, number] => p !== null);
 }
 
 /**
- * `combatReplayMetaData` is absent exactly when the log carries no combat
- * replay at all -- and then no actor has `combatReplayData` either, so the
- * member loops below emit nothing and this function returns `null` before
- * either scalar is read. When the block IS present, `PollingRate` (`int`)
- * and `InchToPixel` (`float`) are non-nullable value types in EI's model and
- * are always serialized. So an actor with replay positions and no metadata
- * is a broken document; the previous `?? 300` / `?? 1` quietly invented a
- * poll grid and a pixel scale for it.
+ * The map image size the renderer lays its SVG out in.
+ *
+ * From `blocks.replay.tracks.arena`, squeezed through `arenaPixelSize` into
+ * GW2EI's 750px-max combat-replay pixel space -- the space this app's
+ * landmark tables and tile calibration are already expressed in, and the
+ * space `extractMovement` projects positions into. Reading it from the
+ * document rather than from `wvwTiles.ts`' hand-transcribed table means the
+ * markers and the tiles cannot disagree.
+ *
+ * `null` when the log has no arena (a map axilog has no world rect for),
+ * which is the same condition that makes `extractMovement` return `null`.
  */
-function requireEiReplayMeta(json: EiJson, who: string): { pollingRate: number; inchToPixel: number } {
-    const meta = json.combatReplayMetaData;
-    if (meta?.pollingRate === undefined || meta.inchToPixel === undefined) {
-        throw new Error(
-            `buildMovementData: ${who} has combatReplayData but the log has no`
-            + ' combatReplayMetaData.pollingRate/inchToPixel to place or scale it',
-        );
-    }
-    return { pollingRate: meta.pollingRate, inchToPixel: meta.inchToPixel };
+function arenaOf(r: ReportV1): Arena | undefined {
+    return r.blocks.replay?.tracks?.arena;
 }
 
-function buildMovementData(json: EiJson, localPlayer: EiPlayer): MovementData | null {
-    let replayMeta: { pollingRate: number; inchToPixel: number } | null = null;
-
-    // Build skill icon map first so we can filter casts to only renderable, user-pressable skills
-    const skillIcons: Record<number, { name: string; icon: string }> = {};
-    for (const [key, val] of Object.entries(json.skillMap ?? {})) {
-        const id = Number(key.replace('s', ''));
-        if (val.icon && !val.autoAttack) {
-            skillIcons[id] = { name: val.name, icon: val.icon };
-        }
-    }
-
-    const members: SquadMemberMovement[] = [];
-
-    const allyNames = new Set<string>();
-    for (const p of json.players) {
-        if (p.isFake || !p.combatReplayData?.positions?.length) continue;
-        replayMeta ??= requireEiReplayMeta(json, `player ${p.name}`);
-        // Everyone in json.players is an ally (squad or non-squad friendly).
-        // Enemies only come from json.targets with enemyPlayer=true.
-        allyNames.add(p.name);
-        let boonStates: Record<number, [number, number][]> | undefined;
-        if (p.buffUptimes) {
-            boonStates = {};
-            for (const buff of p.buffUptimes) {
-                if (!ALL_TRACKED_BUFF_IDS.has(buff.id) || !buff.states?.length) continue;
-                boonStates[buff.id] = buff.states;
-            }
-        }
-        let skillCasts: { id: number; time: number; duration: number }[] | undefined;
-        if (p.rotation?.length) {
-            skillCasts = [];
-            for (const entry of p.rotation) {
-                if (!skillIcons[entry.id]) continue;
-                for (const cast of entry.skills) {
-                    // Trait procs are instant (duration 0). User-pressed skills, even instant ones,
-                    // register an animation duration. Keep negative IDs (dodge, weapon swap).
-                    if (entry.id > 0 && cast.duration <= 0) continue;
-                    skillCasts.push({ id: entry.id, time: cast.castTime, duration: cast.duration });
-                }
-            }
-            skillCasts.sort((a, b) => a.time - b.time);
-        }
-        members.push({
-            name: p.name,
-            account: p.account,
-            profession: p.profession,
-            eliteSpec: p.elite_spec,
-            group: p.group,
-            isCommander: p.hasCommanderTag,
-            isLocal: p === localPlayer,
-            isEnemy: false,
-            inSquad: !p.notInSquad,
-            positions: p.combatReplayData!.positions!,
-            // GW2EI's own start-of-track instant, which this producer used to
-            // discard -- see `SquadMemberMovement.positionsStartMs`.
-            positionsStartMs: eiPositionsStartMs(
-                p.combatReplayData!, replayMeta.pollingRate, `player ${p.name}`,
-            ),
-            downRanges: p.combatReplayData?.down ?? [],
-            deadRanges: p.combatReplayData?.dead ?? [],
-            boonStates,
-            healthPercents: p.healthPercents,
-            skillCasts,
-        });
-    }
-
-    for (const t of json.targets) {
-        if (!t.enemyPlayer || t.isFake || !t.combatReplayData?.positions?.length) continue;
-        if (allyNames.has(t.name)) continue;
-        replayMeta ??= requireEiReplayMeta(json, `target ${t.name}`);
-        const specMatch = t.name.match(/^(.+?) pl-\d+$/);
-        const specName = specMatch?.[1] ?? '';
-        members.push({
-            name: t.name,
-            account: '',
-            profession: t.profession ?? specName,
-            eliteSpec: specName,
-            group: 0,
-            isCommander: false,
-            isLocal: false,
-            isEnemy: true,
-            inSquad: false,
-            positions: t.combatReplayData.positions,
-            positionsStartMs: eiPositionsStartMs(
-                t.combatReplayData, replayMeta.pollingRate, `target ${t.name}`,
-            ),
-            downRanges: t.combatReplayData.down ?? [],
-            deadRanges: t.combatReplayData.dead ?? [],
-        });
-    }
-
-    if (members.length === 0) return null;
-    // Unreachable: `members` is only appended to after `replayMeta` is set.
-    // Present so the narrowing is the type system's, not a comment's.
-    if (!replayMeta) throw new Error('buildMovementData: members without replay metadata');
-
-    const boonIcons: Record<number, { name: string; icon: string }> = {};
-    for (const [key, val] of Object.entries(json.buffMap ?? {})) {
-        const id = Number(key.replace('b', ''));
-        if (ALL_TRACKED_BUFF_IDS.has(id) && val.icon) {
-            boonIcons[id] = { name: val.name, icon: val.icon };
-        }
-    }
-
-    return {
-        pollingRate: replayMeta.pollingRate,
-        durationMs: json.durationMS,
-        inchToPixel: replayMeta.inchToPixel,
-        members,
-        boonIcons,
-        skillIcons,
-    };
+/**
+ * Wall-clock fight start as an ISO string, or `null`.
+ *
+ * `encounter.started_at_unix` is SECONDS since the epoch and is documented
+ * as "Omitted when the log carries no such event -- absence is deliberately
+ * distinguishable from epoch zero, so do not default it to 0".
+ *
+ * `null`, not a throw, and not `new Date().toISOString()` (which the EI path
+ * used and which silently labelled an old log with the time it was parsed).
+ * A throw would discard an otherwise completely analysable fight over a
+ * field only the history list's clock renders; `null` is the honest value
+ * and `HistoryEntry.tsx` renders it as a dash. `PlayerFightData.timestamp`
+ * and `FightHistoryEntry.timestamp` were widened to `string | null` for
+ * this, so a consumer that forgets the case is a type error rather than a
+ * `new Date(null)` that quietly reads 1970.
+ */
+function isoTimestamp(r: ReportV1): string | null {
+    const secs = r.encounter.started_at_unix;
+    if (secs === undefined) return null;
+    return new Date(secs * 1000).toISOString();
 }
 
-function buildFightComposition(json: EiJson): FightComposition {
-    const squadPlayers = json.players.filter(p => !p.notInSquad && !p.isFake);
-    const allyPlayers  = json.players.filter(p =>  p.notInSquad && !p.isFake);
-    const enemies      = json.targets.filter(t => t.enemyPlayer && !t.isFake);
+export function extractPlayerFightData(
+    r: ReportV1,
+    fightNumber: number,
+    bucketSizeMs: number,
+): PlayerFightData {
+    const id = localPlayerId(r);
+    const identity = extractIdentity(r, id);
 
-    const allyTeamIds = new Set<number>();
-    for (const p of squadPlayers) {
-        const id = p.teamID ?? p.teamId;
-        if (id != null) allyTeamIds.add(id);
-    }
+    // `encounter.map` is the display name and `map_id` is the join key. The
+    // id path (Task 9's `resolveMapFromMapId`) is the only one production
+    // uses now -- it covers all four WvW maps this app holds assets for, and
+    // `mapUtils.test.ts` pins that it agrees with the retired display-name
+    // matcher on every one of them. `map_id` is optional in the format
+    // ("Omitted when the log carries no MAP_ID event"), and absence means
+    // "no map assets", exactly as an unrecognised id does.
+    const mapId = r.encounter.map_id;
+    const map = mapId === undefined ? null : resolveMapFromMapId(mapId);
+    const mapName = normalizeMapName(r.encounter.map);
 
-    const classKey = (spec: string | undefined, prof: string) => spec || prof;
+    const arena = arenaOf(r);
+    const mapSize: [number, number] | null = arena ? arenaPixelSize(arena) : null;
 
-    const squadClassCounts: Record<string, number> = {};
-    for (const p of squadPlayers) {
-        const k = classKey(p.elite_spec, p.profession);
-        squadClassCounts[k] = (squadClassCounts[k] ?? 0) + 1;
-    }
-
-    const allyClassCounts: Record<string, number> = {};
-    for (const p of allyPlayers) {
-        const k = classKey(p.elite_spec, p.profession);
-        allyClassCounts[k] = (allyClassCounts[k] ?? 0) + 1;
-    }
-
-    const teamCountMap = new Map<string, number>();
-    const enemyClassCountsByTeam: Record<string, Record<string, number>> = {};
-    let filteredEnemyCount = 0;
-
-    for (const t of enemies) {
-        const rawId = t.teamID ?? t.teamId;
-        if (rawId != null && allyTeamIds.has(rawId)) continue;
-        filteredEnemyCount++;
-        const teamId = rawId != null ? String(rawId) : 'unknown';
-        teamCountMap.set(teamId, (teamCountMap.get(teamId) ?? 0) + 1);
-        if (!enemyClassCountsByTeam[teamId]) enemyClassCountsByTeam[teamId] = {};
-        const nameMatch = t.name.match(/^(.+?)\s+pl-\d+$/);
-        const k = t.profession || nameMatch?.[1] || 'Unknown';
-        enemyClassCountsByTeam[teamId][k] = (enemyClassCountsByTeam[teamId][k] ?? 0) + 1;
-    }
-
-    const teamBreakdown = Array.from(teamCountMap.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 3)
-        .map(([teamId, count]) => ({ teamId, count }));
-
-    return {
-        squadCount: squadPlayers.length,
-        allyCount: allyPlayers.length,
-        enemyCount: filteredEnemyCount,
-        teamBreakdown,
-        squadClassCounts,
-        allyClassCounts,
-        enemyClassCountsByTeam,
-    };
-}
-
-export function extractPlayerFightData(json: EiJson, fightNumber: number, bucketSizeMs: number): PlayerFightData {
-    const player = findLocalPlayer(json);
-    const zone = json.fightName ?? json.zone ?? json.mapName ?? json.map ?? '';
-    const map = resolveMapFromZone(zone);
-    const mapName = normalizeMapName(zone);
-
-    const meta = json.combatReplayMetaData;
-    const mapImageUrl = meta?.maps?.[0]?.url ?? null;
-    const mapSize = meta?.sizes ?? null;
-    const avgPos = computeFightPosition(player);
+    const movementData = extractMovement(r, id);
+    const localMember = movementData?.members.find(m => m.isLocal);
+    const avgPos = computeFightPosition(localMember);
 
     let nearestLandmark: string | null = null;
     if (map && avgPos) {
-        const landmark = findNearestLandmark(map, avgPos[0], avgPos[1]);
-        nearestLandmark = landmark?.name ?? null;
+        nearestLandmark = findNearestLandmark(map, avgPos[0], avgPos[1])?.name ?? null;
     }
 
-    const pollingRate = meta?.pollingRate ?? 300;
-    const positions = player.combatReplayData?.positions ?? [];
-    const downPositions = (player.combatReplayData?.down ?? []).map(([t]) => {
-        const idx = Math.min(Math.floor(t / pollingRate), positions.length - 1);
-        return positions[idx] ?? null;
-    }).filter((p): p is [number, number] => p !== null);
-    const deathPositions = (player.combatReplayData?.dead ?? []).map(([t]) => {
-        const idx = Math.min(Math.floor(t / pollingRate), positions.length - 1);
-        return positions[idx] ?? null;
-    }).filter((p): p is [number, number] => p !== null);
+    const replay = requireBlock(r, 'replay').by_entity[String(id)];
+    if (!replay) {
+        throw new Error(`extractPlayerFightData: no replay intervals row for local entity ${id}`);
+    }
 
-    const durationFormatted = formatDuration(json.durationMS);
+    // No `?? 300`: the poll grid comes from the document that produced the
+    // positions, and `movementData === null` means there are no positions to
+    // place at all, in which case `positionsAt` returns `[]` without reading it.
+    const pollingRate = movementData?.pollingRate ?? 0;
+    const downPositions = positionsAt(localMember, replay.down.map(([t]) => t), pollingRate);
+    const deathPositions = positionsAt(localMember, replay.dead.map(([t]) => t), pollingRate);
+
+    const duration = r.encounter.duration_ms;
+    const durationFormatted = formatDuration(duration);
     const landmarkPart = nearestLandmark ? ` — ${nearestLandmark}` : '';
     const fightLabel = `F${fightNumber} — ${mapName}${landmarkPart} — ${durationFormatted}`;
 
-    const squadPlayers = json.players.filter(p => !p.notInSquad && !p.isFake);
-    const timeline = buildTimeline(json, player, bucketSizeMs);
-    const roleMap = classifySquadRoles(squadPlayers);
-    const roleClassification = roleMap.get(player.account) ?? { role: 'damage' as const, supportScore: 0, confidenceScore: 0 };
-    const distanceToTagStats = computeDistanceToTagStats(timeline, player);
+    const timeline = extractTimeline(r, id, bucketSizeMs);
 
     return {
         fightLabel,
         fightNumber,
         mapName,
+        mapId: mapId ?? null,
         nearestLandmark,
-        mapImageUrl,
+        // The native format carries no combat-replay map IMAGE. GW2EI
+        // rendered one and served it from its own host
+        // (`combatReplayMetaData.maps[0].url`); axilog emits the world rect
+        // (`arena`) and leaves the imagery to the consumer. Both map views
+        // already fall back to the GW2 tile service via `getMapTiles` when
+        // this is null, which is the better source anyway -- so this is a
+        // permanent, deliberate `null`, not an unwired field.
+        mapImageUrl: null,
         mapSize,
         avgPosition: avgPos,
         downPositions,
         deathPositions,
-        duration: json.durationMS,
+        duration,
         durationFormatted,
-        timestamp: json.timeStartStd ?? json.uploadTime ?? new Date().toISOString(),
-        playerName: player.name,
-        accountName: player.account,
-        profession: player.profession,
-        eliteSpec: player.elite_spec,
-        isCommander: player.hasCommanderTag,
+        timestamp: isoTimestamp(r),
+        playerName: identity.playerName,
+        accountName: identity.accountName,
+        profession: identity.profession,
+        eliteSpec: identity.eliteSpec,
+        isCommander: identity.isCommander,
 
-        damage: {
-            totalDamage: getDamage(player),
-            dps: getDps(player),
-            breakbarDamage: getBreakbarDamage(player),
-            downContribution: getDownContribution(player),
-            topSkills: getTopSkillDamage(player, json.skillMap, json.buffMap),
-        },
-        support: {
-            boonStrips: getStrips(player),
-            cleanses: getCleanses(player),
-            cleanseSelf: getCleanseSelf(player),
-            healingOutput: getHealingOutput(player),
-            barrierOutput: getBarrierOutput(player),
-            stabilityGeneration: getStabilityGeneration(player),
-            topHealingSkills: getTopHealingSkills(player, json.skillMap, json.buffMap),
-            topBarrierSkills: getTopBarrierSkills(player, json.skillMap, json.buffMap),
-        },
-        defense: {
-            damageTaken: getDamageTaken(player),
-            deaths: getDeaths(player),
-            downs: getDowns(player),
-            deathTimes: getDeathTimes(player),
-            downTimes: getDownTimes(player),
-            dodges: getDodges(player),
-            blocked: getBlocked(player),
-            evaded: getEvaded(player),
-            missed: getMissed(player),
-            invulned: getInvulned(player),
-            interrupted: getInterrupted(player),
-            incomingCC: getIncomingCC(player),
-            incomingStrips: getIncomingStrips(player),
-            topDamageTakenSkills: getTopDamageTakenSkills(player, json.skillMap, json.buffMap),
-        },
-        boons: {
-            uptimes: extractBoonUptimesEi(player),
-            generation: extractBoonGenerationEi(player),
-            boonPerformance: {
-                stability: computeBoonPerformanceEi(json, player, bucketSizeMs, STABILITY_BUFF_ID),
-                might: computeBoonPerformanceEi(json, player, bucketSizeMs, MIGHT_BUFF_ID),
-            },
-        },
+        damage: extractDamage(r, id),
+        support: extractSupport(r, id),
+        defense: extractDefense(r, id),
+        // The live bucket size, not a baked-in constant. `SettingsView`
+        // lets the user change it in-session and `useFightListener` passes
+        // the current value in; `extractBoons` used to hardcode 1000, which
+        // would have made that control a silent no-op for the two boon
+        // performance charts.
+        boons: extractBoons(r, id, bucketSizeMs),
         timeline,
-        squadContext: buildSquadContext(squadPlayers, player),
-        movementData: buildMovementData(json, player),
-        roleClassification,
-        distanceToTag: distanceToTagStats,
-        fightComposition: buildFightComposition(json),
+        squadContext: extractSquadContext(r, id),
+        movementData,
+        roleClassification: classifyRole(r, id),
+        distanceToTag: computeDistanceToTagStats(timeline, replay.dead, identity.isCommander),
+        fightComposition: extractComposition(r),
     };
 }

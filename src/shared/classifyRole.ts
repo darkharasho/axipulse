@@ -1,9 +1,6 @@
-import type { EiPlayer } from './types';
 import type { EntityOut, ReportV1 } from './report';
 import { requireBlock, squadMembers } from './report';
 import { WVW_BOON_IDS } from './boonData';
-import { getHealingOutput } from './combatMetrics';
-import { getDps, getDamage, getCleanses, getDownContribution } from './dashboardMetrics';
 
 export interface RoleClassification {
     role: 'support' | 'damage';
@@ -11,6 +8,37 @@ export interface RoleClassification {
     confidenceScore: number;
 }
 
+/**
+ * FROZEN. Three elements of this scoring are inert after the native
+ * cutover; Task 11 measured all three and deliberately changed NONE of
+ * them, because re-tuning weights to compensate for a lost signal is a
+ * product decision, not a migration.
+ *
+ *  1. `dps` carries no independent information any more. axilog's
+ *     `damage.dps` is `total / (encounter.duration_ms / 1000)` for EVERY
+ *     entity -- one divisor for all 46 -- so the DPS ratio and the damage
+ *     ratio are equal to float epsilon and the -0.8 weight is simply added
+ *     to the -1.5 one. PROVED by mutation rather than asserted: setting
+ *     `dps: 0, damage: -2.3` leaves all 295 tests, including the pinned
+ *     `supportScore` values, unchanged. EI divided by each player's ACTIVE
+ *     time (7 distinct values on this log), so there it was a genuine
+ *     second signal.
+ *  2. `Math.min(..., 1)` in `confidenceScore` below cannot bind, since
+ *     `supportSpan = |maxScore - threshold|` bounds the numerator.
+ *  3. `OUTLIER_RATIO`'s branch in `computeRatio` is unreachable, because
+ *     the medians are taken over positive values only.
+ *
+ * (2) and (3) are kept rather than deleted, and this is a choice with a
+ * reason: both are the DEFINED behaviour for a case that is unreachable
+ * only because of a filter elsewhere in this file (`.filter(v => v > 0)`)
+ * and an algebraic identity two functions apart. Deleting them would make
+ * `confidenceScore`'s documented [0, 1] range and `computeRatio`'s
+ * zero-median contract depend on those distant facts staying true, with
+ * nothing local saying so. Confirmed still-equivalent by mutation in Task
+ * 11 (both survive with the suite green), while the controls -- the
+ * `supportSpan` denominator and the DPS weight in isolation -- are both
+ * killed, so this is an equivalent-mutant finding and not a coverage hole.
+ */
 const WEIGHTS = {
     healing: 1.8,
     cleanses: 1.6,
@@ -36,32 +64,13 @@ function computeRatio(value: number, median: number): number {
     return 0;
 }
 
-function getOutgoingHealing(player: EiPlayer): number {
-    const total = getHealingOutput(player);
-    if (!player.extHealingStats?.outgoingHealingAllies) return 0;
-    let selfHealing = 0;
-    const selfPhase = player.extHealingStats.outgoingHealingAllies[0];
-    if (selfPhase) {
-        for (const phase of selfPhase) {
-            selfHealing += phase.healing;
-        }
-    }
-    return Math.max(total - selfHealing, 0);
-}
-
-function getTotalBoonOutput(player: EiPlayer): number {
-    let total = 0;
-    for (const buff of player.squadBuffs ?? []) {
-        total += buff.buffData[0]?.generation ?? 0;
-    }
-    return total;
-}
-
 /**
- * The order the six weights are applied in. Both the EI-shaped and the
- * native entry point below build their metric rows in THIS order and hand
- * them to the one scoring implementation, so the two paths cannot drift
- * apart in the arithmetic -- only in where the numbers came from.
+ * The order the six weights are applied in. The native entry point below
+ * and the EI-shaped ORACLE (`tests/shared/ei/classifyRoles.ts`, which
+ * imports `classifyFromMetrics` rather than restating it) both build their
+ * metric rows in THIS order, so the two cannot drift apart in the
+ * arithmetic -- only in where the numbers came from, which is exactly what
+ * `classifyRole.test.ts` is measuring.
  */
 const METRIC_WEIGHTS = [
     WEIGHTS.healing,
@@ -75,8 +84,11 @@ const METRIC_WEIGHTS = [
 /**
  * `rows[i]` is one squad member's six metric values, in `METRIC_WEIGHTS`
  * order. Returns one classification per row, positionally.
+ *
+ * Exported for the EI oracle only -- production's single entry point is
+ * `classifySquadRoleMap` below.
  */
-function classifyFromMetrics(rows: number[][]): RoleClassification[] {
+export function classifyFromMetrics(rows: number[][]): RoleClassification[] {
     if (rows.length === 0) return [];
 
     const medians = METRIC_WEIGHTS.map((_, i) =>
@@ -108,23 +120,6 @@ function classifyFromMetrics(rows: number[][]): RoleClassification[] {
             confidenceScore: Math.min(Math.abs(supportScore - threshold) / span, 1),
         };
     });
-}
-
-/**
- * LEGACY, Elite-Insights-shaped. Still the path `extractPlayerData.ts` uses
- * until Task 11 recomposes that file onto the native extract units; deleted
- * with the rest of the EI surface then. New code calls `classifyRole`.
- */
-export function classifySquadRoles(players: EiPlayer[]): Map<string, RoleClassification> {
-    const classifications = classifyFromMetrics(players.map(p => [
-        getOutgoingHealing(p),
-        getCleanses(p),
-        getTotalBoonOutput(p),
-        getDps(p),
-        getDamage(p),
-        getDownContribution(p),
-    ]));
-    return new Map(players.map((p, i) => [p.account, classifications[i]]));
 }
 
 function requireRow<T>(by: Record<string, T>, block: string, id: number): T {
