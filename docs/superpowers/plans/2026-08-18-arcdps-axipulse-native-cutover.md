@@ -6,11 +6,11 @@
 
 **Architecture:** `ei_model.rs`'s EI deserialization structs are replaced by `fight_data.rs` — a purpose-built struct holding exactly what the UI reads, built once by `FightData::from_report(&ReportV1)` on the parser worker thread. The `ReportV1` is dropped immediately after, so the large allocation is never retained. That achieves `slim.rs`'s goal by construction, so `slim.rs` is deleted rather than ported.
 
-**Tech Stack:** Rust 2021, `cdylib` for arcdps, imgui, `cargo-xwin` cross-compiling to `x86_64-pc-windows-msvc`, `axilog-api` 1.1.0.
+**Tech Stack:** Rust 2021, `cdylib` for arcdps, imgui, `cargo-xwin` cross-compiling to `x86_64-pc-windows-msvc`, `axilog-api` 1.2.0.
 
 **Spec:** `docs/superpowers/specs/2026-08-18-axilog-migration-design.md` (Parts 1, 3, 4) — in the `axipulse` repo.
 
-**Depends on:** `docs/superpowers/plans/2026-08-18-axilog-v1.1.0-parse-facade.md` — axilog's `v1.1.0` tag must be pushed before Task 1.
+**Depends on:** `docs/superpowers/plans/2026-08-18-axilog-v1.1.0-parse-facade.md` — **satisfied.** The facade shipped in axilog 1.2.0 and the `v1.2.0` tag is pushed.
 
 **Repo:** `arcdps-axipulse` (`../arcdps-axipulse` relative to axipulse) — **all work in this plan happens there.**
 
@@ -46,7 +46,7 @@
 In `Cargo.toml`, under `[dependencies]`:
 
 ```toml
-axilog-api = { git = "https://github.com/darkharasho/axilog.git", tag = "v1.1.0" }
+axilog-api = { git = "https://github.com/darkharasho/axilog.git", tag = "v1.2.0" }
 ```
 
 Then:
@@ -188,7 +188,7 @@ Expected: 4 passing. The coverage test is the drift guard — it fails loudly if
 ```bash
 cd ../arcdps-axipulse
 git add Cargo.toml Cargo.lock tests/fixtures tests/common tests/oracle_test.rs src/lib.rs
-git commit -m "test: pin axilog-api v1.1.0 and add the equality-oracle fixture"
+git commit -m "test: pin axilog-api v1.2.0 and add the equality-oracle fixture"
 ```
 
 ---
