@@ -29,7 +29,9 @@ const eiEnemies = (ei: EiJson) => ei.targets.filter(t => t.enemyPlayer && !t.isF
  *  out. Reproduced here so the class-count divergence is measured against
  *  what the app actually used to show, not against a different quantity. */
 function eiEnemyClassKey(t: { name: string; profession?: string }): string {
-    return t.profession || t.name.match(/^(.+?)\s+pl-\d+$/)?.[1] || 'Unknown';
+    const key = t.profession || t.name.match(/^(.+?)\s+pl-\d+$/)?.[1];
+    if (!key) throw new Error(`eiEnemyClassKey: cannot read a class from EI target "${t.name}"`);
+    return key;
 }
 
 const eiDamage = (p: EiPlayer) => p.dpsAll[0]!.damage;
@@ -314,14 +316,10 @@ describe('extractSquadContext', () => {
      *
      * `damageTakenRank` is in that set even though the underlying VALUES
      * disagree: native's `damage.taken` exceeds EI's `defenses[0].damageTaken`
-     * by 1-4 raw damage on 18 of 46 members (worst case 0.07% relative).
-     * Measured, not assumed: EI's `damageTaken` equals its own
-     * `powerDamageTaken + conditionDamageTaken` exactly, while native's
-     * `taken` equals its own `by_skill_taken` sum exactly and sits a few
-     * points above its own `power_damage + condition_damage`. WHY the two
-     * engines' totals differ by those few points is UNKNOWN to me; what is
-     * established is that the gap is far too small to move any rank, which
-     * this assertion is what proves.
+     * by 1-4 raw damage on 18 of 46 members (worst case 0.069% relative).
+     * The cause is ONE skill -- see the dedicated test below, which
+     * reconciles the two engines exactly. The gap is far too small to move
+     * a rank, and this assertion is what proves that rather than argues it.
      */
     it('reproduces EI\'s ranks exactly on damage, damage taken, strips, cleanses and healing', () => {
         const native = loadNativeFixture();
@@ -348,6 +346,75 @@ describe('extractSquadContext', () => {
             }
             expect(mismatches, field).toEqual([]);
         }
+    });
+
+    /**
+     * WHY native's `damage.taken` runs 1-4 above EI's on 18 of 46 members,
+     * derived by joining native `by_skill_taken` against EI's
+     * `totalDamageTaken` skill id by skill id.
+     *
+     * It is ONE skill: id 23279, which axilog's own catalog names
+     * "Self Cast OnActivate". axilog counts it as damage taken; EI does not
+     * carry it at all -- the id appears in ZERO of EI's incoming rows, ZERO
+     * of its outgoing rows, and has no `skillMap` entry. Native has no
+     * entity DEALING it either (it is absent from every `by_skill`), which
+     * is what a self-inflicted hit looks like in this format: incoming
+     * only, no attacker.
+     *
+     * 33 raw damage squad-wide, and it accounts for the gap in FULL -- not
+     * approximately: subtract this one skill from the native side and the
+     * two engines agree to the unit on all 46 members, with no other skill
+     * id differing anywhere in the roster.
+     */
+    it('reconciles damage taken with EI exactly once the self-cast skill is removed', () => {
+        const native = loadNativeFixture();
+        const ei = loadEiFixture();
+        const SELF_CAST_ON_ACTIVATE = 23279;
+
+        expect(native.catalogs.skills[String(SELF_CAST_ON_ACTIVATE)]?.name)
+            .toBe('Self Cast OnActivate');
+
+        // EI does not know this id at all, in either direction.
+        for (const p of ei.players) {
+            expect((p.totalDamageTaken?.[0] ?? []).filter(e => e.id === SELF_CAST_ON_ACTIVATE)).toEqual([]);
+            expect((p.totalDamageDist?.[0] ?? []).filter(e => e.id === SELF_CAST_ON_ACTIVATE)).toEqual([]);
+        }
+
+        const damage = native.blocks.damage!.by_entity;
+        // ... and nobody in the log deals it: incoming only, no attacker.
+        for (const e of native.entities) {
+            expect(damage[String(e.id)]?.by_skill?.[String(SELF_CAST_ON_ACTIVATE)], `dealer ${e.id}`)
+                .toBeUndefined();
+        }
+
+        const carriers: string[] = [];
+        const residues: unknown[] = [];
+        let selfCastTotal = 0;
+        for (const e of native.entities.filter(x => x.role === 'squad')) {
+            const row = damage[String(e.id)]!;
+            const p = ei.players.find(x => x.account === e.account)!;
+            const selfCast = row.by_skill_taken![String(SELF_CAST_ON_ACTIVATE)];
+            if (selfCast) {
+                carriers.push(e.account!);
+                selfCastTotal += selfCast.total;
+            }
+            const adjusted = row.taken - (selfCast ? selfCast.total : 0);
+            if (adjusted !== p.defenses[0]!.damageTaken) {
+                residues.push([e.account, p.defenses[0]!.damageTaken, row.taken, adjusted]);
+            }
+        }
+        expect(residues, 'members still disagreeing after removing skill 23279').toEqual([]);
+        expect(selfCastTotal).toBe(33);
+
+        // The carriers are EXACTLY the members whose raw totals disagree --
+        // so this is the whole explanation, not one contributor among several.
+        const disagreeing = native.entities
+            .filter(x => x.role === 'squad')
+            .filter(e => damage[String(e.id)]!.taken
+                !== ei.players.find(x => x.account === e.account)!.defenses[0]!.damageTaken)
+            .map(e => e.account!);
+        expect(carriers.length).toBe(18);
+        expect(carriers).toEqual(disagreeing);
     });
 
     /**

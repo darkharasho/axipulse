@@ -1,6 +1,6 @@
 // src/shared/extract/composition.ts
 import type { EntityOut, ReportV1 } from '../report';
-import { requireBlock, squadMembers } from '../report';
+import { enemyPlayers, requireBlock, squadMembers } from '../report';
 import type { FightComposition, SquadContext } from '../types';
 
 /** EI's own cap, kept because `FightCompositionCard` only has three enemy
@@ -67,7 +67,7 @@ function countByClass(entities: EntityOut[]): Record<string, number> {
 export function extractComposition(r: ReportV1): FightComposition {
     const squad = squadMembers(r);
     const allies = r.entities.filter(e => e.role === 'friendly_player');
-    const enemies = r.entities.filter(e => e.role === 'enemy_player');
+    const enemies = enemyPlayers(r);
 
     const teamCounts = new Map<string, number>();
     const enemyClassCountsByTeam: Record<string, Record<string, number>> = {};
