@@ -119,9 +119,30 @@ function distanceToTagBuckets(
     const cmdId = commanderId(r);
     if (cmdId === null || cmdId === id) return [];
 
+    // `tracks` is the separately gated half of `blocks.replay`: coverage
+    // `present` does NOT imply positions. This app's fixed `PARSE_OPTS`
+    // always passes `replay: true`, so absence means the parse options
+    // drifted -- `computeBoonPerformance` already throws for exactly this,
+    // and the `?? []` here silently drew an empty distance-to-tag lane
+    // instead. Same absence, same answer.
     const tracks = requireBlock(r, 'replay').tracks;
-    const selfSamples = tracks?.by_entity[String(id)]?.samples ?? [];
-    const cmdSamples = tracks?.by_entity[String(cmdId)]?.samples ?? [];
+    if (!tracks) {
+        throw new Error(
+            'extractTimeline: blocks.replay has no `tracks` -- positions were not computed',
+        );
+    }
+    // Per-entity tracks, on the other hand: measured on the fixture, every
+    // one of the 93 player entities (squad, friendly and enemy) has one and
+    // only the 36 NPCs do not, and neither the local player nor the
+    // commander is ever an NPC.
+    const selfTrack = tracks.by_entity[String(id)];
+    if (!selfTrack) throw new Error(`extractTimeline: no replay track for local entity ${id}`);
+    const cmdTrack = tracks.by_entity[String(cmdId)];
+    if (!cmdTrack) throw new Error(`extractTimeline: no replay track for commander entity ${cmdId}`);
+    const selfSamples = selfTrack.samples;
+    const cmdSamples = cmdTrack.samples;
+    // An entity that emitted no position updates is a real, empty lane --
+    // not a gap. Kept.
     if (selfSamples.length === 0 || cmdSamples.length === 0) return [];
 
     const cmdByTime = new Map<number, [number, number, number]>();

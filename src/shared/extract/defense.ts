@@ -2,8 +2,7 @@
 import type { ReportV1 } from '../report';
 import { requireBlock } from '../report';
 import type { DefenseStats, SkillDamage } from '../types';
-
-const TOP_SKILL_COUNT = 8;
+import { TOP_SKILL_COUNT, requireHits, requireSkill } from './skills';
 
 /**
  * Defense stats for one entity.
@@ -20,21 +19,31 @@ export function extractDefense(r: ReportV1, id: number): DefenseStats {
     const replay = requireBlock(r, 'replay').by_entity[String(id)];
     if (!replay) throw new Error(`extractDefense: no replay row for entity ${id}`);
 
-    const bySkillTaken = damage.by_skill_taken ?? {};
+    // Same gate as `by_skill` in damage.ts: opt-in in the format, always
+    // requested by this app, present for all 46 squad members on the fixture.
+    if (!damage.by_skill_taken) {
+        throw new Error(
+            `extractDefense: blocks.damage.by_entity[${id}] has no \`by_skill_taken\``
+            + ' -- the skill-damage pass did not run',
+        );
+    }
+    const bySkillTaken = damage.by_skill_taken;
 
     const topDamageTakenSkills: SkillDamage[] = Object.entries(bySkillTaken)
         .map(([skillId, row]): SkillDamage => {
-            const def = r.catalogs.skills[skillId];
+            const def = requireSkill(r, skillId, id);
             return {
                 id: Number(skillId),
-                name: def?.name ?? `Skill ${skillId}`,
-                icon: def?.icon,
+                name: def.name,
+                icon: def.icon,
                 damage: row.total,
                 // `SkillRow.hits` is optional (`.d.ts`: "CONTRIBUTING row
                 // count ... ABSENT on enemy rows"), unlike `HealSkillRow.hits`
                 // (support.ts), which is required -- the two row types have
                 // genuinely different optionality, this isn't a copy/paste slip.
-                hits: row.hits ?? 0,
+                // The rows here are the LOCAL player's incoming rows, never an
+                // enemy's; measured present on all 46 squad members.
+                hits: requireHits(row.hits, skillId, id),
                 downContribution: 0,
                 downedHealing: 0,
             };

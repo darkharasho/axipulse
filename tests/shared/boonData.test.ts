@@ -183,7 +183,38 @@ describe('extractBoonUptimes / extractBoonGeneration (native)', () => {
 
     it('throws on an unknown entity id rather than returning blanks', () => {
         const native = loadNativeFixture();
-        expect(() => extractBoonUptimes(native, 999_999)).toThrow();
-        expect(() => extractBoonGeneration(native, 999_999)).toThrow();
+        // Anchored to each function's own first guard: both used to be bare
+        // `toThrow()`s, which would have passed if either function threw for
+        // some entirely unrelated reason.
+        expect(() => extractBoonUptimes(native, 999_999))
+            .toThrow('extractBoonUptimes: no boons row for entity 999999');
+        expect(() => extractBoonGeneration(native, 999_999))
+            .toThrow('extractBoonGeneration: no boons row for entity 999999');
+    });
+
+    describe('the catalog is the only source of truth', () => {
+        function withoutBuff(buffId: number) {
+            const r = loadNativeFixture();
+            const buffs = { ...r.catalogs.buffs };
+            delete buffs[String(buffId)];
+            return { ...r, catalogs: { ...r.catalogs, buffs } };
+        }
+
+        it('makes extractBoonGeneration throw for a buff the catalog does not carry', () => {
+            // Previously `def?.name ?? BOON_NAMES[buffId] ?? \`Boon ${id}\``:
+            // the hardcoded table silently won, so the two halves of the same
+            // block disagreed about whether this absence was an error.
+            const native = loadNativeFixture();
+            const id = squadMembers(native)[0].id;
+            expect(() => extractBoonGeneration(withoutBuff(740), id))
+                .toThrow(`extractBoonGeneration: catalogs.buffs[740] is missing for entity ${id}`);
+        });
+
+        it('makes extractBoonUptimes throw for the same absence', () => {
+            const native = loadNativeFixture();
+            const id = squadMembers(native)[0].id;
+            expect(() => extractBoonUptimes(withoutBuff(740), id))
+                .toThrow(/catalogs\.buffs\[740\] has no `stacking`/);
+        });
     });
 });

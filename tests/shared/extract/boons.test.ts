@@ -353,6 +353,10 @@ describe('extractBoons', () => {
     });
 
     it('throws on an unknown entity id rather than returning blanks', () => {
-        expect(() => extractBoons(loadNativeFixture(), 999_999, BUCKET_MS)).toThrow();
+        // Anchored to the guard that actually fires: `extractBoons` calls
+        // `requireBlock` first (which would say "missing the boons block"),
+        // then delegates, so this message proves the delegation happened.
+        expect(() => extractBoons(loadNativeFixture(), 999_999, BUCKET_MS))
+            .toThrow('extractBoonUptimes: no boons row for entity 999999');
     });
 });

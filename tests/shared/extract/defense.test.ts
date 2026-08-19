@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { extractDefense } from '../../../src/shared/extract/defense';
 import { localPlayerId, requireBlock } from '../../../src/shared/report';
+import type { ReportV1 } from '../../../src/shared/report';
 import { loadEiFixture, loadNativeFixture, accountOf } from '../oracle';
 
 function eiLocal(ei: ReturnType<typeof loadEiFixture>) {
@@ -235,6 +236,80 @@ describe('extractDefense', () => {
     });
 
     it('throws on an unknown entity id rather than returning blanks', () => {
-        expect(() => extractDefense(loadNativeFixture(), 999_999)).toThrow();
+        // Anchored: `extractDefense` has three separate row guards and a
+        // bare `toThrow()` cannot tell which one fired.
+        expect(() => extractDefense(loadNativeFixture(), 999_999))
+            .toThrow('extractDefense: no damage row for entity 999999');
+    });
+
+    describe('absences that are errors, not zeros', () => {
+        const id = () => localPlayerId(loadNativeFixture());
+
+        function withDamageRow(row: Record<string, unknown>): ReportV1 {
+            const r = loadNativeFixture();
+            const key = String(id());
+            return {
+                ...r,
+                blocks: {
+                    ...r.blocks,
+                    damage: {
+                        ...r.blocks.damage!,
+                        by_entity: { ...r.blocks.damage!.by_entity, [key]: row },
+                    },
+                },
+            } as unknown as ReportV1;
+        }
+
+        it('throws when the skill-damage pass left no by_skill_taken map', () => {
+            const r = loadNativeFixture();
+            const row: Record<string, unknown> = { ...r.blocks.damage!.by_entity[String(id())] };
+            delete row.by_skill_taken;
+            expect(() => extractDefense(withDamageRow(row), id()))
+                .toThrow(/by_skill_taken.*skill-damage pass did not run/s);
+        });
+
+        it('throws when an incoming skill row has no hits count', () => {
+            const r = loadNativeFixture();
+            const taken = { ...r.blocks.damage!.by_entity[String(id())].by_skill_taken! };
+            const first = Object.keys(taken)[0];
+            const skillRow: Record<string, unknown> = { ...taken[first] };
+            delete skillRow.hits;
+            taken[first] = skillRow as never;
+            const row = { ...r.blocks.damage!.by_entity[String(id())], by_skill_taken: taken };
+            expect(() => extractDefense(withDamageRow(row), id()))
+                .toThrow(new RegExp(`skill ${first} on entity ${id()} has no .hits. count`));
+        });
+
+        it('throws when an incoming skill id is missing from catalogs.skills', () => {
+            const r = loadNativeFixture();
+            const used = Object.keys(r.blocks.damage!.by_entity[String(id())].by_skill_taken!)[0];
+            const skills = { ...r.catalogs.skills };
+            delete skills[used];
+            const mutated = { ...r, catalogs: { ...r.catalogs, skills } } as ReportV1;
+            expect(() => extractDefense(mutated, id()))
+                .toThrow(`catalogs.skills has no entry for skill ${used} (entity ${id()})`);
+        });
+
+        it('throws, naming defenses, when only the defenses row is gone', () => {
+            const r = loadNativeFixture();
+            const by = { ...r.blocks.defenses!.by_entity };
+            delete by[String(id())];
+            const mutated = {
+                ...r, blocks: { ...r.blocks, defenses: { ...r.blocks.defenses!, by_entity: by } },
+            } as ReportV1;
+            expect(() => extractDefense(mutated, id()))
+                .toThrow(`extractDefense: no defenses row for entity ${id()}`);
+        });
+
+        it('throws, naming replay, when only the replay row is gone', () => {
+            const r = loadNativeFixture();
+            const by = { ...r.blocks.replay!.by_entity };
+            delete by[String(id())];
+            const mutated = {
+                ...r, blocks: { ...r.blocks, replay: { ...r.blocks.replay!, by_entity: by } },
+            } as ReportV1;
+            expect(() => extractDefense(mutated, id()))
+                .toThrow(`extractDefense: no replay row for entity ${id()}`);
+        });
     });
 });

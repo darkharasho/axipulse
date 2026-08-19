@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { extractSupport } from '../../../src/shared/extract/support';
 import { localPlayerId, requireBlock } from '../../../src/shared/report';
 import { STABILITY_BUFF_ID } from '../../../src/shared/boonPerformance';
+import type { ReportV1 } from '../../../src/shared/report';
 import { loadEiFixture, loadNativeFixture, accountOf } from '../oracle';
 
 function eiLocal(ei: ReturnType<typeof loadEiFixture>) {
@@ -322,6 +323,101 @@ describe('extractSupport', () => {
     });
 
     it('throws on an unknown entity id rather than returning blanks', () => {
-        expect(() => extractSupport(loadNativeFixture(), 999_999)).toThrow();
+        // Anchored: this function has four separate guards and a bare
+        // `toThrow()` cannot tell which one fired.
+        expect(() => extractSupport(loadNativeFixture(), 999_999))
+            .toThrow('extractSupport: no support row for entity 999999');
+    });
+
+    describe('absences that are errors, not zeros', () => {
+        const id = () => localPlayerId(loadNativeFixture());
+
+        function withoutRow(block: 'healing' | 'boons'): ReportV1 {
+            const r = loadNativeFixture();
+            const by = { ...r.blocks[block]!.by_entity };
+            delete by[String(id())];
+            return {
+                ...r, blocks: { ...r.blocks, [block]: { ...r.blocks[block]!, by_entity: by } },
+            } as ReportV1;
+        }
+
+        it('throws, naming healing, when only the healing row is gone', () => {
+            expect(() => extractSupport(withoutRow('healing'), id()))
+                .toThrow(`extractSupport: no healing row for entity ${id()}`);
+        });
+
+        it('throws, naming boons, when only the boons row is gone', () => {
+            expect(() => extractSupport(withoutRow('boons'), id()))
+                .toThrow(`extractSupport: no boons row for entity ${id()}`);
+        });
+
+        it('throws when the healing row carries no per-skill detail', () => {
+            const r = loadNativeFixture();
+            const key = String(id());
+            const row: Record<string, unknown> = { ...r.blocks.healing!.by_entity[key] };
+            delete row.detail;
+            const mutated = {
+                ...r,
+                blocks: {
+                    ...r.blocks,
+                    healing: {
+                        ...r.blocks.healing!,
+                        by_entity: { ...r.blocks.healing!.by_entity, [key]: row },
+                    },
+                },
+            } as unknown as ReportV1;
+            expect(() => extractSupport(mutated, id()))
+                .toThrow(/healing row has no per-skill detail/);
+        });
+
+        it('throws when the entity has no Stability row, rather than reporting 0% generation', () => {
+            const r = loadNativeFixture();
+            const key = String(id());
+            const boons: Record<string, unknown> = { ...r.blocks.boons!.by_entity[key] };
+            delete boons[String(STABILITY_BUFF_ID)];
+            const mutated = {
+                ...r,
+                blocks: {
+                    ...r.blocks,
+                    boons: { ...r.blocks.boons!, by_entity: { ...r.blocks.boons!.by_entity, [key]: boons } },
+                },
+            } as unknown as ReportV1;
+            expect(() => extractSupport(mutated, id()))
+                .toThrow(`extractSupport: entity ${id()} has no Stability (${STABILITY_BUFF_ID}) row in blocks.boons`);
+        });
+
+        it('throws when a healing skill id is missing from catalogs.skills', () => {
+            const r = loadNativeFixture();
+            const used = Object.keys(r.blocks.healing!.by_entity[String(id())].detail!.by_skill)[0];
+            const skills = { ...r.catalogs.skills };
+            delete skills[used];
+            const mutated = { ...r, catalogs: { ...r.catalogs, skills } } as ReportV1;
+            expect(() => extractSupport(mutated, id()))
+                .toThrow(`catalogs.skills has no entry for skill ${used} (entity ${id()})`);
+        });
+
+        /**
+         * The one KEPT fallback here. Measured across the 46 squad members:
+         * `total_downed` is absent on 175 of 182 healing rows and on all 38
+         * barrier rows. It means "none of this skill's output landed on a
+         * DOWNED ally" -- the common case, not a gap.
+         */
+        it('reads an absent total_downed as a real zero, which is 175 of 182 healing rows', () => {
+            const r = loadNativeFixture();
+            let rows = 0, absent = 0, barrierRows = 0, barrierAbsent = 0;
+            for (const e of r.entities.filter(x => x.role === 'squad')) {
+                const detail = r.blocks.healing!.by_entity[String(e.id)].detail!;
+                for (const row of Object.values(detail.by_skill)) {
+                    rows++; if (row.total_downed === undefined) absent++;
+                }
+                for (const row of Object.values(detail.barrier_by_skill)) {
+                    barrierRows++; if (row.total_downed === undefined) barrierAbsent++;
+                }
+            }
+            expect([rows, absent]).toEqual([182, 175]);
+            expect([barrierRows, barrierAbsent]).toEqual([38, 38]);
+            // And the extract turns that absence into 0 rather than throwing.
+            expect(extractSupport(r, id()).topBarrierSkills.every(s => s.downedHealing === 0)).toBe(true);
+        });
     });
 });

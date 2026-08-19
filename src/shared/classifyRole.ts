@@ -108,6 +108,15 @@ export function classifyFromMetrics(rows: number[][]): RoleClassification[] {
 
     const maxScore = Math.max(...scores);
     const minScore = Math.min(...scores);
+    // KEPT, and not an absence: these are divide-by-zero guards on COMPUTED
+    // values, so there is no field to name and nothing to report as missing.
+    // The span collapses to 0 only when every row scores identically on the
+    // relevant side of the threshold -- a one-member squad, or a squad where
+    // nobody registered on any of the six metrics. Both are legitimate logs,
+    // and both then give every member `confidenceScore` 0, which is the
+    // honest answer. Measured: unreachable on the fixture, whose 46 members
+    // score from -106.40 to 28.87, so neither span is anywhere near 0.
+    // Throwing here would reject a solo log.
     const supportSpan = Math.abs(maxScore - threshold) || 1;
     const damageSpan = Math.abs(threshold - minScore) || 1;
 

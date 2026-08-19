@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { extractIdentity } from '../../../src/shared/extract/identity';
 import { localPlayerId } from '../../../src/shared/report';
+import type { ReportV1 } from '../../../src/shared/report';
 import { loadEiFixture, loadNativeFixture } from '../oracle';
 
 describe('extractIdentity', () => {
@@ -70,6 +71,57 @@ describe('extractIdentity', () => {
     });
 
     it('throws on an unknown entity id rather than returning blanks', () => {
-        expect(() => extractIdentity(loadNativeFixture(), 999_999)).toThrow(/999999/);
+        expect(() => extractIdentity(loadNativeFixture(), 999_999))
+            .toThrow('extractIdentity: no entity with id 999999');
+    });
+
+    describe('a missing identity field is an error, not a blank', () => {
+        /** Drops one field from the local player's entity row on a shallow
+         *  copy. The fixture itself is module-cached and shared. */
+        function without(field: string): ReportV1 {
+            const r = loadNativeFixture();
+            const id = localPlayerId(r);
+            return {
+                ...r,
+                entities: r.entities.map(e => {
+                    if (e.id !== id) return e;
+                    const copy: Record<string, unknown> = { ...e };
+                    delete copy[field];
+                    return copy;
+                }),
+            } as unknown as ReportV1;
+        }
+
+        // Measured on the fixture: all 46 squad members carry every one of
+        // these, and `extractIdentity`'s only production caller passes
+        // `localPlayerId(r)`, always a squad player. The `''`/`0` these
+        // replace rendered a blank name or subgroup 0 as if measured.
+        it.each(['account', 'profession', 'elite_spec', 'subgroup'])(
+            'throws when the entity has no %s',
+            (field) => {
+                const r = loadNativeFixture();
+                const id = localPlayerId(r);
+                expect(() => extractIdentity(without(field), id))
+                    .toThrow(`extractIdentity: entity ${id} has no \`${field}\``);
+            },
+        );
+
+        it('throws when the entity has neither character nor name', () => {
+            const r = loadNativeFixture();
+            const id = localPlayerId(r);
+            const noCharacter = without('character');
+            // `name` is already absent for every squad member -- measured --
+            // so dropping `character` leaves the entity nameless.
+            expect(r.entities.find(e => e.id === id)!.name).toBeUndefined();
+            expect(() => extractIdentity(noCharacter, id))
+                .toThrow(`extractIdentity: entity ${id} has neither \`character\` nor \`name\``);
+        });
+
+        it('accepts an empty elite_spec, which means "no elite spec", not "absent"', () => {
+            const r = loadNativeFixture();
+            const coreSpec = r.entities.filter(e => e.role === 'squad' && e.elite_spec === '');
+            expect(coreSpec.length).toBe(2);
+            for (const e of coreSpec) expect(extractIdentity(r, e.id).eliteSpec).toBe('');
+        });
     });
 });

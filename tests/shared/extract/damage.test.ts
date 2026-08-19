@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { extractDamage } from '../../../src/shared/extract/damage';
 import { localPlayerId, requireBlock } from '../../../src/shared/report';
+import type { ReportV1 } from '../../../src/shared/report';
 import { loadEiFixture, loadNativeFixture, accountOf } from '../oracle';
 
 function eiLocal(ei: ReturnType<typeof loadEiFixture>) {
@@ -186,6 +187,113 @@ describe('extractDamage', () => {
     });
 
     it('throws on an unknown entity id rather than returning blanks', () => {
-        expect(() => extractDamage(loadNativeFixture(), 999_999)).toThrow();
+        // Anchored to the FIRST guard's own message. A bare `toThrow()` here
+        // passes on any throw from anywhere in the function, which is how
+        // four earlier guards in this branch ended up certified by a throw
+        // they never produced.
+        expect(() => extractDamage(loadNativeFixture(), 999_999))
+            .toThrow('extractDamage: no damage row for entity 999999');
+    });
+
+    describe('absences that are errors, not zeros', () => {
+        const native = () => loadNativeFixture();
+        const id = () => localPlayerId(native());
+
+        /** A shallow copy of the report with one `blocks.damage` row field
+         *  removed. Copies only the spine down to the row, never the fixture
+         *  itself -- the module-level cache is shared with every other test
+         *  in this file. */
+        function withoutDamageField(field: 'by_skill' | 'by_skill_taken'): ReportV1 {
+            const r = native();
+            const key = String(id());
+            const row = { ...r.blocks.damage!.by_entity[key] };
+            delete row[field];
+            return {
+                ...r,
+                blocks: {
+                    ...r.blocks,
+                    damage: {
+                        ...r.blocks.damage!,
+                        by_entity: { ...r.blocks.damage!.by_entity, [key]: row },
+                    },
+                },
+            } as ReportV1;
+        }
+
+        it('throws when the skill-damage pass left no by_skill map', () => {
+            expect(() => extractDamage(withoutDamageField('by_skill'), id()))
+                .toThrow(/by_skill.*skill-damage pass did not run/s);
+        });
+
+        it('throws when a contributing skill has no hits count', () => {
+            const r = native();
+            const key = String(id());
+            const bySkill = { ...r.blocks.damage!.by_entity[key].by_skill! };
+            const firstSkill = Object.keys(bySkill)[0];
+            const row = { ...bySkill[firstSkill] };
+            delete row.hits;
+            bySkill[firstSkill] = row;
+            const mutated = {
+                ...r,
+                blocks: {
+                    ...r.blocks,
+                    damage: {
+                        ...r.blocks.damage!,
+                        by_entity: {
+                            ...r.blocks.damage!.by_entity,
+                            [key]: { ...r.blocks.damage!.by_entity[key], by_skill: bySkill },
+                        },
+                    },
+                },
+            } as ReportV1;
+            expect(() => extractDamage(mutated, id()))
+                .toThrow(new RegExp(`skill ${firstSkill} on entity ${id()} has no .hits. count`));
+        });
+
+        it('throws when a skill id is missing from catalogs.skills', () => {
+            const r = native();
+            const skills = { ...r.catalogs.skills };
+            const used = Object.keys(r.blocks.damage!.by_entity[String(id())].by_skill!)[0];
+            delete skills[used];
+            const mutated = { ...r, catalogs: { ...r.catalogs, skills } } as ReportV1;
+            expect(() => extractDamage(mutated, id()))
+                .toThrow(`catalogs.skills has no entry for skill ${used} (entity ${id()})`);
+        });
+
+        it('throws when the contribution block has no row for the entity', () => {
+            const r = native();
+            const by = { ...r.blocks.contribution!.by_entity };
+            delete by[String(id())];
+            const mutated = {
+                ...r,
+                blocks: { ...r.blocks, contribution: { ...r.blocks.contribution!, by_entity: by } },
+            } as ReportV1;
+            expect(() => extractDamage(mutated, id()))
+                .toThrow(`extractDamage: no contribution row for entity ${id()}`);
+        });
+
+        /**
+         * The one KEPT fallback here, and the reason it is kept. Measured on
+         * the fixture: `downs_contribution_by_skill` is absent for exactly 3
+         * of the 46 squad members (entities 0, 1 and 30), and for each of
+         * those three every slice of `downs_contribution` is 0 -- absence
+         * means "contributed to no downs", not "not measured". Throwing
+         * would reject a real log.
+         */
+        it('treats an absent downs_contribution_by_skill as a real zero, on the 3 members that have one', () => {
+            const r = native();
+            const without = r.entities
+                .filter(e => e.role === 'squad')
+                .filter(e => r.blocks.contribution!.by_entity[String(e.id)].downs_contribution_by_skill === undefined)
+                .map(e => e.id);
+            expect(without).toEqual([0, 1, 30]);
+            for (const eid of without) {
+                expect(r.blocks.contribution!.by_entity[String(eid)].downs_contribution)
+                    .toEqual({ cc: 0, damage: 0, movement_impairing: 0, strips: 0 });
+                const actual = extractDamage(r, eid);
+                expect(actual.downContribution).toBe(0);
+                expect(actual.topSkills.every(s => s.downContribution === 0)).toBe(true);
+            }
+        });
     });
 });

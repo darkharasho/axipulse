@@ -1212,6 +1212,55 @@ describe('extractTimeline', () => {
     });
 
     it('throws on an unknown entity id rather than returning blanks', () => {
-        expect(() => extractTimeline(loadNativeFixture(), 999_999, BUCKET_MS)).toThrow();
+        // Anchored: `extractTimeline` has eight distinct throws and a bare
+        // `toThrow()` cannot tell which one fired.
+        expect(() => extractTimeline(loadNativeFixture(), 999_999, BUCKET_MS))
+            .toThrow('extractTimeline: no series row for entity 999999');
+    });
+
+    describe('replay tracks are required, not optional', () => {
+        it('throws when the replay pass ran without positions', () => {
+            // `computeBoonPerformance` already throws for exactly this
+            // absence; the distance-to-tag lane used to answer it with
+            // `?? []`, i.e. an empty lane that looked like a measurement.
+            const r = loadNativeFixture();
+            const replay: Record<string, unknown> = { ...r.blocks.replay! };
+            delete replay.tracks;
+            const mutated = { ...r, blocks: { ...r.blocks, replay } } as unknown as ReportV1;
+            expect(() => extractTimeline(mutated, localPlayerId(r), BUCKET_MS))
+                .toThrow('extractTimeline: blocks.replay has no `tracks` -- positions were not computed');
+        });
+
+        it('throws, naming the commander, when the tagged entity has no track', () => {
+            const r = loadNativeFixture();
+            const cmd = commanderId(r)!;
+            const by = { ...r.blocks.replay!.tracks!.by_entity };
+            delete by[String(cmd)];
+            const mutated = {
+                ...r,
+                blocks: {
+                    ...r.blocks,
+                    replay: { ...r.blocks.replay!, tracks: { ...r.blocks.replay!.tracks!, by_entity: by } },
+                },
+            } as ReportV1;
+            expect(() => extractTimeline(mutated, localPlayerId(r), BUCKET_MS))
+                .toThrow(`extractTimeline: no replay track for commander entity ${cmd}`);
+        });
+
+        it('throws, naming the local entity, when the local player has no track', () => {
+            const r = loadNativeFixture();
+            const id = localPlayerId(r);
+            const by = { ...r.blocks.replay!.tracks!.by_entity };
+            delete by[String(id)];
+            const mutated = {
+                ...r,
+                blocks: {
+                    ...r.blocks,
+                    replay: { ...r.blocks.replay!, tracks: { ...r.blocks.replay!.tracks!, by_entity: by } },
+                },
+            } as ReportV1;
+            expect(() => extractTimeline(mutated, id, BUCKET_MS))
+                .toThrow(`extractTimeline: no replay track for local entity ${id}`);
+        });
     });
 });

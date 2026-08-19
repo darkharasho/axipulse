@@ -116,8 +116,19 @@ export function extractBoonGeneration(r: ReportV1, id: number): BoonGenerationEn
     for (const buffId of WVW_BOON_IDS) {
         const row = boons[String(buffId)];
         if (!row) continue;
+        // Same rule as `extractBoonUptimes` above, which throws for the same
+        // absence: the catalog is the only source of truth for a buff's
+        // name, and the `BOON_NAMES[buffId] ?? \`Boon ${buffId}\`` ladder this
+        // replaces meant the two halves of the same block disagreed about
+        // whether a missing catalog entry was an error. Measured: all twelve
+        // `WVW_BOON_IDS` resolve in the fixture's `catalogs.buffs`.
         const def = r.catalogs.buffs[String(buffId)];
-        const name = def?.name ?? BOON_NAMES[buffId] ?? `Boon ${buffId}`;
+        if (!def) {
+            throw new Error(
+                `extractBoonGeneration: catalogs.buffs[${buffId}] is missing for entity ${id}`,
+            );
+        }
+        const name = def.name;
         generation.push({
             id: buffId,
             name,
