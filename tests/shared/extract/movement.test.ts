@@ -3,6 +3,7 @@ import {
     extractMovement, arenaPixelSize, arenaInchToPixel, projectToArena,
     signedSkillId, EI_MAX_IMAGE_DIM,
 } from '../../../src/shared/extract/movement';
+import { memberFrame, memberPosAt } from '../../../src/shared/movementFrame';
 import { getMapTiles } from '../../../src/shared/wvwTiles';
 import { resolveMapFromMapId } from '../../../src/shared/mapUtils';
 import { WvwMap } from '../../../src/shared/wvwLandmarks';
@@ -114,6 +115,147 @@ describe('arena geometry', () => {
             .toThrow(/degenerate/);
         expect(() => arenaPixelSize({ ...ARENA_95, image_height: 0 }))
             .toThrow(/degenerate/);
+
+        // ... and through `extractMovement`, not only through the helper: a
+        // degenerate arena is a broken block, so it must THROW rather than
+        // take the `arena === undefined -> null` exit two lines above it.
+        const native = loadNativeFixture();
+        const degenerate = withReplay(native, replay => {
+            replay.tracks.arena.world_max_y = replay.tracks.arena.world_min_y;
+        });
+        expect(() => extractMovement(degenerate, localPlayerId(native))).toThrow(/degenerate/);
+    });
+
+    /**
+     * The squeeze must never become a STRETCH. Unreachable on this fixture
+     * (arena 697x1000), and no second map's arena exists to measure against,
+     * so an upscale is made loud instead of guessed at -- whether GW2EI
+     * clamps at 1 or scales both ways is unknown.
+     */
+    it('refuses to upscale a sub-750px arena into the landmark tables\' pixel space', () => {
+        expect(Math.max(ARENA_95.image_width, ARENA_95.image_height)).toBe(1000);
+        expect(() => arenaPixelSize({ ...ARENA_95, image_width: 349, image_height: 500 }))
+            .toThrow(/would UPSCALE/);
+        // Exactly at the cap is fine and is the identity.
+        expect(arenaPixelSize({ ...ARENA_95, image_width: 523, image_height: 750 }))
+            .toEqual([523, 750]);
+
+        const native = loadNativeFixture();
+        const small = withReplay(native, replay => {
+            replay.tracks.arena.image_width = 349;
+            replay.tracks.arena.image_height = 500;
+        });
+        expect(() => extractMovement(small, localPlayerId(native))).toThrow(/would UPSCALE/);
+    });
+});
+
+/**
+ * The CONSUMER half of `positionsStartMs`, and the reason it is in
+ * `src/shared/` at all.
+ *
+ * The producer-side pin (`positionsStartMs` equals each track's own
+ * `samples[0][0]`) says nothing about whether anything downstream USES the
+ * offset. Both of these functions previously lived in `MovementView.tsx`,
+ * where reverting them to an index join left the whole suite green -- the
+ * exact bug class this migration has now hit four times, in the one place
+ * added to prevent it.
+ */
+describe('memberFrame / memberPosAt', () => {
+    /** The member whose track starts latest -- t=100800, 100.8 seconds after
+     *  the fight begins. An index join misplaces this one by 336 polls. */
+    function latestStarter() {
+        const native = loadNativeFixture();
+        const m = extractMovement(native, localPlayerId(native))!;
+        const late = m.members.reduce((a, b) => (b.positionsStartMs > a.positionsStartMs ? b : a));
+        expect(late.positionsStartMs, 'the fixture\'s latest-starting track').toBe(100800);
+        expect(late.positions.length).toBe(110);
+        return { m, late };
+    }
+
+    it('resolves a member from their OWN start instant, not from t=0', () => {
+        const { m, late } = latestStarter();
+        const rate = m.pollingRate;
+        expect(rate).toBe(300);
+
+        // Sample i is at positionsStartMs + i * pollingRate. Under an index
+        // join, t=100800 resolves to index 336, which this 110-sample track
+        // clamps to its LAST position -- a different point on the map.
+        expect(memberPosAt(late, 100800, rate)).toEqual(late.positions[0]);
+        expect(memberPosAt(late, 101100, rate)).toEqual(late.positions[1]);
+        expect(memberPosAt(late, 102000, rate)).toEqual(late.positions[4]);
+        expect(memberFrame(late, 100800, rate)).toEqual({ idx: 0, frac: 0 });
+        expect(memberFrame(late, 100950, rate)).toEqual({ idx: 0, frac: 0.5 });
+        expect(late.positions[0]).not.toEqual(late.positions[late.positions.length - 1]);
+
+        // After the last sample the frame clamps rather than going null.
+        const lastT = late.positionsStartMs + (late.positions.length - 1) * rate;
+        expect(memberPosAt(late, lastT, rate)).toEqual(late.positions[late.positions.length - 1]);
+        expect(memberPosAt(late, lastT + 10_000, rate)).toEqual(late.positions[late.positions.length - 1]);
+    });
+
+    it('returns null before a member\'s track begins, rather than pinning them to their first position', () => {
+        const { m, late } = latestStarter();
+        const rate = m.pollingRate;
+
+        expect(memberFrame(late, 100500, rate)).toBeNull();
+        expect(memberPosAt(late, 100500, rate)).toBeNull();
+        expect(memberPosAt(late, 0, rate)).toBeNull();
+        // Not vacuous: one poll later the same member resolves.
+        expect(memberPosAt(late, 100800, rate)).not.toBeNull();
+
+        // 92 of the 93 members have not joined at t=0 -- every track except
+        // the single one that starts there. Without this guard each of them
+        // would be drawn at their first position for their entire pre-join
+        // window; for the 10 of them whose start is not the common t=300
+        // that window is between 30 and 100 seconds long. (11 tracks start
+        // somewhere other than t=300, but one of those is the single t=0
+        // track, which is present at t=0 by definition.)
+        const absentAtZero = m.members.filter(x => memberPosAt(x, 0, rate) === null);
+        expect(absentAtZero.length).toBe(92);
+        expect(absentAtZero.every(x => x.positionsStartMs > 0)).toBe(true);
+        expect(absentAtZero.filter(x => x.positionsStartMs !== 300).length).toBe(10);
+        expect(m.members.filter(x => x.positionsStartMs !== 300).length).toBe(11);
+        // The one track that starts at t=0 resolves there.
+        const atZero = m.members.filter(x => x.positionsStartMs === 0);
+        expect(atZero.length).toBe(1);
+        expect(memberPosAt(atZero[0], 0, rate)).toEqual(atZero[0].positions[0]);
+    });
+
+    /**
+     * The Task-8-grade guard, adapted from that review's warning: 82 of 93
+     * tracks start at t=300 together, so a test written against a typical
+     * member catches an index join on almost nobody. Shifting a member's own
+     * start by one poll and asserting the OUTPUT moves is the check that
+     * bites, because an index join ignores `positionsStartMs` entirely and
+     * therefore produces byte-identical output for every member.
+     *
+     * Measured: 93 of 93 members change under a correct join, 0 of 93 under
+     * an index join.
+     */
+    it('shifting a member\'s start by one poll changes their resolved positions', () => {
+        const { m } = latestStarter();
+        const rate = m.pollingRate;
+
+        let changedMembers = 0;
+        let changedInstants = 0;
+        let comparedInstants = 0;
+        for (const member of m.members) {
+            const shifted = { ...member, positionsStartMs: member.positionsStartMs + rate };
+            let changed = false;
+            for (let i = 0; i < member.positions.length; i++) {
+                const t = member.positionsStartMs + i * rate;
+                comparedInstants++;
+                const a = memberPosAt(member, t, rate);
+                const b = memberPosAt(shifted, t, rate);
+                if (JSON.stringify(a) !== JSON.stringify(b)) { changed = true; changedInstants++; }
+            }
+            if (changed) changedMembers++;
+        }
+        expect(changedMembers).toBe(93);
+        expect(comparedInstants).toBeGreaterThan(30000);
+        // Every member changes at their own first instant at minimum (the
+        // shifted copy has not started yet there), so the floor is 93.
+        expect(changedInstants).toBeGreaterThanOrEqual(93);
     });
 });
 
@@ -806,6 +948,23 @@ describe('extractMovement', () => {
 
         const noDrawable = withReplay(native, replay => { replay.tracks.by_entity = {}; });
         expect(extractMovement(noDrawable, id)).toBeNull();
+
+        // But an absent `blocks.series` BLOCK is the `timeseries` gate being
+        // off, not a documented absence, and it throws -- the same way
+        // `boons[].states` does. Swallowing it would render every member
+        // with a flat 100% health bar.
+        const noSeries = { ...native, blocks: { ...native.blocks, series: undefined } } as ReportV1;
+        expect(() => extractMovement(noSeries, id)).toThrow(/missing the "series" block/);
+
+        // Per-ENTITY absence of `health_percents` stays legitimate: the
+        // format documents it for an entity that emitted no health updates,
+        // and the field is left absent rather than invented as `[]`.
+        const series = structuredClone(native.blocks.series!);
+        delete (series.by_entity as any)[String(id)].health_percents;
+        const noHealth = { ...native, blocks: { ...native.blocks, series } } as ReportV1;
+        const m = extractMovement(noHealth, id)!;
+        expect(m.members.find(x => x.isLocal)!.healthPercents).toBeUndefined();
+        expect(m.members.filter(x => x.healthPercents !== undefined).length).toBe(46);
     });
 
     /**

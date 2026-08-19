@@ -5,6 +5,7 @@ import { WVW_LANDMARKS, WvwMap, type WvwLandmark } from '../../../shared/wvwLand
 import { resolveMapFromZone } from '../../../shared/mapUtils';
 import { getMapTiles, hasTileData } from '../../../shared/wvwTiles';
 import type { SkillCast, SquadMemberMovement } from '../../../shared/types';
+import { lerpPos, memberFrame, memberPosAt } from '../../../shared/movementFrame';
 import { getProfessionIconPath } from '../../classIconUtils';
 import { getProfessionColor } from '../../../shared/professionUtils';
 
@@ -100,46 +101,6 @@ function getRecentSkills(
 }
 
 const PANEL_BOON_ORDER = [740, 725, 717, 718, 726, 1122, 719, 743, 873, 1187, 30328, 26980];
-
-function lerpPos(positions: [number, number][], index: number, frac: number): [number, number] {
-    const a = positions[index];
-    if (frac === 0 || index >= positions.length - 1) return a;
-    const b = positions[index + 1];
-    return [a[0] + (b[0] - a[0]) * frac, a[1] + (b[1] - a[1]) * frac];
-}
-
-/**
- * Where a member's own position array sits at absolute fight time `timeMs`.
- *
- * Tracks do not share a start tick (see `SquadMemberMovement.positionsStartMs`),
- * so the index has to be measured from each member's own start. `null` means
- * the log has no position for this member yet -- they had not joined the
- * fight -- and the caller draws nothing rather than pinning them to wherever
- * they first appeared. After a member's last sample the frame clamps to it,
- * which is what the previous index arithmetic did too.
- */
-function memberFrame(
-    m: SquadMemberMovement,
-    timeMs: number,
-    pollingRate: number,
-): { idx: number; frac: number } | null {
-    const maxIdx = m.positions.length - 1;
-    if (maxIdx < 0) return null;
-    const rel = (timeMs - m.positionsStartMs) / pollingRate;
-    if (rel < 0) return null;
-    const clamped = Math.min(rel, maxIdx);
-    const idx = Math.min(Math.floor(clamped), maxIdx);
-    return { idx, frac: idx < maxIdx ? clamped - idx : 0 };
-}
-
-function memberPosAt(
-    m: SquadMemberMovement,
-    timeMs: number,
-    pollingRate: number,
-): [number, number] | null {
-    const f = memberFrame(m, timeMs, pollingRate);
-    return f ? lerpPos(m.positions, f.idx, f.frac) : null;
-}
 
 function formatTime(ms: number): string {
     const sec = Math.floor(ms / 1000);
