@@ -3,8 +3,8 @@ import type { EiJson, EiPlayer, PlayerFightData, TimelineData, TimelineBucket, S
 import { getDamage, getDps, getBreakbarDamage, getCleanses, getCleanseSelf, getStrips, getDamageTaken, getDeaths, getDowns, getDodges, getDownContribution, getIncomingCC, getIncomingStrips, getBlocked, getEvaded, getMissed, getInvulned, getInterrupted } from './dashboardMetrics';
 import { getHealingOutput, getBarrierOutput, getStabilityGeneration, getTopSkillDamage, getTopHealingSkills, getTopBarrierSkills, getTopDamageTakenSkills, getSquadRank, getDeathTimes, getDownTimes } from './combatMetrics';
 import { classifySquadRoles } from './classifyRole';
-import { extractBoonUptimes, extractBoonGeneration } from './boonData';
-import { computeBoonPerformance, STABILITY_BUFF_ID, MIGHT_BUFF_ID } from './boonPerformance';
+import { extractBoonUptimesEi, extractBoonGenerationEi } from './boonData';
+import { computeBoonPerformanceEi, STABILITY_BUFF_ID, MIGHT_BUFF_ID } from './boonPerformance';
 import { extractDamageTimeline, extractDistanceToTagTimeline } from './timelineData';
 import { OFFENSIVE_BOON_IDS, DEFENSIVE_BOON_IDS, HARD_CC_IDS, SOFT_CC_IDS, ALL_TRACKED_BUFF_IDS } from './boonData';
 import { resolveMapFromZone, normalizeMapName, formatDuration } from './mapUtils';
@@ -409,11 +409,11 @@ export function extractPlayerFightData(json: EiJson, fightNumber: number, bucket
             topDamageTakenSkills: getTopDamageTakenSkills(player, json.skillMap, json.buffMap),
         },
         boons: {
-            uptimes: extractBoonUptimes(player),
-            generation: extractBoonGeneration(player),
+            uptimes: extractBoonUptimesEi(player),
+            generation: extractBoonGenerationEi(player),
             boonPerformance: {
-                stability: computeBoonPerformance(json, player, bucketSizeMs, STABILITY_BUFF_ID),
-                might: computeBoonPerformance(json, player, bucketSizeMs, MIGHT_BUFF_ID),
+                stability: computeBoonPerformanceEi(json, player, bucketSizeMs, STABILITY_BUFF_ID),
+                might: computeBoonPerformanceEi(json, player, bucketSizeMs, MIGHT_BUFF_ID),
             },
         },
         timeline,

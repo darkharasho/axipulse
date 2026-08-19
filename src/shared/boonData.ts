@@ -1,5 +1,7 @@
 // src/shared/boonData.ts
 import type { EiPlayer, BoonUptimeEntry, BoonGenerationEntry } from './types';
+import type { ReportV1 } from './report';
+import { requireBlock } from './report';
 
 const BOON_NAMES: Record<number, string> = {
     740: 'Might',
@@ -22,6 +24,9 @@ export const OFFENSIVE_BOON_IDS = new Set([740, 725, 1187, 30328]); // Might, Fu
 export const DEFENSIVE_BOON_IDS = new Set([1122, 717, 26980, 743]); // Stability, Protection, Resistance, Aegis
 
 // EI's buffData.uptime for these represents average stacks (0-25), not a percentage.
+// Native's `catalogs.buffs[id].stacking` carries the same distinction and is
+// preferred when available (see `extractBoonUptimes` below) -- this set is
+// the EI-side fallback/legacy source of truth.
 export const INTENSITY_STACKING_BOON_IDS = new Set([740, 1122]); // Might, Stability
 export const MAX_BOON_STACKS: Record<number, number> = { 740: 25, 1122: 25 };
 
@@ -43,7 +48,15 @@ export const ALL_TRACKED_BUFF_IDS = new Set([
     ...SOFT_CC_IDS,
 ]);
 
-export function extractBoonUptimes(player: EiPlayer): BoonUptimeEntry[] {
+/**
+ * EI-shaped extraction -- still used by the legacy `extractPlayerData.ts`
+ * pipeline until Task 11 recomposes it onto the native extract units. Not
+ * part of this task's native migration; kept verbatim under an `Ei` suffix
+ * so the production pipeline keeps compiling and behaving identically
+ * while `extractBoonUptimes`/`extractBoonGeneration` below take over the
+ * native-signature names per the migration brief.
+ */
+export function extractBoonUptimesEi(player: EiPlayer): BoonUptimeEntry[] {
     const uptimes: BoonUptimeEntry[] = [];
     for (const buff of player.buffUptimes ?? []) {
         if (!WVW_BOON_IDS.has(buff.id)) continue;
@@ -55,7 +68,7 @@ export function extractBoonUptimes(player: EiPlayer): BoonUptimeEntry[] {
     return uptimes;
 }
 
-export function extractBoonGeneration(player: EiPlayer): BoonGenerationEntry[] {
+export function extractBoonGenerationEi(player: EiPlayer): BoonGenerationEntry[] {
     const genMap = new Map<number, BoonGenerationEntry>();
 
     for (const buff of player.selfBuffs ?? []) {
@@ -102,4 +115,59 @@ export function extractBoonGeneration(player: EiPlayer): BoonGenerationEntry[] {
     }
 
     return Array.from(genMap.values());
+}
+
+/**
+ * Boon uptimes for one entity, native format.
+ *
+ * `blocks.boons.by_entity[id]` is keyed by buff id (string), one row per
+ * tracked buff -- verified against the fixture: every one of the 46 squad
+ * members carries exactly the 12 `WVW_BOON_IDS` keys, no more, no fewer.
+ * `uptime` reads `avg_stacks` for intensity-stacking buffs (Might,
+ * Stability) and `uptime_pct` for duration-stacking ones -- chosen from
+ * `catalogs.buffs[id].stacking`, never inferred from the id.
+ */
+export function extractBoonUptimes(r: ReportV1, id: number): BoonUptimeEntry[] {
+    const boons = requireBlock(r, 'boons').by_entity[String(id)];
+    if (!boons) throw new Error(`extractBoonUptimes: no boons row for entity ${id}`);
+
+    const uptimes: BoonUptimeEntry[] = [];
+    for (const buffId of WVW_BOON_IDS) {
+        const row = boons[String(buffId)];
+        if (!row) continue;
+        const def = r.catalogs.buffs[String(buffId)];
+        const name = def?.name ?? BOON_NAMES[buffId] ?? `Boon ${buffId}`;
+        const stacking: 'duration' | 'intensity' = def?.stacking
+            ?? (INTENSITY_STACKING_BOON_IDS.has(buffId) ? 'intensity' : 'duration');
+        const uptime = stacking === 'intensity' ? (row.avg_stacks ?? 0) : row.uptime_pct;
+        uptimes.push({ id: buffId, name, uptime, stacking });
+    }
+    return uptimes;
+}
+
+/**
+ * Boon self/group/squad generation for one entity, native format.
+ *
+ * Replaces EI's three separate `selfBuffs`/`groupBuffs`/`squadBuffs` arrays
+ * with one `GenerationRow` per buff (`generation.{self_pct,group_pct,squad_pct}`).
+ */
+export function extractBoonGeneration(r: ReportV1, id: number): BoonGenerationEntry[] {
+    const boons = requireBlock(r, 'boons').by_entity[String(id)];
+    if (!boons) throw new Error(`extractBoonGeneration: no boons row for entity ${id}`);
+
+    const generation: BoonGenerationEntry[] = [];
+    for (const buffId of WVW_BOON_IDS) {
+        const row = boons[String(buffId)];
+        if (!row) continue;
+        const def = r.catalogs.buffs[String(buffId)];
+        const name = def?.name ?? BOON_NAMES[buffId] ?? `Boon ${buffId}`;
+        generation.push({
+            id: buffId,
+            name,
+            selfGeneration: row.generation.self_pct,
+            groupGeneration: row.generation.group_pct,
+            squadGeneration: row.generation.squad_pct,
+        });
+    }
+    return generation;
 }

@@ -1,7 +1,12 @@
 // tests/shared/boonData.test.ts
 import { describe, it, expect } from 'vitest';
-import { extractBoonUptimes, extractBoonGeneration, WVW_BOON_IDS, OFFENSIVE_BOON_IDS, DEFENSIVE_BOON_IDS, HARD_CC_IDS, SOFT_CC_IDS, CONDITION_NAMES } from '../../src/shared/boonData';
+import {
+    extractBoonUptimesEi, extractBoonGenerationEi, extractBoonUptimes, extractBoonGeneration,
+    WVW_BOON_IDS, OFFENSIVE_BOON_IDS, DEFENSIVE_BOON_IDS, HARD_CC_IDS, SOFT_CC_IDS, CONDITION_NAMES,
+} from '../../src/shared/boonData';
 import type { EiPlayer } from '../../src/shared/types';
+import { squadMembers } from '../../src/shared/report';
+import { loadNativeFixture } from './oracle';
 
 function makePlayer(overrides: Partial<EiPlayer> = {}): EiPlayer {
     return {
@@ -32,7 +37,7 @@ function makePlayer(overrides: Partial<EiPlayer> = {}): EiPlayer {
 
 describe('extractBoonUptimes', () => {
     it('extracts uptime for known boons', () => {
-        const uptimes = extractBoonUptimes(makePlayer());
+        const uptimes = extractBoonUptimesEi(makePlayer());
         const might = uptimes.find(u => u.id === 740);
         expect(might).toBeDefined();
         expect(might!.uptime).toBe(85.5);
@@ -46,7 +51,7 @@ describe('extractBoonUptimes', () => {
                 { id: 725, buffData: [{ uptime: 92, generation: 0, overstack: 0, wasted: 0 }] },
             ],
         });
-        const uptimes = extractBoonUptimes(player);
+        const uptimes = extractBoonUptimesEi(player);
         expect(uptimes.find(u => u.id === 740)!.stacking).toBe('intensity');
         expect(uptimes.find(u => u.id === 1122)!.stacking).toBe('intensity');
         expect(uptimes.find(u => u.id === 725)!.stacking).toBe('duration');
@@ -59,14 +64,14 @@ describe('extractBoonUptimes', () => {
                 { id: 99999, buffData: [{ uptime: 50, generation: 0, overstack: 0, wasted: 0 }] },
             ],
         });
-        const uptimes = extractBoonUptimes(player);
+        const uptimes = extractBoonUptimesEi(player);
         expect(uptimes.every(u => WVW_BOON_IDS.has(u.id))).toBe(true);
     });
 });
 
 describe('extractBoonGeneration', () => {
     it('extracts self/group/squad generation', () => {
-        const gen = extractBoonGeneration(makePlayer());
+        const gen = extractBoonGenerationEi(makePlayer());
         const might = gen.find(g => g.id === 740);
         expect(might).toBeDefined();
         expect(might!.selfGeneration).toBe(100);
@@ -116,5 +121,35 @@ describe('boon and condition ID sets', () => {
         for (const id of SOFT_CC_IDS) {
             expect(CONDITION_NAMES[id]).toBeDefined();
         }
+    });
+});
+
+describe('extractBoonUptimes / extractBoonGeneration (native)', () => {
+    it('returns exactly the WVW_BOON_IDS present in blocks.boons.by_entity[id] for every squad member', () => {
+        const native = loadNativeFixture();
+        let checkedAny = 0;
+        for (const e of squadMembers(native)) {
+            checkedAny++;
+            const boonsRow = native.blocks.boons!.by_entity[String(e.id)];
+            const expectedIds = [...WVW_BOON_IDS].filter(id => boonsRow[String(id)] !== undefined).sort((a, b) => a - b);
+
+            const uptimes = extractBoonUptimes(native, e.id);
+            expect(uptimes.map(u => u.id).sort((a, b) => a - b)).toEqual(expectedIds);
+            for (const u of uptimes) {
+                expect(u.name.length).toBeGreaterThan(0);
+                expect(Number.isFinite(u.uptime)).toBe(true);
+                expect(['duration', 'intensity']).toContain(u.stacking);
+            }
+
+            const generation = extractBoonGeneration(native, e.id);
+            expect(generation.map(g => g.id).sort((a, b) => a - b)).toEqual(expectedIds);
+        }
+        expect(checkedAny).toBe(46);
+    });
+
+    it('throws on an unknown entity id rather than returning blanks', () => {
+        const native = loadNativeFixture();
+        expect(() => extractBoonUptimes(native, 999_999)).toThrow();
+        expect(() => extractBoonGeneration(native, 999_999)).toThrow();
     });
 });
