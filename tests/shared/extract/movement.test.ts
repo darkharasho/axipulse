@@ -3,7 +3,7 @@ import {
     extractMovement, arenaPixelSize, arenaInchToPixel, projectToArena,
     signedSkillId, EI_MAX_IMAGE_DIM,
 } from '../../../src/shared/extract/movement';
-import { memberFrame, memberPosAt } from '../../../src/shared/movementFrame';
+import { memberFrame, memberPosAt, lerpPos } from '../../../src/shared/movementFrame';
 import { getMapTiles } from '../../../src/shared/wvwTiles';
 import { resolveMapFromMapId } from '../../../src/shared/mapUtils';
 import { WvwMap } from '../../../src/shared/wvwLandmarks';
@@ -165,6 +165,91 @@ describe('arena geometry', () => {
  * exact bug class this migration has now hit four times, in the one place
  * added to prevent it.
  */
+/**
+ * `lerpPos` never actually INTERPOLATED under test before this: returning
+ * `a` unconditionally survived the whole suite, because its only consumer's
+ * oracle called `memberPosAt` on both sides of the comparison and so could
+ * not see the difference.
+ */
+describe('the empty-samples skip', () => {
+    /**
+     * `if (!track || track.samples.length === 0) continue;` -- the fixture
+     * cannot reach the second half of that condition (all 93 player tracks
+     * have samples), so it is reached here by mutating a shallow copy, the
+     * same technique boonPerformance.test.ts uses. Not deleted: a member
+     * with an empty track would otherwise reach `projectTrack` and be drawn
+     * at whatever a zero-length projection produces.
+     */
+    it('drops a member whose track has no samples, and keeps every other', () => {
+        const r = loadNativeFixture();
+        const id = localPlayerId(r);
+        const before = extractMovement(r, id)!;
+        const victim = before.members.find(x => !x.isLocal && x.inSquad)!;
+        const victimId = r.entities.find(e =>
+            e.role === 'squad' && (e.character ?? e.name) === victim.name)!.id;
+
+        const tracks = r.blocks.replay!.tracks!;
+        const emptied = {
+            ...r,
+            blocks: {
+                ...r.blocks,
+                replay: {
+                    ...r.blocks.replay!,
+                    tracks: {
+                        ...tracks,
+                        by_entity: {
+                            ...tracks.by_entity,
+                            [String(victimId)]: { ...tracks.by_entity[String(victimId)], samples: [] },
+                        },
+                    },
+                },
+            },
+        } as ReportV1;
+
+        expect(tracks.by_entity[String(victimId)].samples.length).toBeGreaterThan(0);
+        const after = extractMovement(emptied, id)!;
+        expect(after.members.length).toBe(before.members.length - 1);
+        expect(after.members.some(x => x.name === victim.name)).toBe(false);
+        expect(before.members.some(x => x.name === victim.name)).toBe(true);
+    });
+});
+
+describe('lerpPos', () => {
+    const pts: [number, number][] = [[0, 0], [10, 20], [30, 20]];
+
+    it('interpolates between a point and its successor', () => {
+        expect(lerpPos(pts, 0, 0.5)).toEqual([5, 10]);
+        expect(lerpPos(pts, 0, 0.25)).toEqual([2.5, 5]);
+        expect(lerpPos(pts, 1, 0.5)).toEqual([20, 20]);
+    });
+
+    it('returns the point itself at frac 0', () => {
+        expect(lerpPos(pts, 1, 0)).toEqual([10, 20]);
+    });
+
+    it('clamps at the last point rather than reading past the end', () => {
+        expect(lerpPos(pts, 2, 0.5)).toEqual([30, 20]);
+    });
+
+    it('actually moves a real fixture member between two polls', () => {
+        // Not a synthetic array: the latest-starting track's first two
+        // samples are distinct, so the midpoint between them is neither.
+        const native = loadNativeFixture();
+        const m = extractMovement(native, localPlayerId(native))!;
+        const late = m.members.reduce((a, b) => (b.positionsStartMs > a.positionsStartMs ? b : a));
+        const [a, b] = [late.positions[0], late.positions[1]];
+        expect(a).not.toEqual(b);
+        const mid = lerpPos(late.positions, 0, 0.5);
+        expect(mid).toEqual([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]);
+        expect(mid).not.toEqual(a);
+        expect(mid).not.toEqual(b);
+
+        // And the consumer routes a half-poll offset through it: 150ms past
+        // this member's start is exactly halfway to their second sample.
+        expect(memberPosAt(late, late.positionsStartMs + 150, m.pollingRate)).toEqual(mid);
+    });
+});
+
 describe('memberFrame / memberPosAt', () => {
     /** The member whose track starts latest -- t=100800, 100.8 seconds after
      *  the fight begins. An index join misplaces this one by 336 polls. */

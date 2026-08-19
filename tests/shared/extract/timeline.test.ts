@@ -1247,6 +1247,21 @@ describe('extractTimeline', () => {
                 .toThrow(`extractTimeline: no replay track for commander entity ${cmd}`);
         });
 
+        it('throws, naming replay, when the entity has no replay INTERVALS row', () => {
+            // A different row from the position track above: `by_entity`
+            // carries the down/dead intervals that become the timeline's
+            // death and down markers. No test reached this guard.
+            const r = loadNativeFixture();
+            const id = localPlayerId(r);
+            const by = { ...r.blocks.replay!.by_entity };
+            delete by[String(id)];
+            const mutated = {
+                ...r, blocks: { ...r.blocks, replay: { ...r.blocks.replay!, by_entity: by } },
+            } as ReportV1;
+            expect(() => extractTimeline(mutated, id, BUCKET_MS))
+                .toThrow(`extractTimeline: no replay row for entity ${id}`);
+        });
+
         it('throws, naming the local entity, when the local player has no track', () => {
             const r = loadNativeFixture();
             const id = localPlayerId(r);

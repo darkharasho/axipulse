@@ -612,6 +612,56 @@ describe('extractPlayerFightData -- distanceToTag summary', () => {
         expect(computeDistanceToTagStats(lane, [], true)).toBeNull();
         expect(computeDistanceToTagStats(lane, [], false)).toEqual({ average: 600, median: 600 });
     });
+
+    /**
+     * `RUNBACK_FLOOR_INCHES` (400) never bound under test: 400 -> 40 survived
+     * the whole suite, while the `RUNBACK_MULTIPLIER` mutant died. The floor
+     * only binds when `preDeathValue * 1.5 < 400`, i.e. when the player died
+     * while ALREADY stacked on the tag (under 267 inches) -- so the
+     * multiplier alone would resume the average as soon as they got within
+     * 150 inches, which is most of the way back across the map.
+     *
+     * The lane below dies at 100 inches from the tag (stacked), and comes
+     * back through 300. `max(100 * 1.5, 400) = 400` includes the 300 bucket;
+     * with the floor at 40 the threshold is 150 and the 300 bucket is
+     * excluded as still-running-back, which changes both statistics.
+     */
+    it('applies the 400-inch runback floor, not just the 1.5x multiplier', () => {
+        const lane = {
+            distanceToTag: [
+                { time: 0, value: 100 },     // alive, stacked on the tag
+                { time: 1000, value: 3000 }, // dead
+                { time: 2000, value: 3000 }, // dead
+                { time: 3000, value: 300 },  // back within the 400 floor
+                { time: 4000, value: 200 },
+            ],
+        } as never;
+        const dead: [number, number][] = [[1000, 2000]];
+
+        // 100, 300, 200 -> mean 200, median 200.
+        expect(computeDistanceToTagStats(lane, dead, false)).toEqual({ average: 200, median: 200 });
+
+        // Without the exclusion at all, the corpse-run buckets dominate.
+        expect(computeDistanceToTagStats(lane, [], false)).toEqual({ average: 1320, median: 300 });
+    });
+
+    /**
+     * The other arm of the same expression: a death before any bucket, where
+     * there is no pre-death distance to scale and the floor is the whole
+     * threshold.
+     */
+    it('uses the floor alone when the player died before the lane starts', () => {
+        const lane = {
+            distanceToTag: [
+                { time: 1000, value: 3000 },
+                { time: 2000, value: 350 },
+                { time: 3000, value: 250 },
+            ],
+        } as never;
+        // Dead from before t=0 through t=1000; the 350 bucket is under the
+        // 400 floor, so recovery is declared there. 350, 250 -> mean 300.
+        expect(computeDistanceToTagStats(lane, [[0, 1000]], false)).toEqual({ average: 300, median: 300 });
+    });
 });
 
 describe('extractPlayerFightData -- replay-derived positions', () => {

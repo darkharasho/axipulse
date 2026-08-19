@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { classifySquadRoleMap, classifyRole } from '../../src/shared/classifyRole';
+import {
+    classifySquadRoleMap, classifyRole, classifyFromMetrics, computeRatio, OUTLIER_RATIO,
+} from '../../src/shared/classifyRole';
 import { classifySquadRolesEi } from './ei/classifyRoles';
 import { localPlayerId } from '../../src/shared/report';
 import type { ReportV1 } from '../../src/shared/report';
@@ -210,5 +212,70 @@ describe('classifySquadRoleMap / classifyRole (native)', () => {
         const native = loadNativeFixture();
         const empty = edited(native, d => { d.entities = d.entities.filter((e: any) => e.role !== 'squad'); });
         expect(classifySquadRoleMap(empty).size).toBe(0);
+    });
+});
+
+/**
+ * `computeRatio`'s zero-median contract, bound directly.
+ *
+ * The `OUTLIER_RATIO` arm is unreachable through `classifyFromMetrics` --
+ * that caller takes every median over `values.filter(v => v > 0)`, so a
+ * median of 0 means the whole column was non-positive and `value > 0` cannot
+ * hold. It is DEFINED behaviour for a case made impossible by a filter two
+ * functions away, which is why it is kept rather than deleted; a direct test
+ * is the only thing that can fail when it changes.
+ */
+describe('computeRatio', () => {
+    it('divides by a positive median', () => {
+        expect(computeRatio(300, 100)).toBe(3);
+        expect(computeRatio(0, 100)).toBe(0);
+    });
+
+    it('calls a positive value against a zero median an outlier, not infinity', () => {
+        expect(OUTLIER_RATIO).toBe(2);
+        expect(computeRatio(1, 0)).toBe(OUTLIER_RATIO);
+        expect(computeRatio(1e9, 0)).toBe(OUTLIER_RATIO);
+        expect(Number.isFinite(computeRatio(1, 0))).toBe(true);
+    });
+
+    it('is 0 when both the value and the median are absent', () => {
+        expect(computeRatio(0, 0)).toBe(0);
+    });
+
+    it('is unreachable from classifyFromMetrics, which is why it needs this test', () => {
+        // A whole column of zeros -- the only way to drive a median to 0 --
+        // leaves every value non-positive too, so the outlier arm cannot
+        // fire and every score is finite.
+        const rows = [[0, 1, 0, 0, 0, 0], [0, 3, 0, 0, 0, 0], [0, 2, 0, 0, 0, 0]];
+        const out = classifyFromMetrics(rows);
+        expect(out.length).toBe(3);
+        for (const c of out) {
+            expect(Number.isFinite(c.supportScore)).toBe(true);
+            expect(c.confidenceScore).toBeGreaterThanOrEqual(0);
+            expect(c.confidenceScore).toBeLessThanOrEqual(1);
+        }
+    });
+
+    /**
+     * The `|| 1` spans, the other survivor in this file. They are NOT an
+     * absence -- there is no field to name -- but a divide-by-zero guard on
+     * computed values. Measured: a one-row squad is NOT enough to reach them
+     * (its single score is 0.4 against a 0.5 threshold, so both spans are
+     * 0.1); what is enough is every score landing exactly ON the threshold,
+     * which happens when every score is 0 -- a squad that registered on none
+     * of the six metrics. Without the `|| 1` that is 0/0 = NaN confidence.
+     */
+    it('is 0.1, not 0, for a one-row squad -- the span guard does not fire there', () => {
+        const out = classifyFromMetrics([[100, 10, 50, 1000, 100000, 500]]);
+        expect(out.length).toBe(1);
+        expect(out[0].supportScore).toBeCloseTo(0.4, 10);
+        expect(out[0].confidenceScore).toBe(1);
+    });
+
+    it('gives an all-zero squad zero confidence rather than NaN', () => {
+        const out = classifyFromMetrics([[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]]);
+        expect(out.map(c => c.supportScore)).toEqual([0, 0]);
+        expect(out.map(c => c.confidenceScore)).toEqual([0, 0]);
+        expect(out.every(c => !Number.isNaN(c.confidenceScore))).toBe(true);
     });
 });

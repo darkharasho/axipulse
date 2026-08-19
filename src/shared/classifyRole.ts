@@ -49,7 +49,7 @@ const WEIGHTS = {
 } as const;
 
 const THRESHOLD_MULTIPLIER = 1.25;
-const OUTLIER_RATIO = 2.0;
+export const OUTLIER_RATIO = 2.0;
 
 function computeMedian(values: number[]): number {
     if (values.length === 0) return 0;
@@ -58,7 +58,18 @@ function computeMedian(values: number[]): number {
     return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
 }
 
-function computeRatio(value: number, median: number): number {
+/**
+ * A metric value against its cohort median.
+ *
+ * EXPORTED for its own test, not for production -- `classifyFromMetrics` is
+ * the only caller. The `OUTLIER_RATIO` arm cannot be reached through that
+ * caller: it takes each median over `values.filter(v => v > 0)`, so a median
+ * of 0 implies no positive value in the column, and `value > 0` is then
+ * impossible. That is a fact about a filter two functions away, which is
+ * exactly why the arm is kept rather than deleted -- and why the only honest
+ * way to bind its behaviour is to call this function directly.
+ */
+export function computeRatio(value: number, median: number): number {
     if (median > 0) return value / median;
     if (value > 0) return OUTLIER_RATIO;
     return 0;
@@ -110,13 +121,16 @@ export function classifyFromMetrics(rows: number[][]): RoleClassification[] {
     const minScore = Math.min(...scores);
     // KEPT, and not an absence: these are divide-by-zero guards on COMPUTED
     // values, so there is no field to name and nothing to report as missing.
-    // The span collapses to 0 only when every row scores identically on the
-    // relevant side of the threshold -- a one-member squad, or a squad where
-    // nobody registered on any of the six metrics. Both are legitimate logs,
-    // and both then give every member `confidenceScore` 0, which is the
-    // honest answer. Measured: unreachable on the fixture, whose 46 members
-    // score from -106.40 to 28.87, so neither span is anywhere near 0.
-    // Throwing here would reject a solo log.
+    // A span collapses to 0 only when every score lands exactly ON the
+    // threshold, and since `threshold = medianScore * 1.25` (for a
+    // non-negative median) that means every score is 0 -- a squad that
+    // registered on none of the six metrics. Measured, and NOT the same as a
+    // one-member squad: a single row scores 0.4 against a 0.5 threshold, so
+    // both spans are 0.1 there. Without the `|| 1` the all-zero case is
+    // 0/0 = NaN confidence; with it, every member gets 0, which is the
+    // honest answer. Unreachable on the fixture, whose 46 members score from
+    // -106.40 to 28.87. Both cases are legitimate logs, so this stays a
+    // guard rather than becoming a throw.
     const supportSpan = Math.abs(maxScore - threshold) || 1;
     const damageSpan = Math.abs(threshold - minScore) || 1;
 

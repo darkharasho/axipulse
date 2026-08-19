@@ -256,6 +256,63 @@ describe('createParseDispatcher', () => {
         );
     });
 
+    /**
+     * `settle` clears the request's timer. Deleting that `clearTimeout` left
+     * all 333 tests green, and in production it meant every ANSWERED parse
+     * still fired `onTimeout` one budget later -- which kills the worker and
+     * rejects every other request in flight. The parse path is the branch's
+     * crown jewel and this was the one line in it nothing touched.
+     */
+    it('does not fire the timeout for a request it already answered', async () => {
+        const worker = fakeWorker();
+        const sink = protocolErrorSink();
+        const dispatcher = createParseDispatcher(worker.openChannel, {
+            timeoutMs: 30,
+            reportProtocolError: sink.report,
+        });
+
+        const promise = dispatcher.parse(FIXTURE);
+        worker.answer(worker.sent[0]);
+        expect((await promise).axilog.generated_from).toBe('wvw.zevtc');
+
+        // Well past the 30ms budget the answered request was given.
+        await new Promise(resolve => setTimeout(resolve, 120));
+
+        expect(worker.killed, 'workers killed after an ANSWERED parse').toBe(0);
+        expect(worker.opened, 'channels opened').toBe(1);
+        expect(sink.errors.map(e => e.message)).toEqual([]);
+
+        // And the same worker is still in service: a second parse goes down
+        // the same channel rather than a replacement one.
+        const second = dispatcher.parse(FIXTURE);
+        expect(worker.opened).toBe(1);
+        worker.answer(worker.sent[1]);
+        expect((await second).axilog.generated_from).toBe('wvw.zevtc');
+    });
+
+    /**
+     * The same for a REJECTED request: a parse that failed is settled too,
+     * so its timer must not outlive it either.
+     */
+    it('does not fire the timeout for a request that already failed', async () => {
+        const worker = fakeWorker();
+        const sink = protocolErrorSink();
+        const dispatcher = createParseDispatcher(worker.openChannel, {
+            timeoutMs: 30,
+            reportProtocolError: sink.report,
+        });
+
+        const promise = dispatcher.parse('/nonexistent.zevtc');
+        worker.answer(worker.sent[0]);
+        await expect(promise).rejects.toThrow(/axilog failed to parse \/nonexistent\.zevtc/);
+
+        await new Promise(resolve => setTimeout(resolve, 120));
+
+        expect(worker.killed).toBe(0);
+        expect(worker.opened).toBe(1);
+        expect(sink.errors.map(e => e.message)).toEqual([]);
+    });
+
     it('reports a reply to an unknown id without throwing, and keeps parsing', async () => {
         const worker = fakeWorker();
         const sink = protocolErrorSink();

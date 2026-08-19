@@ -8,8 +8,14 @@
 // expensive recurring bug in this migration -- an index join has now been
 // found four separate times. Pure functions in a renderer file are untestable
 // in practice (nothing under `tests/` imports a `.tsx`), and an untested join
-// is exactly how the previous three survived. Here they are unit-tested
-// against the real fixture.
+// is exactly how the previous three survived.
+//
+// `tests/shared/extract/movement.test.ts` exercises all three against the
+// real fixture. That claim was false for `lerpPos` until this round: only
+// `memberFrame`/`memberPosAt` were covered, and the consumer's oracle called
+// `memberPosAt` on BOTH sides of its comparison, so `lerpPos` returning `a`
+// unconditionally -- never interpolating at all -- survived the whole suite.
+// It now has its own describe block with a real midpoint assertion.
 import type { SquadMemberMovement } from './types';
 
 /** Linear interpolation between `positions[index]` and its successor. */

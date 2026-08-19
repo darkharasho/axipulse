@@ -770,4 +770,69 @@ describe('local player stab generation (native, rekeyed per_source)', () => {
             expect(gen.self_pct + gen.group_pct + gen.squad_pct).toBe(0);
         }
     });
+
+    /**
+     * `partyIncomingDamage`'s series-index -> bucket arithmetic had no
+     * coverage at all: shifting the whole lane one bucket left the suite
+     * green. The oracle below is written from TIME (`i * interval_ms`)
+     * rather than from the index-per-bucket division the implementation
+     * uses, so an off-by-one in that division shows up as a mismatch.
+     */
+    describe('partyIncomingDamage', () => {
+        function incomingOracle(r: ReportV1, id: number, bucketMs: number, bucketCount: number): number[] {
+            const local = r.entities.find(e => e.id === id)!;
+            const party = squadMembers(r).filter(e => e.subgroup === local.subgroup && e.id !== id);
+            const out = new Array<number>(bucketCount).fill(0);
+            for (const e of party) {
+                const ser = r.blocks.series!.by_entity[String(e.id)].damage_taken;
+                const cum = decodeSeries(ser);
+                for (let i = 0; i < cum.length; i++) {
+                    const delta = i === 0 ? cum[0] : cum[i] - cum[i - 1];
+                    const b = Math.min(bucketCount - 1, Math.floor((i * ser.interval_ms) / bucketMs));
+                    out[b] += delta;
+                }
+            }
+            return out;
+        }
+
+        it.each([1000, 5000])('buckets the party\'s incoming damage by time at %dms', (bucketMs) => {
+            const r = loadNativeFixture();
+            const id = localPlayerId(r);
+            const result = computeBoonPerformance(r, id, bucketMs, STABILITY_BUFF_ID)!;
+            const expected = incomingOracle(r, id, bucketMs, result.bucketCount);
+            expect(result.partyIncomingDamage).toEqual(expected);
+            // The lane must actually vary, or a one-bucket shift would be
+            // invisible. Measured at 1000ms: 47 of the 139 buckets non-zero.
+            const nonZero = result.partyIncomingDamage.filter(v => v > 0).length;
+            expect(nonZero).toBeGreaterThan(5);
+            expect(nonZero).toBeLessThan(result.bucketCount);
+        });
+
+        it('puts each party member\'s damage in the bucket its own timestamp falls in', () => {
+            // A direct, shift-sensitive anchor: the first bucket in which the
+            // party took any damage at all, found from the raw series.
+            const r = loadNativeFixture();
+            const id = localPlayerId(r);
+            const result = computeBoonPerformance(r, id, 1000, STABILITY_BUFF_ID)!;
+            const expected = incomingOracle(r, id, 1000, result.bucketCount);
+            const firstHit = expected.findIndex(v => v > 0);
+            expect(firstHit).toBeGreaterThan(0);
+            expect(result.partyIncomingDamage[firstHit]).toBe(expected[firstHit]);
+            expect(result.partyIncomingDamage[firstHit - 1]).toBe(0);
+        });
+
+        it('sums to the party\'s whole recorded damage taken', () => {
+            const r = loadNativeFixture();
+            const id = localPlayerId(r);
+            const local = r.entities.find(e => e.id === id)!;
+            const party = squadMembers(r).filter(e => e.subgroup === local.subgroup && e.id !== id);
+            const total = party.reduce((acc, e) => {
+                const cum = decodeSeries(r.blocks.series!.by_entity[String(e.id)].damage_taken);
+                return acc + cum[cum.length - 1];
+            }, 0);
+            expect(total).toBeGreaterThan(0);
+            const lane = computeBoonPerformance(r, id, 1000, STABILITY_BUFF_ID)!.partyIncomingDamage;
+            expect(lane.reduce((a, b) => a + b, 0)).toBe(total);
+        });
+    });
 });
