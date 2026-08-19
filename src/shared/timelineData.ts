@@ -89,7 +89,22 @@ export function extractBoonStatesTimeline(
     return buckets;
 }
 
-export function extractDistanceToTagTimeline(
+/**
+ * EI-shaped distance-to-tag lane -- kept verbatim under an `Ei` suffix (the
+ * convention this branch uses for `boonData.ts`/`boonPerformance.ts`) so the
+ * legacy `extractPlayerData.ts` pipeline keeps compiling and behaving
+ * identically until Task 11 recomposes it. The native replacement lives in
+ * `extract/timeline.ts`, which joins on the sample TIMESTAMP rather than the
+ * array index and needs no `inchToPixel` (native replay tracks are already
+ * world inches).
+ *
+ * Note this function never runs on the frozen `wvw.ei.json` fixture: that
+ * document carries an EMPTY `combatReplayData` for every player and no
+ * `combatReplayMetaData.pollingRate`/`inchToPixel`, so `buildTimeline`'s
+ * guard short-circuits and the EI `distanceToTag` lane is `[]` for the
+ * whole roster.
+ */
+export function extractDistanceToTagTimelineEi(
     playerPositions: [number, number][],
     tagPositions: [number, number][],
     pollingRate: number,

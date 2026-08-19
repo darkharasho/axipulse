@@ -5,7 +5,7 @@ import { getHealingOutput, getBarrierOutput, getStabilityGeneration, getTopSkill
 import { classifySquadRoles } from './classifyRole';
 import { extractBoonUptimesEi, extractBoonGenerationEi } from './boonData';
 import { computeBoonPerformanceEi, STABILITY_BUFF_ID, MIGHT_BUFF_ID } from './boonPerformance';
-import { extractDamageTimeline, extractDistanceToTagTimeline } from './timelineData';
+import { extractDamageTimeline, extractDistanceToTagTimelineEi } from './timelineData';
 import { OFFENSIVE_BOON_IDS, DEFENSIVE_BOON_IDS, HARD_CC_IDS, SOFT_CC_IDS, ALL_TRACKED_BUFF_IDS } from './boonData';
 import { resolveMapFromZone, normalizeMapName, formatDuration } from './mapUtils';
 import { findNearestLandmark } from './wvwLandmarks';
@@ -121,7 +121,7 @@ function buildTimeline(json: EiJson, player: EiPlayer, bucketSizeMs: number): Ti
         const playerPos = player.combatReplayData?.positions ?? [];
         const tagPos = commander.combatReplayData?.positions ?? [];
         if (playerPos.length > 0 && tagPos.length > 0) {
-            distanceToTag = extractDistanceToTagTimeline(
+            distanceToTag = extractDistanceToTagTimelineEi(
                 playerPos, tagPos, meta.pollingRate, meta.inchToPixel, bucketSizeMs,
             );
         }

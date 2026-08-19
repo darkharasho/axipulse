@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractDamageTimeline, extractDistanceToTagTimeline, bucketTimeline } from '../../src/shared/timelineData';
+import { extractDamageTimeline, extractDistanceToTagTimelineEi, bucketTimeline } from '../../src/shared/timelineData';
 
 describe('bucketTimeline', () => {
     it('buckets per-second data into requested bucket size', () => {
@@ -31,13 +31,13 @@ describe('extractDamageTimeline', () => {
     });
 });
 
-describe('extractDistanceToTagTimeline', () => {
+describe('extractDistanceToTagTimelineEi', () => {
     it('samples positions at bucket intervals', () => {
         const playerPositions: [number, number][] = [[100, 100], [110, 100], [120, 100], [130, 100]];
         const tagPositions: [number, number][] = [[100, 100], [100, 100], [100, 100], [100, 100]];
         const pollingRate = 1000;
         const inchToPixel = 1;
-        const result = extractDistanceToTagTimeline(playerPositions, tagPositions, pollingRate, inchToPixel, 1000);
+        const result = extractDistanceToTagTimelineEi(playerPositions, tagPositions, pollingRate, inchToPixel, 1000);
         expect(result[0].value).toBe(0);
         expect(result[1].value).toBe(10);
         expect(result[2].value).toBe(20);
