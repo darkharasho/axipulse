@@ -414,3 +414,24 @@ parallel.
 - **Git-pinned Rust dependency.** `arcdps-axipulse` tracks an axilog tag
   rather than a crates.io release. Bumping it is a deliberate act, which
   is the desired behaviour for a plugin loaded into a live game process.
+- **EI's `profession` and native's `profession`/`elite_spec` are not the
+  same shape** (found in Task 3, `identity.ts`). EI's raw JSON conflates
+  base profession and elite spec into a single display string on
+  `profession` (e.g. `"Harbinger"` for a Necromancer running that spec) and
+  never actually populates a separate `elite_spec` field, despite
+  `EiPlayer.elite_spec` declaring one -- every real fixture value is
+  `undefined`. Native splits these: `EntityOut.profession` is always the
+  base class, `EntityOut.elite_spec` is the spec name or `''`. The correct
+  oracle comparison is `native.elite_spec || native.profession ===
+  ei.profession`, not a field-for-field match. `extractIdentity` itself is
+  unaffected -- this only matters for the EI-comparison test, and for any
+  future UI code that still expects EI's conflated string.
+- **`EntityOut.elite_spec` can be `''` for a reason other than "no elite
+  spec"**: per its own doc comment, axilog also emits `''` when the agent
+  *has* an elite spec but the project's catalog cannot name it. Confirmed
+  in the `wvw.zevtc` fixture: account `Anon175.7475` runs Thief's
+  "Antiquary" spec per EI, but native reports `elite_spec: ''` because
+  Antiquary isn't in axilog's current catalog. The `identity.ts` oracle
+  test excludes this one account from its profession/spec equality check
+  rather than weakening the assertion, and documents why inline. This is a
+  real catalog gap axilog should eventually close, not a bug in this app.
