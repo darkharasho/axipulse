@@ -35,25 +35,38 @@ describe('extractIdentity', () => {
     it('matches the EI oracle for every squad member', () => {
         const ei = loadEiFixture();
         const native = loadNativeFixture();
+        const catalogGaps: string[] = [];
         for (const e of native.entities.filter(x => x.role === 'squad')) {
             const eiPlayer = ei.players.find(p => p.account === e.account);
             expect(eiPlayer, `no EI player for ${e.account}`).toBeDefined();
             const actual = extractIdentity(native, e.id);
 
-            // Same profession/eliteSpec reassembly as above, EXCEPT
-            // Anon175.7475: this fixture's Thief runs "Antiquary" per EI,
-            // an elite spec axilog's catalog does not yet name, so native
-            // legitimately reports elite_spec: '' (EntityOut.elite_spec's
-            // doc comment: '' means "no spec" OR "one this project cannot
-            // name"). That's a real catalog gap, not an extraction bug --
-            // recorded in the migration design doc's "Accepted risks".
-            // Every other squad member in this fixture has a nameable spec
-            // or none at all, so the equality check is real for them.
-            if (e.account !== 'Anon175.7475') {
+            // axilog's catalog cannot name every elite spec, and
+            // EntityOut.elite_spec's doc comment says '' means "no spec" OR
+            // "one this project cannot name". Detect that case by what it
+            // actually is -- native reports no spec while EI still names one,
+            // so EI's conflated profession disagrees with native's base class
+            // -- rather than by hardcoding whichever account happens to hit it
+            // in today's fixture. Collect them instead of skipping silently,
+            // so the assertion below reports how wide the gap is.
+            const unnamedSpec =
+                e.elite_spec === '' && eiPlayer!.profession !== e.profession;
+            if (unnamedSpec) {
+                catalogGaps.push(
+                    `${e.account}: EI "${eiPlayer!.profession}" vs native "${e.profession}"`,
+                );
+            } else {
                 expect(actual.eliteSpec || actual.profession).toBe(eiPlayer!.profession);
             }
             expect(actual.group).toBe(eiPlayer!.group);
         }
+
+        // Pinned, not tolerated: if a regenerated fixture or an axilog catalog
+        // update changes this set, the test fails and the gap gets re-examined
+        // rather than quietly growing.
+        expect(catalogGaps, 'axilog elite-spec catalog gaps among squad').toEqual([
+            'Anon175.7475: EI "Antiquary" vs native "Thief"',
+        ]);
     });
 
     it('throws on an unknown entity id rather than returning blanks', () => {

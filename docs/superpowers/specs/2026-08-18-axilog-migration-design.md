@@ -432,6 +432,14 @@ parallel.
   in the `wvw.zevtc` fixture: account `Anon175.7475` runs Thief's
   "Antiquary" spec per EI, but native reports `elite_spec: ''` because
   Antiquary isn't in axilog's current catalog. The `identity.ts` oracle
-  test excludes this one account from its profession/spec equality check
-  rather than weakening the assertion, and documents why inline. This is a
-  real catalog gap axilog should eventually close, not a bug in this app.
+  test detects this case by its real condition -- native reports no spec
+  while EI still names one -- and pins the resulting set, so the gap fails
+  loudly if it widens rather than being tolerated.
+
+  **This is a user-visible regression, not just a test artifact.** Across the
+  fixture's 93 player entities, 8 come back with `elite_spec: ''` (2 squad,
+  6 enemy), and EI's own labels for that fight name specs axilog does not
+  emit. Wherever the UI shows an elite spec or a spec icon, those players
+  will render as their base profession after the cutover where Elite Insights
+  showed the spec. The fix belongs in axilog's catalog, not here; AxiPulse
+  passes `elite_spec` through verbatim and should keep doing so.
