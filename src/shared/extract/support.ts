@@ -15,6 +15,10 @@ function toSkillDamage(r: ReportV1, skillId: string, row: {
         name: def?.name ?? `Skill ${skillId}`,
         icon: def?.icon,
         damage: row.total,
+        // `HealSkillRow.hits` is required (`.d.ts`: "hits/min/max count EVERY
+        // event in the group ... GW2EI's healing dist has no HasHit gate"),
+        // unlike `SkillRow.hits` (defense.ts/damage.ts), which is optional --
+        // no `?? 0` fallback needed or wanted here.
         hits: row.hits,
         downContribution: 0,
         downedHealing: row.total_downed ?? 0,

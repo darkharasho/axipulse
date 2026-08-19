@@ -118,6 +118,44 @@ describe('extractDefense', () => {
         expect(totalMismatches, 'skill ids present on both sides with mismatched totals').toEqual([]);
     });
 
+    // Fix round 1: the test above validates the RAW `by_skill_taken` map
+    // against EI, but never calls `extractDefense` -- so a wrong-block bug
+    // in the extract itself (e.g. reading outgoing `by_skill` instead of
+    // incoming `by_skill_taken`) would go undetected even though this file
+    // has 6 passing tests. This test routes `topDamageTakenSkills` (the
+    // extract's actual output) back against the independently-computed
+    // `by_skill_taken` map for every squad member, so a wrong-block swap
+    // fails here even though `topDamageTakenSkills` itself is capped to the
+    // top 8 per entity.
+    it('cross-checks extractDefense\'s topDamageTakenSkills against the raw by_skill_taken map', () => {
+        const native = loadNativeFixture();
+        const idMismatches: string[] = [];
+        const totalMismatches: string[] = [];
+        const hitsMismatches: string[] = [];
+        let checkedAny = false;
+
+        for (const e of native.entities.filter(x => x.role === 'squad')) {
+            const bySkillTaken = native.blocks.damage.by_entity[String(e.id)]?.by_skill_taken ?? {};
+            const actual = extractDefense(native, e.id);
+
+            for (const skill of actual.topDamageTakenSkills) {
+                checkedAny = true;
+                const row = bySkillTaken[String(skill.id)];
+                if (!row) {
+                    idMismatches.push(`${e.account}:${skill.id}`);
+                    continue;
+                }
+                if (skill.damage !== row.total) totalMismatches.push(`${e.account}:${skill.id}`);
+                if (skill.hits !== (row.hits ?? 0)) hitsMismatches.push(`${e.account}:${skill.id}`);
+            }
+        }
+
+        expect(checkedAny).toBe(true);
+        expect(idMismatches, 'topDamageTakenSkills ids absent from by_skill_taken').toEqual([]);
+        expect(totalMismatches, 'topDamageTakenSkills damage not matching by_skill_taken total').toEqual([]);
+        expect(hitsMismatches, 'topDamageTakenSkills hits not matching by_skill_taken hits').toEqual([]);
+    });
+
     it('matches the EI oracle on defense counters for every squad member', () => {
         const ei = loadEiFixture();
         const native = loadNativeFixture();

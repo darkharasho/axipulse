@@ -30,6 +30,10 @@ export function extractDefense(r: ReportV1, id: number): DefenseStats {
                 name: def?.name ?? `Skill ${skillId}`,
                 icon: def?.icon,
                 damage: row.total,
+                // `SkillRow.hits` is optional (`.d.ts`: "CONTRIBUTING row
+                // count ... ABSENT on enemy rows"), unlike `HealSkillRow.hits`
+                // (support.ts), which is required -- the two row types have
+                // genuinely different optionality, this isn't a copy/paste slip.
                 hits: row.hits ?? 0,
                 downContribution: 0,
                 downedHealing: 0,

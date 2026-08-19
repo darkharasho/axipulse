@@ -38,11 +38,18 @@ export interface EiPlayer {
         outgoingHealingAllies: { healing: number }[][];
         totalHealingDist: { id: number; name: string; totalHealing: number; totalDownedHealing: number; hits: number }[][];
         healingReceived1S?: number[][];
+        // Keyed by ALLY index into `players` (positional, like `outgoingHealingAllies`),
+        // then by phase, then the per-skill rows healing that ally. Includes the
+        // healer's own index (self-healing), unlike the field name's "allied"
+        // implies -- see extract/support.test.ts's healingOutput oracle notes.
+        alliedHealingDist?: { id: number; totalHealing: number; totalDownedHealing: number; hits: number }[][][];
     };
     extBarrierStats?: {
         outgoingBarrierAllies: { barrier: number }[][];
         totalBarrierDist: { id: number; name: string; totalBarrier: number; hits: number }[][];
         barrierReceived1S?: number[][];
+        // Same shape as `alliedHealingDist`, for barrier.
+        alliedBarrierDist?: { id: number; totalBarrier: number; hits: number }[][][];
     };
     rotation: { id: number; skills: { castTime: number; duration: number }[] }[];
     healthPercents?: [number, number][];
