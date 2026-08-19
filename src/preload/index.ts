@@ -1,7 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { ReportV1 } from '../shared/report'
+import type { ElectronAPI } from '../shared/electronApi'
 
-contextBridge.exposeInMainWorld('electronAPI', {
+// Annotated, not inferred. `ElectronAPI` is the same declaration
+// `src/renderer/globals.d.ts` points at, so a member added, removed or
+// retyped on either side is a compile error here -- the two halves used to
+// be independent declarations that could disagree silently.
+const api: ElectronAPI = {
     // Window controls
     windowControl: (action: 'minimize' | 'maximize' | 'close') => ipcRenderer.send('window-control', action),
 
@@ -20,7 +24,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('parse-started', (_event, value) => callback(value))
         return () => ipcRenderer.removeAllListeners('parse-started')
     },
-    onParseComplete: (callback: (data: { logId: string; logPath: string; data: ReportV1 }) => void) => {
+    onParseComplete: (callback) => {
         ipcRenderer.on('parse-complete', (_event, value) => callback(value))
         return () => ipcRenderer.removeAllListeners('parse-complete')
     },
@@ -82,4 +86,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     troubleshootCheckLogDir: (dir: string) => ipcRenderer.invoke('troubleshoot:check-log-dir', dir),
     troubleshootCheckArcdps: () => ipcRenderer.invoke('troubleshoot:check-arcdps'),
     troubleshootParseTest: () => ipcRenderer.invoke('troubleshoot:parse-test'),
-})
+}
+
+contextBridge.exposeInMainWorld('electronAPI', api)
