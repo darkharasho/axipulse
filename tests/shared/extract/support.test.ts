@@ -29,16 +29,18 @@ describe('extractSupport', () => {
     // the 46-member roster (verified below, not assumed), even players with
     // large measured healing/barrier elsewhere in the same EI document.
     //
-    // CORRECTION (fix round 1): an earlier version of this file claimed
-    // `healingOutput` has no EI counterpart at all on this fixture. That
-    // was wrong -- EI carries a second, real oracle:
-    // `extHealingStats.alliedHealingDist` / `extBarrierStats.alliedBarrierDist`
-    // (positional per-ALLY arrays, one entry per `players[]` index,
-    // including the healer's own index). Summed, these DO disagree with
-    // native's `outgoing_allies` beyond 1% on 15 of 46 squad members -- a
-    // real, structural, previously-undetected finding. See the dedicated
-    // `healingOutput`/`barrierOutput` oracle test below for the pinned
-    // mismatch set and the root cause.
+    // A working oracle for `healingOutput` DOES exist:
+    // `extHealingStats.totalHealingDist` (EI's full outgoing total) minus
+    // EI's own self-healing figure (`alliedHealingDist[selfIndex]`, summed)
+    // -- see the dedicated `healingOutput`/`barrierOutput` oracle test
+    // below, which matches native's `outgoing_allies` EXACTLY on all 46
+    // squad members. An earlier round of this file compared native's
+    // allies-only total against `alliedHealingDist`'s OWN sum (a
+    // roster-limited per-ally breakdown, not "everyone but me") and found
+    // an apparent 15/46 mismatch; that was a mis-specified oracle, not a
+    // real disagreement -- both native and EI restrict `alliedHealingDist`
+    // / `detail.by_ally` to the same limited friendlies roster, and agree
+    // exactly on it (see `byAllyVsAlliedDistMismatches` below).
     it('confirms outgoingHealingAllies/outgoingBarrierAllies are unpopulated in this EI fixture', () => {
         const ei = loadEiFixture();
         const nonZero: string[] = [];
@@ -96,32 +98,26 @@ describe('extractSupport', () => {
             .toEqual(['Anon178.7586']);
     });
 
-    // Fix round 1, finding 2/3: a REAL oracle for `healingOutput` does
-    // exist on this fixture -- `extHealingStats.alliedHealingDist`, a
-    // per-ALLY array (index = position in `players[]`, including the
-    // healer's own index) of per-skill healing rows, summed across allies
-    // and skills. This disagrees with native's `outgoing_allies` (what
-    // `healingOutput` reads) beyond 1% on 15 of 46 squad members.
+    // Fix round 2, finding 3: the round-1 oracle for `healingOutput` was
+    // mis-specified, not a real disagreement. `alliedHealingDist` (summed
+    // raw, including the healer's own index) is EI's per-ALLY-ROSTER
+    // breakdown -- it only covers entries in the `players[]` friendlies
+    // roster (47 slots), so its sum is naturally SMALLER than EI's own
+    // `totalHealingDist` sum whenever healing landed on an off-roster ally
+    // (e.g. a non-tracked NPC/minion). That's a coverage difference between
+    // two different EI quantities, not a native/EI gap: EI's own
+    // `alliedHealingDist` sum is short of its own `totalHealingDist` sum by
+    // the identical gap native's `detail.by_ally` sum is short of native's
+    // `outgoing_total` (proven per-account, not asserted).
     //
-    // Root cause, established by comparing THREE independent sources for
-    // the same quantity:
-    //   1. native's scalar `HealingEntity.outgoing_allies` (what this app reads)
-    //   2. native's own `HealingEntity.detail.by_ally` breakdown, summed
-    //   3. EI's `alliedHealingDist`, summed
-    // Source (2) matches source (3) EXACTLY for all 46 squad members (zero
-    // mismatches -- see the loop below). So the per-ally breakdown pass
-    // inside axilog agrees perfectly with EI, and the disagreement is
-    // entirely between native's OWN scalar (`outgoing_allies`, sourced from
-    // a different internal pass) and native's OWN per-ally breakdown -- not
-    // a native/EI measurement gap. This is a genuine axilog-internal
-    // inconsistency (a third upstream bug, alongside the `downs_taken` and
-    // pet/minion-fold findings already on record), not something this
-    // extract layer introduces or can locally correct without deviating
-    // from the frozen `DefenseStats`/`SupportStats` field mapping the brief
-    // specifies (`healingOutput` -> `outgoing_allies`, verbatim). Pinned,
-    // not softened, so a fixture regeneration that changes the set gets
-    // re-examined.
-    it('matches EI\'s alliedHealingDist oracle on healingOutput, and totalBarrierDist on barrierOutput, for every squad member', () => {
+    // The correct EI-side oracle for `healingOutput` (`outgoing_allies`,
+    // i.e. total minus self) is therefore
+    // `totalHealingDist sum - alliedHealingDist[selfIndex] sum` -- EI's
+    // full total, self-healing subtracted out via EI's own self-indexed
+    // allied-dist entry, not `alliedHealingDist`'s (roster-limited) sum
+    // used as a stand-in for "everyone but me". This yields EXACT integer
+    // equality with native's `outgoing_allies` for all 46 squad members.
+    it('matches EI\'s (totalHealingDist - self) oracle on healingOutput, and totalBarrierDist on barrierOutput, for every squad member', () => {
         const ei = loadEiFixture();
         const native = loadNativeFixture();
         const healingMismatches: string[] = [];
@@ -129,28 +125,31 @@ describe('extractSupport', () => {
         const byAllyVsAlliedDistMismatches: string[] = [];
 
         for (const e of native.entities.filter(x => x.role === 'squad')) {
-            const eiPlayer = ei.players.find(p => p.account === e.account)!;
+            const eiIndex = ei.players.findIndex(p => p.account === e.account);
+            const eiPlayer = ei.players[eiIndex];
+            expect(eiPlayer, `no EI player for ${e.account}`).toBeDefined();
             const actual = extractSupport(native, e.id);
             const healing = native.blocks.healing.by_entity[String(e.id)];
 
             const alliedHealingSum = (eiPlayer.extHealingStats?.alliedHealingDist ?? [])
                 .reduce((total, entry) => total + (entry[0] ?? []).reduce((a, b) => a + b.totalHealing, 0), 0);
-            if (alliedHealingSum === 0) {
-                if (actual.healingOutput > 1) healingMismatches.push(e.account);
-            } else if (Math.abs(actual.healingOutput - alliedHealingSum) / alliedHealingSum >= 0.01) {
-                healingMismatches.push(e.account);
-            }
 
-            // Source (2) vs source (3) from the comment above: native's own
-            // per-ally breakdown against EI's alliedHealingDist. Zero
-            // mismatches expected -- proving the disagreement above is
-            // internal to native, not a native/EI gap.
+            // Proves native and EI agree on the roster-limited per-ally
+            // breakdown itself (this IS a valid, matching comparison --
+            // both sides cover the same friendlies roster).
             const byAllySum = Object.values(healing!.detail?.by_ally ?? {}).reduce((a, b) => a + b.healing, 0);
             if (alliedHealingSum === 0) {
                 if (byAllySum > 1) byAllyVsAlliedDistMismatches.push(e.account);
             } else if (Math.abs(byAllySum - alliedHealingSum) / alliedHealingSum >= 0.01) {
                 byAllyVsAlliedDistMismatches.push(e.account);
             }
+
+            const eiTotalHealing = eiPlayer.extHealingStats?.totalHealingDist?.[0]
+                ?.reduce((a, b) => a + b.totalHealing, 0) ?? 0;
+            const eiSelfHealing = (eiPlayer.extHealingStats?.alliedHealingDist?.[eiIndex]?.[0] ?? [])
+                .reduce((a, b) => a + b.totalHealing, 0);
+            const eiAlliesOnly = eiTotalHealing - eiSelfHealing;
+            if (actual.healingOutput !== eiAlliesOnly) healingMismatches.push(e.account);
 
             const eiBarrierTotal = eiPlayer.extBarrierStats?.totalBarrierDist?.[0]
                 ?.reduce((a, b) => a + b.totalBarrier, 0) ?? 0;
@@ -162,12 +161,7 @@ describe('extractSupport', () => {
         }
 
         expect(byAllyVsAlliedDistMismatches, 'native detail.by_ally sum vs EI alliedHealingDist sum').toEqual([]);
-        expect(healingMismatches, 'extractSupport().healingOutput vs EI\'s alliedHealingDist sum').toEqual([
-            'Anon200.8400', 'Anon164.7068', 'Anon150.6550', 'Anon158.6846',
-            'Anon168.7216', 'Anon171.7327', 'Anon162.6994', 'Anon163.7031',
-            'Anon176.7512', 'Anon160.6920', 'Anon177.7549', 'Anon188.7956',
-            'Anon191.8067', 'Anon165.7105', 'Anon209.8733',
-        ]);
+        expect(healingMismatches, 'extractSupport().healingOutput vs EI\'s (totalHealingDist - self) oracle').toEqual([]);
         expect(barrierMismatches, 'extractSupport().barrierOutput vs EI\'s totalBarrierDist sum').toEqual([
             'Anon178.7586',
         ]);
