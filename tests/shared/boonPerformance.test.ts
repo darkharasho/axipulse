@@ -467,6 +467,38 @@ describe('local player stab generation (native, rekeyed per_source)', () => {
             .toThrow(/per_source/);
     });
 
+    // The other half of the removed fallback. `states` is absent only when
+    // the report was parsed without `timeseries: true`, which our fixed
+    // PARSE_OPTS never does -- so an absent timeline means the caller got a
+    // report it cannot compute generation from, and must not see zeros.
+    it('throws when a boons row has no states timeline at all', () => {
+        const native = loadNativeFixture();
+        const boons = native.blocks.boons!;
+        const victim = squadMembers(native).find(e =>
+            (boons.by_entity[String(e.id)][String(STABILITY_BUFF_ID)].states?.length ?? 0) > 0);
+        expect(victim, 'no squad member has a non-empty stability timeline').toBeDefined();
+
+        const key = String(victim!.id);
+        const row = { ...boons.by_entity[key][String(STABILITY_BUFF_ID)] };
+        expect(row.states).toBeDefined();
+        delete row.states;
+        const mutated: ReportV1 = {
+            ...native,
+            blocks: {
+                ...native.blocks,
+                boons: {
+                    by_entity: {
+                        ...boons.by_entity,
+                        [key]: { ...boons.by_entity[key], [String(STABILITY_BUFF_ID)]: row },
+                    },
+                },
+            },
+        };
+
+        expect(() => computeBoonPerformance(mutated, localPlayerId(native), 1000, STABILITY_BUFF_ID))
+            .toThrow(/states/);
+    });
+
     // An all-zero selfGeneration is a REAL zero (this entity applied the
     // boon to nobody), which is why the old "no per_source anywhere ->
     // spread the summary generation evenly" fallback was wrong rather than
