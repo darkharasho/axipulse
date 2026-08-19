@@ -1,9 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
     createParseDispatcher,
     parseInProcess,
+    PARSE_TIMEOUT_MS,
+    PRODUCTION_DISPATCHER_OPTIONS,
     workerEntryPoint,
     WORKER_ENTRY_BASENAME,
     type ParseChannel,
@@ -53,39 +55,90 @@ describe('parseInProcess', () => {
 // different id than it recorded would be caught rather than papered over.
 // ---------------------------------------------------------------------------
 
+interface FakeChannel {
+    readonly sent: WorkerRequest[];
+    killed: boolean;
+    /** Answer a request exactly as the real worker would. */
+    answer(request: WorkerRequest): void;
+    /** Push an arbitrary reply, for protocol-violation cases. */
+    deliver(response: WorkerResponse): void;
+    exit(code: number): void;
+}
+
+/**
+ * A stand-in for the transport ONLY.
+ *
+ * Every channel it hands out is tracked separately, because the dispatcher
+ * is allowed to discard one and open another, and a test that shared a
+ * single pair of handlers across "both" channels could not tell a fresh
+ * worker from the old one. `kill()` fires that channel's exit handler, which
+ * is what a real utilityProcess does and is how the late-exit guard gets
+ * exercised rather than assumed.
+ */
 function fakeWorker() {
-    let onMessage: ((r: WorkerResponse) => void) | null = null;
-    let onExit: ((code: number) => void) | null = null;
+    const channels: FakeChannel[] = [];
     const sent: WorkerRequest[] = [];
-    let opened = 0;
+    const owner = new Map<WorkerRequest, FakeChannel>();
 
     const openChannel = (): ParseChannel => {
-        opened++;
+        let onMessage: ((r: WorkerResponse) => void) | null = null;
+        let onExit: ((code: number) => void) | null = null;
+        const mine: WorkerRequest[] = [];
+
+        const deliver = (response: WorkerResponse) => {
+            if (onMessage === null) throw new Error('fakeWorker: no message handler bound');
+            onMessage(response);
+        };
+        const exit = (code: number) => {
+            if (onExit === null) throw new Error('fakeWorker: no exit handler bound');
+            onExit(code);
+        };
+
+        const record: FakeChannel = {
+            sent: mine,
+            killed: false,
+            answer: (request) => { deliver(handleParseRequest(request)); },
+            deliver,
+            exit,
+        };
+        channels.push(record);
+
         return {
-            postMessage: (request) => { sent.push(request); },
+            postMessage: (request) => {
+                mine.push(request);
+                sent.push(request);
+                owner.set(request, record);
+            },
             onMessage: (handler) => { onMessage = handler; },
             onExit: (handler) => { onExit = handler; },
+            kill: () => {
+                record.killed = true;
+                // A real utilityProcess reports its own death.
+                exit(143);
+            },
         };
+    };
+
+    const current = (): FakeChannel => {
+        const last = channels[channels.length - 1];
+        if (last === undefined) throw new Error('fakeWorker: no channel opened yet');
+        return last;
     };
 
     return {
         openChannel,
+        channels,
         sent,
-        get opened() { return opened; },
-        /** Answer a request exactly as the real worker would. */
+        get opened() { return channels.length; },
+        get killed() { return channels.filter(c => c.killed).length; },
+        /** Answer on whichever channel actually received this request. */
         answer(request: WorkerRequest) {
-            if (onMessage === null) throw new Error('fakeWorker: no message handler bound');
-            onMessage(handleParseRequest(request));
+            const channel = owner.get(request);
+            if (channel === undefined) throw new Error('fakeWorker: request was never sent');
+            channel.answer(request);
         },
-        /** Push an arbitrary reply, for protocol-violation cases. */
-        deliver(response: WorkerResponse) {
-            if (onMessage === null) throw new Error('fakeWorker: no message handler bound');
-            onMessage(response);
-        },
-        exit(code: number) {
-            if (onExit === null) throw new Error('fakeWorker: no exit handler bound');
-            onExit(code);
-        },
+        deliver(response: WorkerResponse) { current().deliver(response); },
+        exit(code: number) { current().exit(code); },
     };
 }
 
@@ -259,5 +312,141 @@ describe('workerEntryPoint', () => {
         );
         expect(existsSync(source)).toBe(true);
         expect(workerEntryPoint().endsWith(WORKER_ENTRY_BASENAME)).toBe(true);
+    });
+});
+
+describe('createParseDispatcher recovery after a hang', () => {
+    const hung = () => {
+        const worker = fakeWorker();
+        const sink = protocolErrorSink();
+        return {
+            worker,
+            sink,
+            dispatcher: createParseDispatcher(worker.openChannel, {
+                timeoutMs: 30,
+                reportProtocolError: sink.report,
+            }),
+        };
+    };
+
+    it('kills the hung worker and opens a fresh one for the next parse', async () => {
+        const { worker, dispatcher } = hung();
+
+        // Without the kill-and-drop, the second parse is dispatched to the
+        // same dead worker: `opened` stays 1 and every later parse costs a
+        // full timeout for the life of the process.
+        await expect(dispatcher.parse('/logs/first.zevtc')).rejects.toThrow(
+            /did not reply within 30ms \(parsing \/logs\/first\.zevtc\)/,
+        );
+        expect(worker.opened).toBe(1);
+        expect(worker.killed).toBe(1);
+
+        await expect(dispatcher.parse('/logs/second.zevtc')).rejects.toThrow(
+            /did not reply within 30ms \(parsing \/logs\/second\.zevtc\)/,
+        );
+        expect(worker.opened).toBe(2);
+        expect(worker.killed).toBe(2);
+    });
+
+    it('parses normally again on the fresh worker after a hang', async () => {
+        const { worker, sink, dispatcher } = hung();
+
+        await expect(dispatcher.parse('/logs/silent.zevtc')).rejects.toThrow(
+            /did not reply within/,
+        );
+
+        const recovered = dispatcher.parse(FIXTURE);
+        expect(worker.opened).toBe(2);
+        worker.answer(worker.sent[1]);
+        expect((await recovered).axilog.generated_from).toBe('wvw.zevtc');
+        expect(sink.errors).toEqual([]);
+    });
+
+    it('fails the requests in flight alongside the hung one, naming each log', async () => {
+        const { worker, dispatcher } = hung();
+
+        const slow = dispatcher.parse('/logs/slow.zevtc');
+        const alongside = dispatcher.parse('/logs/alongside.zevtc');
+
+        await expect(slow).rejects.toThrow(
+            /parseLog: axilog worker did not reply within 30ms \(parsing \/logs\/slow\.zevtc\)/,
+        );
+        // Its worker has just been killed, so this request can never be
+        // answered either. Leaving it pending would re-create the hang the
+        // timeout exists to bound.
+        await expect(alongside).rejects.toThrow(
+            /parseLog: axilog worker was killed after another request timed out \(parsing \/logs\/alongside\.zevtc\)/,
+        );
+        expect(worker.killed).toBe(1);
+    });
+
+    it("a discarded worker's exit cannot disturb its replacement", async () => {
+        const { worker, dispatcher } = hung();
+
+        await expect(dispatcher.parse('/logs/first.zevtc')).rejects.toThrow(/did not reply within/);
+
+        const onFreshWorker = dispatcher.parse(FIXTURE);
+        expect(worker.opened).toBe(2);
+
+        // The dead worker reports its death a second time, late. Unguarded,
+        // this nulls the CURRENT channel and rejects the request running on
+        // it -- a request that has nothing to do with the worker that died.
+        worker.channels[0].exit(143);
+
+        worker.answer(worker.sent[1]);
+        expect((await onFreshWorker).axilog.generated_from).toBe('wvw.zevtc');
+    });
+
+    it('reports a late reply as lateness, not as a protocol violation', async () => {
+        const { worker, sink, dispatcher } = hung();
+
+        // A parse that was merely slow: the request timed out, and the
+        // worker then finished it successfully.
+        const request = { id: 0, path: FIXTURE };
+        await expect(dispatcher.parse(FIXTURE)).rejects.toThrow(/did not reply within/);
+        request.id = worker.sent[0].id;
+        worker.channels[0].answer(worker.sent[0]);
+
+        expect(sink.errors.length).toBe(1);
+        expect(sink.errors[0].message).toMatch(
+            new RegExp(
+                `parseLog: discarded a late reply to request id ${request.id} from an axilog`
+                + ` worker no longer in service \\(the worker was killed after request`
+                + ` ${request.id} \\(${FIXTURE.replace(/[/.]/g, '\\$&')}\\)`
+                + ` went unanswered for 30ms\\)`,
+            ),
+        );
+        // Blaming the worker for a protocol violation it did not commit is
+        // what this message replaces.
+        expect(sink.errors[0].message).not.toMatch(/unknown request id/);
+    });
+});
+
+describe('PRODUCTION_DISPATCHER_OPTIONS', () => {
+    it('gives production the exported timeout, not an ad-hoc one', () => {
+        expect(PRODUCTION_DISPATCHER_OPTIONS.timeoutMs).toBe(PARSE_TIMEOUT_MS);
+        expect(PARSE_TIMEOUT_MS).toBe(120_000);
+        // A guard against the value being quietly shrunk to something a real
+        // parse could exceed. The fixture parses in ~0.3s.
+        expect(PARSE_TIMEOUT_MS).toBeGreaterThanOrEqual(30_000);
+    });
+
+    it('actually emits protocol errors rather than dropping them', () => {
+        const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        let calls: unknown[][];
+        try {
+            PRODUCTION_DISPATCHER_OPTIONS.reportProtocolError(
+                new Error('probe: a protocol error the main process must not swallow'),
+            );
+            // Read before restoring: `mockRestore` wipes `mock.calls` along
+            // with the stub, so asserting afterwards asserts on nothing.
+            calls = spy.mock.calls.map(args => [...args]);
+        } finally {
+            spy.mockRestore();
+        }
+        expect(calls.length).toBe(1);
+        expect(calls[0][0]).toBe(
+            'probe: a protocol error the main process must not swallow',
+        );
     });
 });

@@ -69,6 +69,8 @@ export interface ParseChannel {
     postMessage(request: WorkerRequest): void;
     onMessage(handler: (response: WorkerResponse) => void): void;
     onExit(handler: (code: number) => void): void;
+    /** Terminate the worker. A real one answers with an `exit` event. */
+    kill(): void;
 }
 
 export interface ParseDispatcherOptions {
@@ -128,6 +130,17 @@ export function createParseDispatcher(
     options: ParseDispatcherOptions,
 ): ParseDispatcher {
     let channel: ParseChannel | null = null;
+    /**
+     * Why the last channel stopped being the current one. Read only when a
+     * message arrives from a channel that is no longer in service, so the
+     * report can name the real cause instead of guessing.
+     */
+    let retirement: string | null = null;
+    /**
+     * Never reset, not even when a new channel is opened: ids are unique for
+     * the life of this dispatcher, so a late reply from a discarded worker
+     * can never be mistaken for an answer to a newer request.
+     */
     let nextRequestId = 1;
     const pending = new Map<number, PendingParse>();
     const timers = new Map<number, ReturnType<typeof setTimeout>>();
@@ -168,28 +181,97 @@ export function createParseDispatcher(
         }
     }
 
-    function onExit(code: number): void {
-        channel = null;
+    /** Reject everything still outstanding, one error per request. */
+    function failAllPending(describe: (entry: PendingParse) => string): void {
         for (const id of [...pending.keys()]) {
             const entry = pending.get(id);
             if (entry === undefined) continue;
-            settle(id, {
-                ok: false,
-                error: new Error(
-                    `parseLog: axilog worker exited with code ${code} before replying`
-                    + ` (parsing ${entry.logPath})`,
-                ),
-            });
+            settle(id, { ok: false, error: new Error(describe(entry)) });
         }
+    }
+
+    function onExit(code: number): void {
+        channel = null;
+        retirement = `the worker exited with code ${code}`;
+        failAllPending(entry =>
+            `parseLog: axilog worker exited with code ${code} before replying`
+            + ` (parsing ${entry.logPath})`);
+    }
+
+    /**
+     * A request outlived its budget.
+     *
+     * Rejecting the caller is not enough on its own: the worker is still
+     * running, still unresponsive, and still the channel every later parse
+     * would be dispatched to -- so one hang used to brick the parse path,
+     * costing a full timeout per attempt for the life of the process. The
+     * hung worker is killed and dropped here, and the next parse opens a
+     * fresh one.
+     *
+     * Killing it also settles what a late reply means: it can only arrive
+     * from a worker already out of service, which is reported as lateness
+     * rather than as the protocol violation `onResponse` detects.
+     */
+    function onTimeout(id: number, logPath: string): void {
+        const hung = channel;
+        channel = null;
+        retirement = `the worker was killed after request ${id} (${logPath})`
+            + ` went unanswered for ${options.timeoutMs}ms`;
+
+        settle(id, {
+            ok: false,
+            error: new Error(
+                `parseLog: axilog worker did not reply within`
+                + ` ${options.timeoutMs}ms (parsing ${logPath})`,
+            ),
+        });
+        failAllPending(entry =>
+            `parseLog: axilog worker was killed after another request timed out`
+            + ` (parsing ${entry.logPath})`);
+
+        if (hung !== null) hung.kill();
     }
 
     function ensureChannel(): ParseChannel {
         if (channel) return channel;
         const opened = openChannel();
-        opened.onMessage(onResponse);
-        opened.onExit(onExit);
+        // Every handler is guarded on the channel it was bound to. A killed
+        // worker's `exit` can arrive after its replacement is already open,
+        // and unguarded it would null the NEW channel and reject the new
+        // channel's requests.
+        opened.onMessage((response) => {
+            if (opened !== channel) {
+                reportLateReply(response.id);
+                return;
+            }
+            onResponse(response);
+        });
+        opened.onExit((code) => {
+            if (opened !== channel) return;
+            onExit(code);
+        });
         channel = opened;
         return opened;
+    }
+
+    /**
+     * A reply from a worker that is no longer in service.
+     *
+     * NOT a protocol violation -- the usual cause is a parse that finished
+     * after its own timeout killed the worker. Saying "unknown request id"
+     * here would blame the worker for what was only slowness, so this is
+     * reported separately and leaves `onResponse`'s unknown-id detection to
+     * mean exactly what it says: a reply on the LIVE channel that matches no
+     * outstanding request.
+     */
+    function reportLateReply(id: number): void {
+        const cause = retirement === null
+            ? 'no worker has been retired, so this reply has no known origin'
+            : retirement;
+        options.reportProtocolError(new Error(
+            `parseLog: discarded a late reply to request id ${id} from an axilog`
+            + ` worker no longer in service (${cause})`,
+        ));
     }
 
     return {
@@ -204,15 +286,10 @@ export function createParseDispatcher(
                         else reject(outcome.error);
                     },
                 });
-                timers.set(id, setTimeout(() => {
-                    settle(id, {
-                        ok: false,
-                        error: new Error(
-                            `parseLog: axilog worker did not reply within`
-                            + ` ${options.timeoutMs}ms (parsing ${logPath})`,
-                        ),
-                    });
-                }, options.timeoutMs));
+                timers.set(id, setTimeout(
+                    () => { onTimeout(id, logPath); },
+                    options.timeoutMs,
+                ));
                 const request: WorkerRequest = { id, path: logPath };
                 active.postMessage(request);
             });
@@ -237,15 +314,27 @@ function openUtilityProcessChannel(): ParseChannel {
         postMessage: (request) => spawned.postMessage(request),
         onMessage: (handler) => { spawned.on('message', handler); },
         onExit: (handler) => { spawned.on('exit', handler); },
+        kill: () => { spawned.kill(); },
     };
 }
 
-const productionDispatcher = createParseDispatcher(openUtilityProcessChannel, {
+/**
+ * What `parseLog` runs with. Exported as data so it can be asserted: it is
+ * the one part of the production wiring that is neither the untestable
+ * `utilityProcess` adapter nor covered by the dispatcher tests, and
+ * `timeoutMs: 1` or a no-op reporter used to be a silent, green change.
+ */
+export const PRODUCTION_DISPATCHER_OPTIONS: ParseDispatcherOptions = {
     timeoutMs: PARSE_TIMEOUT_MS,
     // eslint-disable-next-line no-console -- the main process has no window
     // to surface this in, and it must not be swallowed.
     reportProtocolError: (err) => console.error(err.message),
-});
+};
+
+const productionDispatcher = createParseDispatcher(
+    openUtilityProcessChannel,
+    PRODUCTION_DISPATCHER_OPTIONS,
+);
 
 /**
  * Parse a log off the main thread. Resolves with the native report, or
