@@ -181,8 +181,71 @@ function buildTimeline(json: EiJson, player: EiPlayer, bucketSizeMs: number): Ti
     };
 }
 
+/**
+ * The absolute fight time of `combatReplayData.positions[0]`, for the EI
+ * path -- the value `SquadMemberMovement.positionsStartMs` carries.
+ *
+ * NOT `start` verbatim. GW2EI's own JSON model documents the index->time
+ * mapping for `positions` as
+ *
+ *   `ceil(Start / PollingRate) * PollingRate + i * PollingRate`
+ *
+ * (`GW2EIJSON/JsonActorUtilities/JsonActorCombatReplayData.cs`), i.e. the
+ * first sample is at the first POLL TICK at or after `Start`, not at `Start`
+ * itself. Read from EI's source rather than assumed. (`boonPerformance.ts`'
+ * `computeDistancesPerBucketEi` uses `floor` for the same quantity, which is
+ * off by one poll whenever `Start` is not already on the grid -- a
+ * pre-existing EI-path bug, dormant on the frozen fixture, carried to Task
+ * 11 rather than fixed here.)
+ *
+ * No `?? 0`. `Start` is a NON-NULLABLE `long` in EI's model, assigned
+ * unconditionally by `JsonActorCombatReplayDataBuilder`, and EI's serializer
+ * is configured `DefaultIgnoreCondition = WhenWritingNull` -- so it omits
+ * nulls only, never a zero-valued value type. `start` is therefore present
+ * on every `combatReplayData` EI emits, and this producer only reaches here
+ * for a player it has already established HAS a `combatReplayData` with a
+ * non-empty `positions` array. An absent `start` is a broken document, and
+ * defaulting it to 0 would silently assert the track began at fight start --
+ * the same silent zero this migration has already removed twice.
+ */
+function eiPositionsStartMs(
+    replay: { start?: number },
+    pollingRate: number,
+    who: string,
+): number {
+    if (replay.start === undefined) {
+        throw new Error(
+            `buildMovementData: ${who} has combatReplayData positions but no \`start\` --`
+            + ' Elite Insights always emits it, so the index-to-time mapping for those'
+            + ' positions is unrecoverable',
+        );
+    }
+    return Math.ceil(replay.start / pollingRate) * pollingRate;
+}
+
+/**
+ * `combatReplayMetaData` is absent exactly when the log carries no combat
+ * replay at all -- and then no actor has `combatReplayData` either, so the
+ * member loops below emit nothing and this function returns `null` before
+ * either scalar is read. When the block IS present, `PollingRate` (`int`)
+ * and `InchToPixel` (`float`) are non-nullable value types in EI's model and
+ * are always serialized. So an actor with replay positions and no metadata
+ * is a broken document; the previous `?? 300` / `?? 1` quietly invented a
+ * poll grid and a pixel scale for it.
+ */
+function requireEiReplayMeta(json: EiJson, who: string): { pollingRate: number; inchToPixel: number } {
+    const meta = json.combatReplayMetaData;
+    if (meta?.pollingRate === undefined || meta.inchToPixel === undefined) {
+        throw new Error(
+            `buildMovementData: ${who} has combatReplayData but the log has no`
+            + ' combatReplayMetaData.pollingRate/inchToPixel to place or scale it',
+        );
+    }
+    return { pollingRate: meta.pollingRate, inchToPixel: meta.inchToPixel };
+}
+
 function buildMovementData(json: EiJson, localPlayer: EiPlayer): MovementData | null {
-    const pollingRate = json.combatReplayMetaData?.pollingRate ?? 300;
+    let replayMeta: { pollingRate: number; inchToPixel: number } | null = null;
 
     // Build skill icon map first so we can filter casts to only renderable, user-pressable skills
     const skillIcons: Record<number, { name: string; icon: string }> = {};
@@ -198,6 +261,7 @@ function buildMovementData(json: EiJson, localPlayer: EiPlayer): MovementData | 
     const allyNames = new Set<string>();
     for (const p of json.players) {
         if (p.isFake || !p.combatReplayData?.positions?.length) continue;
+        replayMeta ??= requireEiReplayMeta(json, `player ${p.name}`);
         // Everyone in json.players is an ally (squad or non-squad friendly).
         // Enemies only come from json.targets with enemyPlayer=true.
         allyNames.add(p.name);
@@ -234,12 +298,11 @@ function buildMovementData(json: EiJson, localPlayer: EiPlayer): MovementData | 
             isEnemy: false,
             inSquad: !p.notInSquad,
             positions: p.combatReplayData!.positions!,
-            // GW2EI's own start-of-track instant, which this producer used
-            // to discard -- see `SquadMemberMovement.positionsStartMs`. The
-            // `?? 0` matches `computeDistancesPerBucketEi`, the only other
-            // reader of this field, and this whole EI producer is retired by
-            // Task 11 in favour of `extract/movement.ts`.
-            positionsStartMs: Number(p.combatReplayData?.start ?? 0),
+            // GW2EI's own start-of-track instant, which this producer used to
+            // discard -- see `SquadMemberMovement.positionsStartMs`.
+            positionsStartMs: eiPositionsStartMs(
+                p.combatReplayData!, replayMeta.pollingRate, `player ${p.name}`,
+            ),
             downRanges: p.combatReplayData?.down ?? [],
             deadRanges: p.combatReplayData?.dead ?? [],
             boonStates,
@@ -251,6 +314,7 @@ function buildMovementData(json: EiJson, localPlayer: EiPlayer): MovementData | 
     for (const t of json.targets) {
         if (!t.enemyPlayer || t.isFake || !t.combatReplayData?.positions?.length) continue;
         if (allyNames.has(t.name)) continue;
+        replayMeta ??= requireEiReplayMeta(json, `target ${t.name}`);
         const specMatch = t.name.match(/^(.+?) pl-\d+$/);
         const specName = specMatch?.[1] ?? '';
         members.push({
@@ -264,13 +328,18 @@ function buildMovementData(json: EiJson, localPlayer: EiPlayer): MovementData | 
             isEnemy: true,
             inSquad: false,
             positions: t.combatReplayData.positions,
-            positionsStartMs: Number(t.combatReplayData.start ?? 0),
+            positionsStartMs: eiPositionsStartMs(
+                t.combatReplayData, replayMeta.pollingRate, `target ${t.name}`,
+            ),
             downRanges: t.combatReplayData.down ?? [],
             deadRanges: t.combatReplayData.dead ?? [],
         });
     }
 
     if (members.length === 0) return null;
+    // Unreachable: `members` is only appended to after `replayMeta` is set.
+    // Present so the narrowing is the type system's, not a comment's.
+    if (!replayMeta) throw new Error('buildMovementData: members without replay metadata');
 
     const boonIcons: Record<number, { name: string; icon: string }> = {};
     for (const [key, val] of Object.entries(json.buffMap ?? {})) {
@@ -280,8 +349,14 @@ function buildMovementData(json: EiJson, localPlayer: EiPlayer): MovementData | 
         }
     }
 
-    const inchToPixel = json.combatReplayMetaData?.inchToPixel ?? 1;
-    return { pollingRate, durationMs: json.durationMS, inchToPixel, members, boonIcons, skillIcons };
+    return {
+        pollingRate: replayMeta.pollingRate,
+        durationMs: json.durationMS,
+        inchToPixel: replayMeta.inchToPixel,
+        members,
+        boonIcons,
+        skillIcons,
+    };
 }
 
 function buildFightComposition(json: EiJson): FightComposition {
