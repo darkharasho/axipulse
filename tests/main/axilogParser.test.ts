@@ -75,7 +75,7 @@ interface FakeChannel {
  * is what a real utilityProcess does and is how the late-exit guard gets
  * exercised rather than assumed.
  */
-function fakeWorker() {
+function fakeWorker(behaviour: { killThrows?: Error } = {}) {
     const channels: FakeChannel[] = [];
     const sent: WorkerRequest[] = [];
     const owner = new Map<WorkerRequest, FakeChannel>();
@@ -113,6 +113,7 @@ function fakeWorker() {
             onExit: (handler) => { onExit = handler; },
             kill: () => {
                 record.killed = true;
+                if (behaviour.killThrows !== undefined) throw behaviour.killThrows;
                 // A real utilityProcess reports its own death.
                 exit(143);
             },
@@ -316,8 +317,8 @@ describe('workerEntryPoint', () => {
 });
 
 describe('createParseDispatcher recovery after a hang', () => {
-    const hung = () => {
-        const worker = fakeWorker();
+    const hung = (behaviour: { killThrows?: Error } = {}) => {
+        const worker = fakeWorker(behaviour);
         const sink = protocolErrorSink();
         return {
             worker,
@@ -395,6 +396,71 @@ describe('createParseDispatcher recovery after a hang', () => {
 
         worker.answer(worker.sent[1]);
         expect((await onFreshWorker).axilog.generated_from).toBe('wvw.zevtc');
+    });
+
+    it('reports a kill that throws instead of letting it escape the timer', async () => {
+        const { worker, sink, dispatcher } = hung({
+            killThrows: new Error('EPERM: bad process handle'),
+        });
+
+        // Unguarded, this throw leaves a `setTimeout` callback and lands on
+        // `uncaughtException`. The Electron main process installs no handler
+        // for that, so the app dies over a worker it was discarding anyway.
+        await expect(dispatcher.parse('/logs/unkillable.zevtc')).rejects.toThrow(
+            /parseLog: axilog worker did not reply within 30ms \(parsing \/logs\/unkillable\.zevtc\)/,
+        );
+
+        expect(sink.errors.length).toBe(1);
+        expect(sink.errors[0].message).toMatch(
+            new RegExp(
+                `parseLog: failed to kill the axilog worker after request`
+                + ` ${worker.sent[0].id} \\(\\/logs\\/unkillable\\.zevtc\\) timed out:`
+                + ` EPERM: bad process handle`,
+            ),
+        );
+
+        // And the parse path still recovers: the channel was dropped before
+        // the kill was attempted, so the next parse gets a fresh worker.
+        const recovered = dispatcher.parse(FIXTURE);
+        expect(worker.opened).toBe(2);
+        worker.answer(worker.sent[1]);
+        expect((await recovered).axilog.generated_from).toBe('wvw.zevtc');
+    });
+
+    it('names a self-exit as the cause when a reply arrives after it', async () => {
+        const worker = fakeWorker();
+        const sink = protocolErrorSink();
+        const dispatcher = createParseDispatcher(worker.openChannel, {
+            timeoutMs: 2000,
+            reportProtocolError: sink.report,
+        });
+
+        // The worker dies on its own -- no timeout involved.
+        const abandoned = dispatcher.parse(FIXTURE);
+        worker.exit(0);
+        await expect(abandoned).rejects.toThrow(/exited with code 0 before replying/);
+
+        // Its late reply must name the exit. Without the cause being recorded
+        // on this path the report claims no worker has been retired, which is
+        // a diagnostic that sends the reader looking for the wrong bug.
+        worker.channels[0].answer(worker.sent[0]);
+        expect(sink.errors.length).toBe(1);
+        expect(sink.errors[0].message).toContain('(the worker exited with code 0)');
+        expect(sink.errors[0].message).not.toContain('no worker has been retired');
+    });
+
+    it('never reuses a request id across worker retirements', async () => {
+        const { worker, dispatcher } = hung();
+
+        await expect(dispatcher.parse('/logs/first.zevtc')).rejects.toThrow(/did not reply within/);
+        await expect(dispatcher.parse('/logs/second.zevtc')).rejects.toThrow(/did not reply within/);
+
+        // Ids are dispatcher-scoped, not channel-scoped. Restarting them at 1
+        // for each new worker would make a late reply from a discarded worker
+        // carry the same id as a live request, so the diagnostic naming that
+        // id would point at the wrong parse.
+        expect(worker.opened).toBe(2);
+        expect(worker.sent[1].id).toBeGreaterThan(worker.sent[0].id);
     });
 
     it('reports a late reply as lateness, not as a protocol violation', async () => {

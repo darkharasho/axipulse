@@ -77,11 +77,17 @@ export interface ParseDispatcherOptions {
     /** Per-request budget. */
     timeoutMs: number;
     /**
-     * Where protocol violations go. A reply to an id this process never
-     * issued (or issued and already settled) cannot fail any particular
-     * caller, so it is reported here instead of thrown: throwing inside the
-     * channel's message listener would take down the whole main process
-     * over one stray message.
+     * Where failures that belong to no particular caller go: a reply to an
+     * id this process never issued, a late reply from a retired worker, a
+     * kill that would not take. None of these can fail a parse, so they are
+     * reported here rather than thrown -- throwing from inside a channel
+     * listener or a timer callback lands on `uncaughtException`, and the
+     * Electron main process installs no handler for that, so one stray
+     * message would take down the whole app.
+     *
+     * CONTRACT: this must not throw. It is the end of the error-reporting
+     * chain and there is nowhere left to report a failure of it, so a throw
+     * here re-creates the very hazard the indirection exists to remove.
      */
     reportProtocolError: (err: Error) => void;
 }
@@ -229,7 +235,23 @@ export function createParseDispatcher(
             `parseLog: axilog worker was killed after another request timed out`
             + ` (parsing ${entry.logPath})`);
 
-        if (hung !== null) hung.kill();
+        if (hung !== null) {
+            // Unguarded, this was the last statement of a `setTimeout`
+            // callback: a `kill()` that threw went straight to
+            // `uncaughtException` and, with no handler installed, crashed
+            // the app -- exactly the hazard that replacing a bare `throw`
+            // with `reportProtocolError` in `onResponse` was meant to
+            // remove. The caller is already settled above, so a failed kill
+            // costs a leaked worker, not a lost parse.
+            try {
+                hung.kill();
+            } catch (err) {
+                options.reportProtocolError(new Error(
+                    `parseLog: failed to kill the axilog worker after request ${id}`
+                    + ` (${logPath}) timed out: ${messageOf(err)}`,
+                ));
+            }
+        }
     }
 
     function ensureChannel(): ParseChannel {
