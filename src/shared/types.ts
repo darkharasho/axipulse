@@ -120,6 +120,22 @@ export interface SquadMemberMovement {
     isEnemy: boolean;
     inSquad: boolean;
     positions: [number, number][];
+    /**
+     * The absolute fight time, in ms, of `positions[0]`.
+     *
+     * Position tracks do NOT all start at the same tick: this app's native
+     * fixture has 93 tracks starting at ten different instants (one at 0, 82
+     * at 300, ten between 30000 and 100800, at `pollingRate` 300), because a
+     * player who joins the fight late has no earlier position to report.
+     * Index `i` therefore means `positionsStartMs + i * pollingRate`, and is
+     * a DIFFERENT instant for different members -- so a consumer comparing
+     * two members' positions must convert through time, never index directly.
+     *
+     * GW2EI's own `combatReplayData.start` carried exactly this and the EI
+     * movement producer silently dropped it, which is why the map view drew
+     * late-joining enemies up to 100 seconds ahead of themselves.
+     */
+    positionsStartMs: number;
     downRanges: [number, number][];
     deadRanges: [number, number][];
     boonStates?: Record<number, [number, number][]>;

@@ -234,6 +234,12 @@ function buildMovementData(json: EiJson, localPlayer: EiPlayer): MovementData | 
             isEnemy: false,
             inSquad: !p.notInSquad,
             positions: p.combatReplayData!.positions!,
+            // GW2EI's own start-of-track instant, which this producer used
+            // to discard -- see `SquadMemberMovement.positionsStartMs`. The
+            // `?? 0` matches `computeDistancesPerBucketEi`, the only other
+            // reader of this field, and this whole EI producer is retired by
+            // Task 11 in favour of `extract/movement.ts`.
+            positionsStartMs: Number(p.combatReplayData?.start ?? 0),
             downRanges: p.combatReplayData?.down ?? [],
             deadRanges: p.combatReplayData?.dead ?? [],
             boonStates,
@@ -258,6 +264,7 @@ function buildMovementData(json: EiJson, localPlayer: EiPlayer): MovementData | 
             isEnemy: true,
             inSquad: false,
             positions: t.combatReplayData.positions,
+            positionsStartMs: Number(t.combatReplayData.start ?? 0),
             downRanges: t.combatReplayData.down ?? [],
             deadRanges: t.combatReplayData.dead ?? [],
         });

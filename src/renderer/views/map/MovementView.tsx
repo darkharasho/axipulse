@@ -108,6 +108,39 @@ function lerpPos(positions: [number, number][], index: number, frac: number): [n
     return [a[0] + (b[0] - a[0]) * frac, a[1] + (b[1] - a[1]) * frac];
 }
 
+/**
+ * Where a member's own position array sits at absolute fight time `timeMs`.
+ *
+ * Tracks do not share a start tick (see `SquadMemberMovement.positionsStartMs`),
+ * so the index has to be measured from each member's own start. `null` means
+ * the log has no position for this member yet -- they had not joined the
+ * fight -- and the caller draws nothing rather than pinning them to wherever
+ * they first appeared. After a member's last sample the frame clamps to it,
+ * which is what the previous index arithmetic did too.
+ */
+function memberFrame(
+    m: SquadMemberMovement,
+    timeMs: number,
+    pollingRate: number,
+): { idx: number; frac: number } | null {
+    const maxIdx = m.positions.length - 1;
+    if (maxIdx < 0) return null;
+    const rel = (timeMs - m.positionsStartMs) / pollingRate;
+    if (rel < 0) return null;
+    const clamped = Math.min(rel, maxIdx);
+    const idx = Math.min(Math.floor(clamped), maxIdx);
+    return { idx, frac: idx < maxIdx ? clamped - idx : 0 };
+}
+
+function memberPosAt(
+    m: SquadMemberMovement,
+    timeMs: number,
+    pollingRate: number,
+): [number, number] | null {
+    const f = memberFrame(m, timeMs, pollingRate);
+    return f ? lerpPos(m.positions, f.idx, f.frac) : null;
+}
+
 function formatTime(ms: number): string {
     const sec = Math.floor(ms / 1000);
     return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
@@ -198,11 +231,7 @@ export function MovementView() {
         const renderScale = Math.min(rect.width / mw, rect.height / mh);
         const renderW = mw * renderScale;
         const renderH = mh * renderScale;
-        const maxIdx = Math.max(0, local.positions.length - 1);
-        const fIdx = Math.min(timeMs / movementData.pollingRate, maxIdx);
-        const idx = Math.min(Math.floor(fIdx), maxIdx);
-        const frac = idx < maxIdx ? fIdx - idx : 0;
-        const pos = lerpPos(local.positions, idx, frac);
+        const pos = memberPosAt(local, timeMs, movementData.pollingRate);
         if (!pos) return;
         const nx = pos[0] / mw;
         const ny = pos[1] / mh;
@@ -311,10 +340,9 @@ export function MovementView() {
     }
 
     const { pollingRate, durationMs, inchToPixel, members, boonIcons, skillIcons } = movementData;
-    const maxPosIndex = Math.max(0, members[0].positions.length - 1);
-    const fractionalIndex = Math.min(timeMs / pollingRate, maxPosIndex);
-    const posIndex = Math.min(Math.floor(fractionalIndex), maxPosIndex);
-    const posFrac = fractionalIndex - posIndex;
+    // There is no shared position index across members -- `members[0]`'s
+    // array length is not every member's, and index i is a different instant
+    // for each. Every site below resolves its own frame from `timeMs`.
     const markerScale = 1 / Math.pow(view.scale, 0.7);
 
     const allies = members.filter(m => !m.isEnemy && m.inSquad);
@@ -322,7 +350,7 @@ export function MovementView() {
     const localPlayer = allies.find(m => m.isLocal);
     const localGroup = localPlayer?.group ?? -1;
     const commander = allies.find(m => m.isCommander);
-    const commanderPos = commander ? lerpPos(commander.positions, Math.min(posIndex, commander.positions.length - 1), posIndex < commander.positions.length - 1 ? posFrac : 0) : null;
+    const commanderPos = commander ? memberPosAt(commander, timeMs, pollingRate) : null;
 
     return (
         <div className="flex flex-col h-full gap-2">
@@ -402,11 +430,8 @@ export function MovementView() {
                             const iconUrl = getProfessionIconPath(member.eliteSpec) ?? getProfessionIconPath(member.profession) ?? '';
                             const health = getHealthPercent(member, timeMs);
                             const healthColor = status === 'dead' ? '#ef4444' : status === 'down' ? '#3b82f6' : health > 50 ? '#22c55e' : health > 25 ? '#f59e0b' : '#ef4444';
-                            const memberMaxIdx = member.positions.length - 1;
-                            const memberIdx = Math.min(posIndex, memberMaxIdx);
-                            const memberFrac = posIndex < memberMaxIdx ? posFrac : 0;
-                            const memberPos = lerpPos(member.positions, memberIdx, memberFrac);
-                            const panelDist = commanderPos && !member.isCommander
+                            const memberPos = memberPosAt(member, timeMs, pollingRate);
+                            const panelDist = memberPos && commanderPos && !member.isCommander
                                 ? Math.round(Math.hypot(memberPos[0] - commanderPos[0], memberPos[1] - commanderPos[1]) / inchToPixel)
                                 : null;
                             return (
@@ -588,10 +613,7 @@ export function MovementView() {
 
                         {/* Enemy markers (rendered first, behind allies) */}
                         {enemies.map((member, i) => {
-                            const maxIdx = member.positions.length - 1;
-                            const currentIdx = Math.min(posIndex, maxIdx);
-                            const currentFrac = posIndex < maxIdx ? posFrac : 0;
-                            const pos = lerpPos(member.positions, currentIdx, currentFrac);
+                            const pos = memberPosAt(member, timeMs, pollingRate);
                             if (!pos) return null;
                             const iconUrl = getProfessionIconPath(member.eliteSpec) ?? getProfessionIconPath(member.profession) ?? '';
                             const enemyId = `enemy-${member.name}-${i}`;
@@ -642,11 +664,10 @@ export function MovementView() {
                         {allies.map((member) => {
                             const isParty = member.isCommander || member.group === localGroup;
                             const visible = showSquad || isParty;
-                            const maxIdx = member.positions.length - 1;
-                            const currentIdx = Math.min(posIndex, maxIdx);
-                            const currentFrac = posIndex < maxIdx ? posFrac : 0;
-                            const pos = lerpPos(member.positions, currentIdx, currentFrac);
-                            if (!pos) return null;
+                            const frame = memberFrame(member, timeMs, pollingRate);
+                            if (!frame) return null;
+                            const currentIdx = frame.idx;
+                            const pos = lerpPos(member.positions, currentIdx, frame.frac);
 
                             const color = getProfessionColor(member.profession);
                             const status = getMemberStatus(member, timeMs);

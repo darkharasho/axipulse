@@ -45,12 +45,34 @@ export interface TileInfo {
     height: number;
 }
 
-export function getMapTiles(map: WvwMap, tileZoom: number): TileInfo[] {
+/**
+ * Tile rects for one WvW map, in the same squeezed combat-replay pixel space
+ * `SquadMemberMovement.positions` and `WVW_LANDMARKS` use.
+ *
+ * `pixelSize` overrides the table entry when the caller has the log's
+ * `blocks.replay.tracks.arena` -- run it through `arenaPixelSize` in
+ * `extract/movement.ts`. The document is the better source: the table's
+ * per-map sizes were transcribed by hand, while `arena` travels with the
+ * positions being plotted, so an override guarantees the tiles and the
+ * markers cannot disagree even if the two ever drift apart.
+ *
+ * They do not disagree today, and `wvwTiles.test.ts` pins that: 697x1000
+ * squeezed to a 750px maximum dimension is 522.75x750, which rounds to the
+ * table's [523, 750] for Green Alpine. `continentRect` has no counterpart in
+ * `arena` (it is GW2 continent space, not world space) and stays tabular --
+ * every one of the four rects is verified against that map's
+ * `continent_rect` from `https://api.guildwars2.com/v2/maps/<id>`.
+ */
+export function getMapTiles(
+    map: WvwMap,
+    tileZoom: number,
+    pixelSize?: [number, number],
+): TileInfo[] {
     const data = WVW_TILE_DATA[map];
     if (!data) return [];
 
     const [[cx1, cy1], [cx2, cy2]] = data.continentRect;
-    const [pw, ph] = data.pixelSize;
+    const [pw, ph] = pixelSize ?? data.pixelSize;
     const [ox, oy] = data.pixelOffset;
     const cw = cx2 - cx1;
     const ch = cy2 - cy1;
