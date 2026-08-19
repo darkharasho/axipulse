@@ -23,7 +23,8 @@ export function loadEiFixture(): EiJson {
 }
 
 /** The native document for the same log — the oracle's right-hand side.
- *  Parsed once per test process; parsing is ~0.3s but not free. */
+ *  Parsed once per test *file* — vitest's forked pool gives each file its
+ *  own module graph, so the ~0.3s parse is paid once per importing file. */
 export function loadNativeFixture(): ReportV1 {
     if (!cachedNative) {
         cachedNative = parseFile(join(FIXTURES, 'wvw.zevtc'), PARSE_OPTS) as ReportV1;
