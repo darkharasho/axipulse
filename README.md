@@ -28,7 +28,7 @@
 
 ## See what happened. Know what to fix.
 
-AxiPulse is a lightweight desktop companion that watches your arcdps log folder, parses each fight locally with Elite Insights, and shows you exactly how you performed — while the squad is still forming up for the next one.
+AxiPulse is a lightweight desktop companion that watches your arcdps log folder, parses each fight locally in-process, and shows you exactly how you performed — while the squad is still forming up for the next one.
 
 No browser tabs. No uploads. No waiting. Drop it on a second monitor and let it work.
 
@@ -48,8 +48,8 @@ Watch a top-down replay of your squad's movement on the WvW map. Track positions
 ### History — Fight log
 Every parsed fight is saved and browsable. Quick-stats let you scan across a session at a glance, and clicking any entry loads the full Pulse, Timeline, and Map views for that fight.
 
-### Automatic Elite Insights management
-AxiPulse downloads, installs, and updates Elite Insights for you. On Linux it handles the .NET runtime too. You never touch a CLI or a config file.
+### Nothing to install, nothing to configure
+The parser is built into AxiPulse — there is no separate download, no external tool to keep updated, and no .NET runtime. A fight is parsed in well under a second, entirely on your machine; nothing is uploaded anywhere.
 
 ### Auto-updates
 AxiPulse checks for updates on launch and can install them in the background. One click to restart when a new version is ready.
@@ -68,7 +68,7 @@ Grab the latest release for your platform:
 ### Prerequisites
 
 - [arcdps](https://www.deltaconnected.com/arcdps/) installed in your Guild Wars 2 directory
-- AxiPulse handles everything else — Elite Insights is downloaded and managed automatically
+- AxiPulse handles everything else — the parser ships with the app, so there is nothing else to install
 
 ### Build from source
 
@@ -89,7 +89,7 @@ npm run build        # production build
 | Framework | Electron                                |
 | Frontend  | React, TypeScript, Vite                 |
 | Styling   | Tailwind CSS                            |
-| Parser    | Elite Insights CLI (managed)            |
+| Parser    | axilog (Rust, in-process via napi)      |
 | Updates   | electron-updater                        |
 
 ---

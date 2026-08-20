@@ -1,6 +1,16 @@
 import type { TimelineBucket, BuffStateEntry } from './types';
 
-function interpolateHealth(healthPercent: [number, number][], timeMs: number): number {
+/**
+ * Health percent at `timeMs`, linearly interpolated between the two samples
+ * that bracket it.
+ *
+ * EXPORTED for its own test. Its empty-input arm returns 0 -- "we have no
+ * health reading", never the 100 that a naive full-health default would give
+ * -- and that arm is unreachable from `getHealthInRange`, which short-circuits
+ * on an empty timeline first. Returning 100 there survived the whole suite;
+ * a direct test is the only thing that can see it.
+ */
+export function interpolateHealth(healthPercent: [number, number][], timeMs: number): number {
     if (healthPercent.length === 0) return 0;
     if (timeMs <= healthPercent[0][0]) return healthPercent[0][1];
     if (timeMs >= healthPercent[healthPercent.length - 1][0]) return healthPercent[healthPercent.length - 1][1];
@@ -76,13 +86,27 @@ export function getBoonStateAtTime(entry: BuffStateEntry, timeMs: number): BoonS
     return { name: entry.name, icon: entry.icon, stacks: currentStacks, active, droppedAgoMs };
 }
 
+/**
+ * Mean and peak distance to the commander over a time range, or `null` when
+ * the range holds no sampled bucket.
+ *
+ * `null`, not `{ avg: 0, max: 0 }`. Zero inches from the tag reads as
+ * "perfectly stacked" -- the panel paints it green and hides the "far from
+ * squad" warning -- which is the exact opposite of "we do not know where
+ * they were". The distinction was invisible under Elite Insights, whose
+ * `distanceToTag` lane was empty for the ENTIRE roster on this app's frozen
+ * fixture, so the panel showed a confident green 0 for everyone. The native
+ * lane populates it for 45 of 46 squad members, which makes the remaining
+ * absences (the commander, who has no distance to their own tag, and any
+ * range outside a member's sampled window) meaningful for the first time.
+ */
 export function getAvgDistanceInRange(
     buckets: TimelineBucket[],
     startMs: number,
     endMs: number,
-): { avg: number; max: number } {
+): { avg: number; max: number } | null {
     const inRange = buckets.filter(b => b.time >= startMs && b.time <= endMs);
-    if (inRange.length === 0) return { avg: 0, max: 0 };
+    if (inRange.length === 0) return null;
 
     const sum = inRange.reduce((s, b) => s + b.value, 0);
     const max = Math.max(...inRange.map(b => b.value));

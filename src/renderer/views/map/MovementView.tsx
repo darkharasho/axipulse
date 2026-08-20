@@ -2,9 +2,10 @@ import { useRef, useState, useCallback, useEffect, useMemo, type MouseEvent } fr
 import { ChevronRight, Crosshair, MapPin, Pause, Play, RotateCcw, Users, ZoomIn, ZoomOut } from 'lucide-react';
 import { useAppStore } from '../../store';
 import { WVW_LANDMARKS, WvwMap, type WvwLandmark } from '../../../shared/wvwLandmarks';
-import { resolveMapFromZone } from '../../../shared/mapUtils';
-import { getMapTiles, hasTileData } from '../../../shared/wvwTiles';
+import { resolveMapFromMapId } from '../../../shared/mapUtils';
+import { getMapTiles, hasTileData, resolveMapPixelSize } from '../../../shared/wvwTiles';
 import type { SkillCast, SquadMemberMovement } from '../../../shared/types';
+import { lerpPos, memberFrame, memberPosAt } from '../../../shared/movementFrame';
 import { getProfessionIconPath } from '../../classIconUtils';
 import { getProfessionColor } from '../../../shared/professionUtils';
 
@@ -101,13 +102,6 @@ function getRecentSkills(
 
 const PANEL_BOON_ORDER = [740, 725, 717, 718, 726, 1122, 719, 743, 873, 1187, 30328, 26980];
 
-function lerpPos(positions: [number, number][], index: number, frac: number): [number, number] {
-    const a = positions[index];
-    if (frac === 0 || index >= positions.length - 1) return a;
-    const b = positions[index + 1];
-    return [a[0] + (b[0] - a[0]) * frac, a[1] + (b[1] - a[1]) * frac];
-}
-
 function formatTime(ms: number): string {
     const sec = Math.floor(ms / 1000);
     return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
@@ -189,20 +183,22 @@ export function MovementView() {
     // Follow player: center view on local player's position
     useEffect(() => {
         if (!followPlayer || !currentFight?.movementData || !containerRef.current) return;
-        const { movementData, mapSize } = currentFight;
+        const { movementData, mapSize, mapId } = currentFight;
         const local = movementData.members.find(m => m.isLocal);
         if (!local) return;
-        const mw = mapSize?.[0] ?? 523;
-        const mh = mapSize?.[1] ?? 750;
+        // Same resolver the render path uses. The `?? 523 / ?? 750` that stood
+        // here was Alpine's size, silently applied to EBG (716x750) and Red
+        // Desert (750x750) -- which mis-framed the follow camera on two of the
+        // four maps. Missed in Task 11's first pass because it is inside an
+        // effect rather than the render body.
+        const pixelSize = resolveMapPixelSize(mapSize, mapId === null ? null : resolveMapFromMapId(mapId));
+        if (pixelSize === null) return;
+        const [mw, mh] = pixelSize;
         const rect = containerRef.current.getBoundingClientRect();
         const renderScale = Math.min(rect.width / mw, rect.height / mh);
         const renderW = mw * renderScale;
         const renderH = mh * renderScale;
-        const maxIdx = Math.max(0, local.positions.length - 1);
-        const fIdx = Math.min(timeMs / movementData.pollingRate, maxIdx);
-        const idx = Math.min(Math.floor(fIdx), maxIdx);
-        const frac = idx < maxIdx ? fIdx - idx : 0;
-        const pos = lerpPos(local.positions, idx, frac);
+        const pos = memberPosAt(local, timeMs, movementData.pollingRate);
         if (!pos) return;
         const nx = pos[0] / mw;
         const ny = pos[1] / mh;
@@ -288,17 +284,38 @@ export function MovementView() {
         );
     }
 
-    const { mapImageUrl, mapSize, mapName, movementData } = currentFight;
-    const map = resolveMapFromZone(mapName);
+    const { mapImageUrl, mapSize, mapId, mapName, movementData } = currentFight;
+    // By map ID, not by display name. `resolveMapFromMapId` covers all four
+    // WvW maps and cannot be broken by a localisation or a rewording.
+    const map = mapId === null ? null : resolveMapFromMapId(mapId);
     const landmarks = map ? WVW_LANDMARKS[map] : [];
-    const width = mapSize?.[0] ?? 523;
-    const height = mapSize?.[1] ?? 750;
+    // `mapSize` is the log's own arena, squeezed into EI pixel space; the
+    // per-map table is the fallback for a log with no arena; `null` means no
+    // assets for this map at all. The bare `?? 523 / ?? 750` this replaced
+    // was Alpine's size applied to EBG and Red Desert too, and the `[0, 0]`
+    // that briefly replaced THAT was a degenerate coordinate space.
+    const pixelSize = resolveMapPixelSize(mapSize, map);
     const useTiles = map && hasTileData(map);
     const tileZoom = tileZoomForScale(view.scale);
     const tiles = useMemo(
-        () => (useTiles ? getMapTiles(map as WvwMap, tileZoom) : []),
-        [useTiles, map, tileZoom],
+        // Third argument: the tiles are laid out in the SAME pixel space the
+        // markers are, so they cannot drift from the table.
+        () => (useTiles ? getMapTiles(map as WvwMap, tileZoom, mapSize ?? undefined) : []),
+        [useTiles, map, tileZoom, mapSize],
     );
+
+    // After every hook, so the rules of hooks hold on both branches.
+    if (pixelSize === null) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full gap-2">
+                <MapPin className="w-8 h-8" style={{ color: 'var(--text-muted)' }} />
+                <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>No Map Assets</span>
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {mapName} is not a WvW map this app has landmark or tile data for
+                </span>
+            </div>
+        );
+    }
 
     if (!movementData || movementData.members.length === 0) {
         return (
@@ -310,11 +327,12 @@ export function MovementView() {
         );
     }
 
+    const [width, height] = pixelSize;
+
     const { pollingRate, durationMs, inchToPixel, members, boonIcons, skillIcons } = movementData;
-    const maxPosIndex = Math.max(0, members[0].positions.length - 1);
-    const fractionalIndex = Math.min(timeMs / pollingRate, maxPosIndex);
-    const posIndex = Math.min(Math.floor(fractionalIndex), maxPosIndex);
-    const posFrac = fractionalIndex - posIndex;
+    // There is no shared position index across members -- `members[0]`'s
+    // array length is not every member's, and index i is a different instant
+    // for each. Every site below resolves its own frame from `timeMs`.
     const markerScale = 1 / Math.pow(view.scale, 0.7);
 
     const allies = members.filter(m => !m.isEnemy && m.inSquad);
@@ -322,7 +340,7 @@ export function MovementView() {
     const localPlayer = allies.find(m => m.isLocal);
     const localGroup = localPlayer?.group ?? -1;
     const commander = allies.find(m => m.isCommander);
-    const commanderPos = commander ? lerpPos(commander.positions, Math.min(posIndex, commander.positions.length - 1), posIndex < commander.positions.length - 1 ? posFrac : 0) : null;
+    const commanderPos = commander ? memberPosAt(commander, timeMs, pollingRate) : null;
 
     return (
         <div className="flex flex-col h-full gap-2">
@@ -402,11 +420,8 @@ export function MovementView() {
                             const iconUrl = getProfessionIconPath(member.eliteSpec) ?? getProfessionIconPath(member.profession) ?? '';
                             const health = getHealthPercent(member, timeMs);
                             const healthColor = status === 'dead' ? '#ef4444' : status === 'down' ? '#3b82f6' : health > 50 ? '#22c55e' : health > 25 ? '#f59e0b' : '#ef4444';
-                            const memberMaxIdx = member.positions.length - 1;
-                            const memberIdx = Math.min(posIndex, memberMaxIdx);
-                            const memberFrac = posIndex < memberMaxIdx ? posFrac : 0;
-                            const memberPos = lerpPos(member.positions, memberIdx, memberFrac);
-                            const panelDist = commanderPos && !member.isCommander
+                            const memberPos = memberPosAt(member, timeMs, pollingRate);
+                            const panelDist = memberPos && commanderPos && !member.isCommander
                                 ? Math.round(Math.hypot(memberPos[0] - commanderPos[0], memberPos[1] - commanderPos[1]) / inchToPixel)
                                 : null;
                             return (
@@ -588,10 +603,7 @@ export function MovementView() {
 
                         {/* Enemy markers (rendered first, behind allies) */}
                         {enemies.map((member, i) => {
-                            const maxIdx = member.positions.length - 1;
-                            const currentIdx = Math.min(posIndex, maxIdx);
-                            const currentFrac = posIndex < maxIdx ? posFrac : 0;
-                            const pos = lerpPos(member.positions, currentIdx, currentFrac);
+                            const pos = memberPosAt(member, timeMs, pollingRate);
                             if (!pos) return null;
                             const iconUrl = getProfessionIconPath(member.eliteSpec) ?? getProfessionIconPath(member.profession) ?? '';
                             const enemyId = `enemy-${member.name}-${i}`;
@@ -642,11 +654,10 @@ export function MovementView() {
                         {allies.map((member) => {
                             const isParty = member.isCommander || member.group === localGroup;
                             const visible = showSquad || isParty;
-                            const maxIdx = member.positions.length - 1;
-                            const currentIdx = Math.min(posIndex, maxIdx);
-                            const currentFrac = posIndex < maxIdx ? posFrac : 0;
-                            const pos = lerpPos(member.positions, currentIdx, currentFrac);
-                            if (!pos) return null;
+                            const frame = memberFrame(member, timeMs, pollingRate);
+                            if (!frame) return null;
+                            const currentIdx = frame.idx;
+                            const pos = lerpPos(member.positions, currentIdx, frame.frac);
 
                             const color = getProfessionColor(member.profession);
                             const status = getMemberStatus(member, timeMs);

@@ -32,7 +32,12 @@ export function HistoryEntry({ entry, isActive, isCurrent, onClick }: HistoryEnt
                     )}
                 </div>
                 <span className="text-[10px] text-[color:var(--text-muted)]">
-                    {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {/* `null` when the log carries no CBTS_LOGSTART event.
+                        `new Date(null)` is the epoch, which would render a
+                        confident and wrong "01:00". */}
+                    {entry.timestamp === null
+                        ? '—'
+                        : new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
             </div>
             <div className="flex items-center gap-3 mt-1">

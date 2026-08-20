@@ -1,7 +1,13 @@
 // tests/shared/boonData.test.ts
 import { describe, it, expect } from 'vitest';
-import { extractBoonUptimes, extractBoonGeneration, WVW_BOON_IDS, OFFENSIVE_BOON_IDS, DEFENSIVE_BOON_IDS, HARD_CC_IDS, SOFT_CC_IDS, CONDITION_NAMES } from '../../src/shared/boonData';
-import type { EiPlayer } from '../../src/shared/types';
+import {
+    extractBoonUptimes, extractBoonGeneration,
+    WVW_BOON_IDS, OFFENSIVE_BOON_IDS, DEFENSIVE_BOON_IDS, HARD_CC_IDS, SOFT_CC_IDS, CONDITION_NAMES,
+} from '../../src/shared/boonData';
+import { extractBoonUptimesEi, extractBoonGenerationEi } from './ei/boonData';
+import type { EiPlayer } from './ei/types';
+import { squadMembers } from '../../src/shared/report';
+import { loadEiFixture, loadNativeFixture } from './oracle';
 
 function makePlayer(overrides: Partial<EiPlayer> = {}): EiPlayer {
     return {
@@ -30,9 +36,42 @@ function makePlayer(overrides: Partial<EiPlayer> = {}): EiPlayer {
     } as EiPlayer;
 }
 
+/**
+ * Fix round 1, finding 4. `HARD_CC_IDS` carried `785` for Fear. That id
+ * exists in NEITHER document -- native's `catalogs.buffs` has no `785` and
+ * EI's `buffMap` has no `b785`; both define `791` as Fear. The consequence
+ * was a live silent drop on the still-active EI path: `buildTimeline`'s hard
+ * CC lane filters `player.buffUptimes` by `ALL_TRACKED_BUFF_IDS`, so every
+ * Fear timeline in the log was discarded. This pins the corrected id against
+ * both documents rather than against the constant itself.
+ */
+describe('HARD_CC_IDS Fear id', () => {
+    it('uses 791, the id both documents actually define for Fear', () => {
+        const ei = loadEiFixture();
+        const native = loadNativeFixture();
+
+        expect(HARD_CC_IDS.has(791), 'Fear (791) is tracked').toBe(true);
+        expect(HARD_CC_IDS.has(785), 'the phantom id 785 is not tracked').toBe(false);
+
+        // The oracle: both documents, not the constant.
+        expect(native.catalogs.buffs['785'], 'native catalog entry for 785').toBeUndefined();
+        expect(ei.buffMap?.['b785'], 'EI buffMap entry for b785').toBeUndefined();
+        expect(native.catalogs.buffs['791']?.name).toBe('Fear');
+        expect(ei.buffMap?.['b791']?.name).toBe('Fear');
+
+        // And the data the wrong id was dropping: EI players carrying a Fear
+        // state timeline. Vacuity guard -- if this were 0 the fix would be
+        // untestable and the id would be a coin flip.
+        const withFear = ei.players.filter(p => (p.buffUptimes ?? [])
+            .some(b => b.id === 791 && (b.states?.length ?? 0) > 0));
+        expect(withFear.length, 'EI players whose Fear timeline the wrong id dropped').toBe(7);
+    });
+});
+
+
 describe('extractBoonUptimes', () => {
     it('extracts uptime for known boons', () => {
-        const uptimes = extractBoonUptimes(makePlayer());
+        const uptimes = extractBoonUptimesEi(makePlayer());
         const might = uptimes.find(u => u.id === 740);
         expect(might).toBeDefined();
         expect(might!.uptime).toBe(85.5);
@@ -46,7 +85,7 @@ describe('extractBoonUptimes', () => {
                 { id: 725, buffData: [{ uptime: 92, generation: 0, overstack: 0, wasted: 0 }] },
             ],
         });
-        const uptimes = extractBoonUptimes(player);
+        const uptimes = extractBoonUptimesEi(player);
         expect(uptimes.find(u => u.id === 740)!.stacking).toBe('intensity');
         expect(uptimes.find(u => u.id === 1122)!.stacking).toBe('intensity');
         expect(uptimes.find(u => u.id === 725)!.stacking).toBe('duration');
@@ -59,14 +98,14 @@ describe('extractBoonUptimes', () => {
                 { id: 99999, buffData: [{ uptime: 50, generation: 0, overstack: 0, wasted: 0 }] },
             ],
         });
-        const uptimes = extractBoonUptimes(player);
+        const uptimes = extractBoonUptimesEi(player);
         expect(uptimes.every(u => WVW_BOON_IDS.has(u.id))).toBe(true);
     });
 });
 
 describe('extractBoonGeneration', () => {
     it('extracts self/group/squad generation', () => {
-        const gen = extractBoonGeneration(makePlayer());
+        const gen = extractBoonGenerationEi(makePlayer());
         const might = gen.find(g => g.id === 740);
         expect(might).toBeDefined();
         expect(might!.selfGeneration).toBe(100);
@@ -116,5 +155,66 @@ describe('boon and condition ID sets', () => {
         for (const id of SOFT_CC_IDS) {
             expect(CONDITION_NAMES[id]).toBeDefined();
         }
+    });
+});
+
+describe('extractBoonUptimes / extractBoonGeneration (native)', () => {
+    it('returns exactly the WVW_BOON_IDS present in blocks.boons.by_entity[id] for every squad member', () => {
+        const native = loadNativeFixture();
+        let checkedAny = 0;
+        for (const e of squadMembers(native)) {
+            checkedAny++;
+            const boonsRow = native.blocks.boons!.by_entity[String(e.id)];
+            const expectedIds = [...WVW_BOON_IDS].filter(id => boonsRow[String(id)] !== undefined).sort((a, b) => a - b);
+
+            const uptimes = extractBoonUptimes(native, e.id);
+            expect(uptimes.map(u => u.id).sort((a, b) => a - b)).toEqual(expectedIds);
+            for (const u of uptimes) {
+                expect(u.name.length).toBeGreaterThan(0);
+                expect(Number.isFinite(u.uptime)).toBe(true);
+                expect(['duration', 'intensity']).toContain(u.stacking);
+            }
+
+            const generation = extractBoonGeneration(native, e.id);
+            expect(generation.map(g => g.id).sort((a, b) => a - b)).toEqual(expectedIds);
+        }
+        expect(checkedAny).toBe(46);
+    });
+
+    it('throws on an unknown entity id rather than returning blanks', () => {
+        const native = loadNativeFixture();
+        // Anchored to each function's own first guard: both used to be bare
+        // `toThrow()`s, which would have passed if either function threw for
+        // some entirely unrelated reason.
+        expect(() => extractBoonUptimes(native, 999_999))
+            .toThrow('extractBoonUptimes: no boons row for entity 999999');
+        expect(() => extractBoonGeneration(native, 999_999))
+            .toThrow('extractBoonGeneration: no boons row for entity 999999');
+    });
+
+    describe('the catalog is the only source of truth', () => {
+        function withoutBuff(buffId: number) {
+            const r = loadNativeFixture();
+            const buffs = { ...r.catalogs.buffs };
+            delete buffs[String(buffId)];
+            return { ...r, catalogs: { ...r.catalogs, buffs } };
+        }
+
+        it('makes extractBoonGeneration throw for a buff the catalog does not carry', () => {
+            // Previously `def?.name ?? BOON_NAMES[buffId] ?? \`Boon ${id}\``:
+            // the hardcoded table silently won, so the two halves of the same
+            // block disagreed about whether this absence was an error.
+            const native = loadNativeFixture();
+            const id = squadMembers(native)[0].id;
+            expect(() => extractBoonGeneration(withoutBuff(740), id))
+                .toThrow(`extractBoonGeneration: catalogs.buffs[740] is missing for entity ${id}`);
+        });
+
+        it('makes extractBoonUptimes throw for the same absence', () => {
+            const native = loadNativeFixture();
+            const id = squadMembers(native)[0].id;
+            expect(() => extractBoonUptimes(withoutBuff(740), id))
+                .toThrow(/catalogs\.buffs\[740\] has no `stacking`/);
+        });
     });
 });

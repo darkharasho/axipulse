@@ -74,8 +74,6 @@ interface AppState {
 
     logDirectory: string;
     setLogDirectory: (dir: string) => void;
-    eiStatus: { installed: boolean; version: string | null; installing: boolean; error: string | null };
-    setEiStatus: (status: AppState['eiStatus']) => void;
 
     fightCounter: number;
     incrementFightCounter: () => number;
@@ -153,8 +151,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     logDirectory: '',
     setLogDirectory: (dir) => set({ logDirectory: dir }),
-    eiStatus: { installed: false, version: null, installing: false, error: null },
-    setEiStatus: (status) => set({ eiStatus: status }),
 
     fightCounter: 0,
     incrementFightCounter: () => {

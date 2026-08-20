@@ -4,7 +4,8 @@ import { useAppStore } from '../store';
 import { SubviewCapsule } from '../app/SubviewCapsule';
 import type { MapSubview } from '../store';
 import { WVW_LANDMARKS, type WvwLandmark } from '../../shared/wvwLandmarks';
-import { resolveMapFromZone } from '../../shared/mapUtils';
+import { resolveMapFromMapId } from '../../shared/mapUtils';
+import { resolveMapPixelSize } from '../../shared/wvwTiles';
 import { MovementView } from './map/MovementView';
 
 const MAP_PILLS = [
@@ -158,11 +159,26 @@ function MapOverview() {
         );
     }
 
-    const { mapImageUrl, mapSize, avgPosition, mapName } = currentFight;
-    const map = resolveMapFromZone(mapName);
+    const { mapImageUrl, mapSize, mapId, avgPosition, mapName } = currentFight;
+    // By map ID, not by display name -- see MovementView.
+    const map = mapId === null ? null : resolveMapFromMapId(mapId);
     const landmarks = map ? WVW_LANDMARKS[map] : [];
-    const width = mapSize?.[0] ?? 523;
-    const height = mapSize?.[1] ?? 750;
+    // `null` means this app has no coordinate space for the log's map at all.
+    // Explicit branch, not a `[0, 0]` viewBox -- a degenerate space collapses
+    // every landmark onto the origin and reads as a map that failed to load.
+    const pixelSize = resolveMapPixelSize(mapSize, map);
+    if (pixelSize === null) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full gap-2">
+                <MapPin className="w-8 h-8" style={{ color: 'var(--text-muted)' }} />
+                <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>No Map Assets</span>
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {mapName} is not a WvW map this app has landmark or tile data for
+                </span>
+            </div>
+        );
+    }
+    const [width, height] = pixelSize;
 
     return (
         <div className="flex flex-col h-full gap-3">

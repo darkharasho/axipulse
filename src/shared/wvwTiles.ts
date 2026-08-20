@@ -45,12 +45,36 @@ export interface TileInfo {
     height: number;
 }
 
-export function getMapTiles(map: WvwMap, tileZoom: number): TileInfo[] {
+/**
+ * Tile rects for one WvW map, in the same squeezed combat-replay pixel space
+ * `SquadMemberMovement.positions` and `WVW_LANDMARKS` use.
+ *
+ * `pixelSize` overrides the table entry when the caller has the log's
+ * `blocks.replay.tracks.arena` -- run it through `arenaPixelSize` in
+ * `extract/movement.ts`. The document is the better source: the table's
+ * per-map sizes were transcribed by hand, while `arena` travels with the
+ * positions being plotted, so an override guarantees the tiles and the
+ * markers cannot disagree even if the two ever drift apart.
+ *
+ * They do not disagree today, and `tests/shared/extract/movement.test.ts`
+ * pins that FOR GREEN ALPINE, the only map with an `arena` in the fixture:
+ * 697x1000 squeezed to a 750px maximum dimension is 522.75x750, which rounds
+ * to the table's [523, 750]. The other three entries are unpinned against an
+ * arena and remain hand-transcribed. `continentRect` has no counterpart in
+ * `arena` (it is GW2 continent space, not world space) and stays tabular --
+ * every one of the four rects is verified against that map's
+ * `continent_rect` from `https://api.guildwars2.com/v2/maps/<id>`.
+ */
+export function getMapTiles(
+    map: WvwMap,
+    tileZoom: number,
+    pixelSize?: [number, number],
+): TileInfo[] {
     const data = WVW_TILE_DATA[map];
     if (!data) return [];
 
     const [[cx1, cy1], [cx2, cy2]] = data.continentRect;
-    const [pw, ph] = data.pixelSize;
+    const [pw, ph] = pixelSize ?? data.pixelSize;
     const [ox, oy] = data.pixelOffset;
     const cw = cx2 - cx1;
     const ch = cy2 - cy1;
@@ -84,6 +108,56 @@ export function getMapTiles(map: WvwMap, tileZoom: number): TileInfo[] {
     }
 
     return tiles;
+}
+
+/**
+ * The hand-transcribed combat-replay pixel size for a map, for a log whose
+ * `blocks.replay.tracks.arena` is absent (no positions to plot, but the
+ * landmark overlay still has a coordinate space).
+ *
+ * Prefer `arenaPixelSize(arena)` -- `PlayerFightData.mapSize` -- whenever it
+ * is available: it travels with the positions being plotted. This exists so
+ * the renderer stops carrying bare `?? 523` / `?? 750` literals, which were
+ * Alpine's numbers applied to every map including EBG (716x750) and Red
+ * Desert (750x750).
+ *
+ * `WVW_TILE_DATA` is typed `Record<WvwMap, ...>`, so every enum member has an
+ * entry -- but that is a compile-time guarantee about a hand-maintained
+ * table, and a `WvwMap` value arriving from outside the type system (a cast,
+ * a persisted store) would return `undefined` and the caller would destructure
+ * `undefined[0]`. Checked rather than assumed.
+ */
+export function getMapPixelSize(map: WvwMap): [number, number] {
+    const data = WVW_TILE_DATA[map];
+    if (!data) throw new Error(`getMapPixelSize: no tile data for map ${map}`);
+    return data.pixelSize;
+}
+
+/**
+ * The pixel space a fight's map overlay should be laid out in, or `null` when
+ * there is no such space.
+ *
+ * Preference order, and the reason for each:
+ *   1. `mapSize` -- the log's OWN `arena`, squeezed into GW2EI's pixel space.
+ *      Best, because it travels with the positions being plotted.
+ *   2. the per-map table -- for a log with no arena. The landmark overlay
+ *      still has a coordinate space even when there are no positions.
+ *   3. `null` -- the map is one this app has no assets for at all (a PvE
+ *      log, or a WvW map ArenaNet adds later).
+ *
+ * `null` rather than `[0, 0]`, which is what fix round 1 replaced. A 0x0
+ * viewBox is a degenerate coordinate space: every landmark collapses onto
+ * the origin and the SVG renders as an empty box that looks like a map that
+ * failed to load rather than a map this app cannot draw. Callers take their
+ * explicit "no map" branch instead.
+ */
+export function resolveMapPixelSize(
+    mapSize: [number, number] | null,
+    map: WvwMap | null,
+): [number, number] | null {
+    if (mapSize) return mapSize;
+    if (map) return getMapPixelSize(map);
+    return null;
 }
 
 export function hasTileData(map: WvwMap): boolean {

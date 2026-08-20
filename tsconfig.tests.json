@@ -1,0 +1,23 @@
+{
+    // The gate Amendment A of the Task 11 brief requires.
+    //
+    // `tsconfig.json`'s `include` is `src/renderer` + `src/shared` only, so
+    // `npm run typecheck` never sees `tests/`. Combined with vitest's esbuild
+    // transform, which erases `import type` WITHOUT resolving it, a broken or
+    // deleted type in the test tree produces a green typecheck AND a green
+    // suite while every oracle silently degrades to `any`. That is exactly how
+    // deleting `EiJson` -- the type all fourteen equality oracles are written
+    // against -- would have gone unnoticed.
+    //
+    // Run via `npm run typecheck:tests`; `npm run typecheck` runs all three.
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "types": ["node", "vitest/globals"]
+    },
+    "include": [
+        "src/renderer/**/*",
+        "src/shared/**/*",
+        "src/vite-env.d.ts",
+        "tests/**/*"
+    ]
+}

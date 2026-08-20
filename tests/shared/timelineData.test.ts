@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractDamageTimeline, extractDistanceToTagTimeline, bucketTimeline } from '../../src/shared/timelineData';
+import { extractDamageTimeline, bucketTimeline } from '../../src/shared/timelineData';
 
 describe('bucketTimeline', () => {
     it('buckets per-second data into requested bucket size', () => {
@@ -31,16 +31,16 @@ describe('extractDamageTimeline', () => {
     });
 });
 
-describe('extractDistanceToTagTimeline', () => {
-    it('samples positions at bucket intervals', () => {
-        const playerPositions: [number, number][] = [[100, 100], [110, 100], [120, 100], [130, 100]];
-        const tagPositions: [number, number][] = [[100, 100], [100, 100], [100, 100], [100, 100]];
-        const pollingRate = 1000;
-        const inchToPixel = 1;
-        const result = extractDistanceToTagTimeline(playerPositions, tagPositions, pollingRate, inchToPixel, 1000);
-        expect(result[0].value).toBe(0);
-        expect(result[1].value).toBe(10);
-        expect(result[2].value).toBe(20);
-        expect(result[3].value).toBe(30);
-    });
-});
+/*
+ * `extractDistanceToTagTimelineEi` and its synthetic test were DELETED by
+ * Task 11, not relocated. Unlike the other EI helpers it has no oracle
+ * value: the frozen EI fixture carries an empty `combatReplayData` for every
+ * player and no `combatReplayMetaData.pollingRate`/`inchToPixel`, so the
+ * function never ran on it and could never have been compared against
+ * anything. `extract/timeline.ts`'s native lane is the first code that
+ * populates distance-to-tag at all. This also retires
+ * `computeDistancesPerBucketEi`'s dormant `floor`-vs-`ceil` bug (Task 9's
+ * amendment): both EI distance paths are gone, nothing consumes them, and no
+ * `floor` was carried into the native code -- the native distance join is on
+ * the sample TIMESTAMP and does no index arithmetic at all.
+ */

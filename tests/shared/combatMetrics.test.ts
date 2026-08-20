@@ -1,7 +1,7 @@
 // tests/shared/combatMetrics.test.ts
 import { describe, it, expect } from 'vitest';
-import { getHealingOutput, getBarrierOutput, getStabilityGeneration, getTopSkillDamage, getSquadRank } from '../../src/shared/combatMetrics';
-import type { EiPlayer } from '../../src/shared/types';
+import { getHealingOutput, getBarrierOutput, getTopSkillDamage, getSquadRank } from './ei/combatMetrics';
+import type { EiPlayer } from './ei/types';
 
 function makePlayer(overrides: Partial<EiPlayer> = {}): EiPlayer {
     return {

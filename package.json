@@ -13,14 +13,13 @@
     "dev": "concurrently \"npm run dev:electron\" \"npm run dev:react\"",
     "dev:react": "cross-env NODE_OPTIONS=--max-old-space-size=6144 vite",
     "dev:electron": "cross-env NODE_OPTIONS=--max-old-space-size=6144 VITE_DEV_SERVER_URL=http://localhost:5176 wait-on tcp:5176 && tsc -p electron/tsconfig.json && cross-env VITE_DEV_SERVER_URL=http://localhost:5176 electron .",
-    "dev:dotnet-missing": "cross-env MOCK_DOTNET_MISSING=1 npm run dev",
-    "dev:mock-win": "cross-env MOCK_PLATFORM=win32 MOCK_DOTNET_MISSING=1 npm run dev",
     "dev:update": "cross-env FAKE_UPDATE=none npm run dev",
     "dev:update:available": "cross-env FAKE_UPDATE=available npm run dev",
     "dev:update:error": "cross-env FAKE_UPDATE=error npm run dev",
     "clean": "rm -rf dist-electron dist-react dist_out",
     "build": "npm run clean && cross-env NODE_OPTIONS=--max-old-space-size=6144 tsc && cross-env NODE_OPTIONS=--max-old-space-size=6144 vite build && cross-env NODE_OPTIONS=--max-old-space-size=6144 tsc -p electron/tsconfig.json",
-    "typecheck": "tsc --noEmit && tsc -p electron/tsconfig.json --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p electron/tsconfig.json --noEmit && tsc -p tsconfig.tests.json --noEmit",
+    "typecheck:tests": "tsc -p tsconfig.tests.json --noEmit",
     "build:linux": "npm run build && electron-builder --linux",
     "build:win": "npm run build && electron-builder --win",
     "build:win:portable": "npm run build && electron-builder --win portable",
@@ -29,7 +28,7 @@
     "test:unit": "vitest run"
   },
   "dependencies": {
-    "adm-zip": "^0.5.16",
+    "@axiapps/axilog": "^1.2.0",
     "chokidar": "^3.5.3",
     "clsx": "^2.0.0",
     "electron-log": "^5.4.3",
@@ -47,7 +46,6 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
-    "@types/adm-zip": "^0.5.8",
     "@types/node": "^20.9.0",
     "@types/react": "^18.2.37",
     "@types/react-dom": "^18.2.15",

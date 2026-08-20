@@ -1,14 +1,10 @@
 // src/renderer/views/SettingsView.tsx
 import { useEffect, useState } from 'react';
 import { useAppStore } from '../store';
-import { FolderOpen, Download, RefreshCw, Trash2, CheckCircle, AlertCircle, Loader2, Dices, ExternalLink, Stethoscope } from 'lucide-react';
+import { FolderOpen, CheckCircle, AlertCircle, Loader2, Dices, ExternalLink, Stethoscope } from 'lucide-react';
 import { TroubleshootModal } from './TroubleshootModal';
 
 const IS_DEV = import.meta.env.DEV;
-
-interface Props {
-    onOpenDotnetModal?: () => void;
-}
 
 function SectionCard({ label, children }: { label: string; children: React.ReactNode }) {
     return (
@@ -22,23 +18,6 @@ function SectionCard({ label, children }: { label: string; children: React.React
             {children}
         </div>
     );
-}
-
-function StatusBadge({ ok, label }: { ok: boolean | null; label: string }) {
-    if (ok === null) {
-        return (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px]" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}>
-                <Loader2 className="w-2.5 h-2.5 animate-spin" /> {label}
-            </span>
-        );
-    }
-    return ok
-        ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px]" style={{ background: 'var(--status-success-bg)', color: 'var(--status-success)', border: '1px solid rgba(74,222,128,0.2)' }}>
-            <CheckCircle className="w-2.5 h-2.5" /> {label}
-          </span>
-        : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px]" style={{ background: 'var(--status-warning-bg)', color: 'var(--status-warning)', border: '1px solid rgba(251,191,36,0.2)' }}>
-            <AlertCircle className="w-2.5 h-2.5" /> {label}
-          </span>;
 }
 
 function Btn({ onClick, disabled, variant = 'ghost', children, title }: {
@@ -66,35 +45,22 @@ function Btn({ onClick, disabled, variant = 'ghost', children, title }: {
     );
 }
 
-export function SettingsView({ onOpenDotnetModal }: Props) {
+export function SettingsView() {
     const logDirectory = useAppStore(s => s.logDirectory);
     const setLogDirectory = useAppStore(s => s.setLogDirectory);
-    const eiStatus = useAppStore(s => s.eiStatus);
-    const setEiStatus = useAppStore(s => s.setEiStatus);
     const bucketSizeMs = useAppStore(s => s.bucketSizeMs);
     const setBucketSizeMs = useAppStore(s => s.setBucketSizeMs);
     const setView = useAppStore(s => s.setView);
     const requestWhatsNew = useAppStore(s => s.requestWhatsNew);
-    const [eiProgress, setEiProgress] = useState<string>('');
     const [devMinFileSize, setDevMinFileSize] = useState<number>(0);
     const [debugParsing, setDebugParsing] = useState(false);
     const [debugResult, setDebugResult] = useState<{ ok: boolean; msg: string } | null>(null);
     const [troubleshootOpen, setTroubleshootOpen] = useState(false);
-    const [dotnetStatus, setDotnetStatus] = useState<{ available: boolean; managed: boolean; version?: string } | null>(null);
     useEffect(() => {
         window.electronAPI?.getSettings().then(s => {
             if (s.logDirectory) setLogDirectory(s.logDirectory);
             if (s.devMinFileSize) setDevMinFileSize(s.devMinFileSize);
         });
-        window.electronAPI?.eiGetStatus().then(setEiStatus);
-        window.electronAPI?.eiCheckDotnet().then(setDotnetStatus).catch(() => {});
-
-        const cleanupProgress = window.electronAPI?.onEiDownloadProgress((p) => {
-            setEiProgress(p.stage + (p.percent != null ? ` (${p.percent}%)` : ''));
-        });
-        const cleanupStatus = window.electronAPI?.onEiStatusChanged(setEiStatus);
-
-        return () => { cleanupProgress?.(); cleanupStatus?.(); };
     }, []);
 
     const handleDebugParse = async () => {
@@ -130,19 +96,6 @@ export function SettingsView({ onOpenDotnetModal }: Props) {
         }
     };
 
-    const handleEiAction = async (action: 'install' | 'update' | 'reinstall' | 'uninstall') => {
-        setEiStatus({ ...eiStatus, installing: true, error: null });
-        try {
-            if (action === 'install') await window.electronAPI?.eiInstall();
-            else if (action === 'update') await window.electronAPI?.eiUpdate();
-            else if (action === 'reinstall') await window.electronAPI?.eiReinstall();
-            else if (action === 'uninstall') await window.electronAPI?.eiUninstall();
-        } catch (err: any) {
-            setEiStatus({ ...eiStatus, installing: false, error: err?.message ?? 'Failed' });
-        }
-        setEiProgress('');
-    };
-
     return (
         <div className="flex justify-center">
         <div className="w-full max-w-md space-y-3">
@@ -163,67 +116,6 @@ export function SettingsView({ onOpenDotnetModal }: Props) {
                             <CheckCircle className="w-3 h-3" /> Watching for new logs
                         </div>
                     )}
-                </SectionCard>
-
-                {/* Elite Insights */}
-                <SectionCard label="Elite Insights">
-                    <div className="mb-3">
-                        <StatusBadge
-                            ok={eiStatus.installed}
-                            label={eiStatus.installed ? `Installed${eiStatus.version ? ` v${eiStatus.version}` : ''}` : 'Not installed'}
-                        />
-                        <div className="flex flex-wrap gap-1.5 mt-2">
-                            {!eiStatus.installed && (
-                                <Btn onClick={() => handleEiAction('install')} disabled={eiStatus.installing} variant="primary">
-                                    <Download className="w-3 h-3" /> Install
-                                </Btn>
-                            )}
-                            {eiStatus.installed && (
-                                <>
-                                    <Btn onClick={() => handleEiAction('update')} disabled={eiStatus.installing} variant="ghost">
-                                        <Download className="w-3 h-3" /> Update
-                                    </Btn>
-                                    <Btn onClick={() => handleEiAction('reinstall')} disabled={eiStatus.installing} variant="ghost">
-                                        <RefreshCw className="w-3 h-3" /> Reinstall
-                                    </Btn>
-                                    <Btn onClick={() => handleEiAction('uninstall')} disabled={eiStatus.installing} variant="danger">
-                                        <Trash2 className="w-3 h-3" /> Uninstall
-                                    </Btn>
-                                </>
-                            )}
-                        </div>
-                    </div>
-
-                    {eiStatus.installing && eiProgress && (
-                        <div className="flex items-center gap-1.5 text-[11px] mb-2" style={{ color: 'var(--text-muted)' }}>
-                            <Loader2 className="w-3 h-3 animate-spin" /> {eiProgress}
-                        </div>
-                    )}
-                    {eiStatus.error && (
-                        <div className="text-[11px] mb-2" style={{ color: 'var(--status-error)' }}>{eiStatus.error}</div>
-                    )}
-
-                    <div className="pt-3" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <span style={{ fontFamily: 'Rajdhani, sans-serif', fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>.NET Runtime</span>
-                                <StatusBadge
-                                    ok={dotnetStatus === null ? null : dotnetStatus.available}
-                                    label={dotnetStatus === null ? 'Checking…' : dotnetStatus.available ? (dotnetStatus.version ? `v${dotnetStatus.version}${dotnetStatus.managed ? ' · managed' : ''}` : 'Available') : 'Not found'}
-                                />
-                            </div>
-                            {dotnetStatus && !dotnetStatus.available && onOpenDotnetModal && (
-                                <Btn onClick={onOpenDotnetModal} variant="primary">
-                                    <Download className="w-3 h-3" /> Setup .NET
-                                </Btn>
-                            )}
-                            {dotnetStatus?.available && (
-                                <Btn onClick={() => window.electronAPI?.eiCheckDotnet().then(setDotnetStatus).catch(() => {})} variant="ghost" title="Re-check">
-                                    <RefreshCw className="w-3 h-3" />
-                                </Btn>
-                            )}
-                        </div>
-                    </div>
                 </SectionCard>
 
                 {/* Timeline */}
@@ -253,7 +145,7 @@ export function SettingsView({ onOpenDotnetModal }: Props) {
                 {/* Troubleshooting */}
                 <SectionCard label="Troubleshooting">
                     <p className="text-[11px] mb-3" style={{ color: 'var(--text-secondary)' }}>
-                        Run a step-by-step check of your setup — log directory, arcdps WvW logging, Elite Insights, .NET, and a live parse test.
+                        Run a step-by-step check of your setup — log directory, arcdps WvW logging, and a live parse test.
                     </p>
                     <div className="flex items-center gap-3">
                         <Btn onClick={() => setTroubleshootOpen(true)} variant="primary">

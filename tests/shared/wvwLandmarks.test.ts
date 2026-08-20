@@ -15,7 +15,7 @@ describe('findNearestLandmark', () => {
         const landmarks = WVW_LANDMARKS[WvwMap.EternalBattlegrounds];
         const target = landmarks[0];
         const result = findNearestLandmark(WvwMap.EternalBattlegrounds, target.x + 1, target.y + 1);
-        expect(result.name).toBe(target.name);
+        expect(result!.name).toBe(target.name);
     });
 
     it('returns null for a map with no landmarks', () => {

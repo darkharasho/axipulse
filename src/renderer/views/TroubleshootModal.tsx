@@ -16,8 +16,6 @@ const INITIAL_STEPS: Step[] = [
     { id: 'log-dir', label: 'Log directory configured', status: 'pending' },
     { id: 'log-files', label: 'Logs found in directory', status: 'pending' },
     { id: 'arcdps', label: 'arcdps WvW logging', status: 'pending' },
-    { id: 'ei', label: 'Elite Insights installed', status: 'pending' },
-    { id: 'dotnet', label: '.NET runtime available', status: 'pending' },
     { id: 'parse', label: 'Parse test', status: 'pending' },
 ];
 
@@ -67,7 +65,6 @@ export function TroubleshootModal({ onClose }: Props) {
                 detail: 'No log directory set.',
                 fix: 'Go to Settings → Log Directory and click Browse to select your arcdps log folder.',
             });
-            await runEiAndDotnet(id);
             if (id !== runId.current) return;
             setDone(true);
             return;
@@ -118,23 +115,18 @@ export function TroubleshootModal({ onClose }: Props) {
             u('arcdps', { status: 'pass', detail: 'WvW logging is enabled' });
         }
 
-        // Steps 4 & 5: EI and .NET
-        await runEiAndDotnet(id);
-        if (id !== runId.current) return;
-
-        // Step 6: Parse test — read current step state to decide whether to skip
+        // Step 4: Parse test — read current step state to decide whether to skip
         const freshSteps = await new Promise<Step[]>(resolve => {
             setSteps(prev => { resolve(prev); return prev; });
         });
         if (id !== runId.current) return;
         const freshLogFiles = freshSteps.find(s => s.id === 'log-files');
-        const freshEi = freshSteps.find(s => s.id === 'ei');
 
         u('parse', { status: 'running' });
         await delay(300);
 
-        if (freshLogFiles?.status !== 'pass' || freshEi?.status !== 'pass') {
-            u('parse', { status: 'pending', detail: 'Skipped — requires logs and Elite Insights.' });
+        if (freshLogFiles?.status !== 'pass') {
+            u('parse', { status: 'pending', detail: 'Skipped — no logs to parse.' });
         } else {
             const result = await window.electronAPI?.troubleshootParseTest();
             if (id !== runId.current) return;
@@ -145,7 +137,7 @@ export function TroubleshootModal({ onClose }: Props) {
                 u('parse', {
                     status: 'fail',
                     detail: result?.error ?? 'Parse failed.',
-                    fix: 'Check that Elite Insights and .NET are both installed and working.',
+                    fix: 'The log may be truncated or from an unsupported arcdps build. Try another log.',
                 });
             }
         }
@@ -153,41 +145,6 @@ export function TroubleshootModal({ onClose }: Props) {
         if (id !== runId.current) return;
         setDone(true);
     };
-
-    const runEiAndDotnet = async (id: number) => {
-        const u = (stepId: string, patch: Partial<Step>) => update(stepId, patch, id);
-
-        // EI
-        u('ei', { status: 'running' });
-        await delay(400);
-        const eiStatus = await window.electronAPI?.eiGetStatus();
-        if (id !== runId.current) return;
-        if (!eiStatus?.installed) {
-            u('ei', {
-                status: 'fail',
-                detail: 'Elite Insights is not installed.',
-                fix: 'Go to Settings → Elite Insights and click Install.',
-            });
-        } else {
-            u('ei', { status: 'pass', detail: eiStatus.version ? `v${eiStatus.version}` : 'Installed' });
-        }
-
-        // .NET
-        u('dotnet', { status: 'running' });
-        await delay(400);
-        const dotnet = await window.electronAPI?.eiCheckDotnet().catch(() => null);
-        if (id !== runId.current) return;
-        if (!dotnet?.available) {
-            u('dotnet', {
-                status: 'fail',
-                detail: '.NET 8 runtime not found.',
-                fix: 'Go to Settings → Elite Insights and click "Setup .NET".',
-            });
-        } else {
-            u('dotnet', { status: 'pass', detail: dotnet.version ? `v${dotnet.version}` : 'Available' });
-        }
-    };
-
 
     useEffect(() => { run(); }, []);
 

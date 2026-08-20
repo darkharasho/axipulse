@@ -1,7 +1,7 @@
 // tests/shared/dashboardMetrics.test.ts
 import { describe, it, expect } from 'vitest';
-import { getDamage, getDps, getBreakbarDamage, getCleanses, getStrips, getDistToTag, getDamageTaken } from '../../src/shared/dashboardMetrics';
-import type { EiPlayer } from '../../src/shared/types';
+import { getDamage, getDps, getBreakbarDamage, getCleanses, getStrips, getDistToTag, getDamageTaken } from './ei/dashboardMetrics';
+import type { EiPlayer } from './ei/types';
 
 function makePlayer(overrides: Partial<EiPlayer> = {}): EiPlayer {
     return {
