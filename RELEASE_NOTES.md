@@ -1,5 +1,19 @@
 # Release Notes
 
+Version v0.2.0 — August 19, 2026
+
+## Elite Insights is gone — logs parse inside the app now
+AxiPulse used to download a ~90 MB Elite Insights bundle, need .NET 8 installed, and hand every log off to it as a separate program. All of that is gone. The parser now ships inside AxiPulse itself, so there's no download, no install step, no runtime to keep current, and nothing written to disk between the log and the screen. A dropped log renders in about a second.
+
+Nothing is uploaded anywhere — that hasn't changed.
+
+## Things that disappeared with it
+- The .NET check and the modal that nagged you to install it.
+- The Elite Insights install/update sections in Settings, and the EI and .NET steps in the Troubleshooter.
+- The parse progress bar. There isn't enough parsing left to have progress.
+
+NOTE: a handful of elite specs will show as the base profession (e.g. a Harbinger reading as Necromancer) until the new parser's spec catalog catches up. It affects specs it doesn't recognize yet, not your numbers.
+
 Version v0.1.19 — June 21, 2026
 
 ## New app icon
