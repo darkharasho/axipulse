@@ -64,10 +64,11 @@ describe('extractIdentity', () => {
 
         // Pinned, not tolerated: if a regenerated fixture or an axilog catalog
         // update changes this set, the test fails and the gap gets re-examined
-        // rather than quietly growing.
-        expect(catalogGaps, 'axilog elite-spec catalog gaps among squad').toEqual([
-            'Anon175.7475: EI "Antiquary" vs native "Thief"',
-        ]);
+        // rather than quietly growing. Empty since axilog 1.4.0 added the
+        // post-SotO spec ids -- native now names every spec EI does, for every
+        // squad member. The list is kept (rather than the assertion dropped)
+        // because it is what catches the gap REopening.
+        expect(catalogGaps, 'axilog elite-spec catalog gaps among squad').toEqual([]);
     });
 
     it('throws on an unknown entity id rather than returning blanks', () => {
@@ -120,7 +121,11 @@ describe('extractIdentity', () => {
         it('accepts an empty elite_spec, which means "no elite spec", not "absent"', () => {
             const r = loadNativeFixture();
             const coreSpec = r.entities.filter(e => e.role === 'squad' && e.elite_spec === '');
-            expect(coreSpec.length).toBe(2);
+            // One squad member, the core Ranger. Was 2 until axilog 1.4.0
+            // named the other one's spec (Antiquary); the remaining `''` is a
+            // real "runs no elite spec", which EI confirms by also saying
+            // "Ranger".
+            expect(coreSpec.length).toBe(1);
             for (const e of coreSpec) expect(extractIdentity(r, e.id).eliteSpec).toBe('');
         });
     });

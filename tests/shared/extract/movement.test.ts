@@ -570,10 +570,12 @@ describe('extractMovement', () => {
     it('maps identity fields literally, including the empty elite specs', () => {
         const native = loadNativeFixture();
         const m = extractMovement(native, localPlayerId(native))!;
-        // KNOWN UPSTREAM DEFECT (axilog): 8 of the 93 player entities carry
-        // `elite_spec: ''`. Mapped through rather than papered over, so the
-        // bug stays visible.
-        expect(m.members.filter(x => x.eliteSpec === '').length).toBe(8);
+        // Exactly 1 of the 93 player entities carries `elite_spec: ''`, and
+        // it is a genuine core Ranger -- EI calls it "Ranger" too. This was
+        // 8 until axilog 1.4.0 added the post-SotO spec ids 77/78/79, which
+        // closed the other 7 (they were Antiquary/Galeshot/Conduit degrading
+        // to their base profession). Mapped through rather than papered over.
+        expect(m.members.filter(x => x.eliteSpec === '').length).toBe(1);
         // Enemy players are anonymised with no account; allies all have one.
         expect(m.members.filter(x => x.account === '').length).toBe(46);
         expect(m.members.filter(x => x.isEnemy && x.account !== '').length).toBe(0);

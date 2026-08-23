@@ -187,38 +187,41 @@ describe('extractComposition — teamBreakdown', () => {
 
 describe('extractComposition — class counts', () => {
     /**
-     * axilog returns `elite_spec: ''` for eight of this log's 93 player
-     * entities. This pins WHICH eight -- by account for squad members, by
-     * `instid` for enemies (their accounts are not carried) -- so an
-     * upstream fix or a further regression both fail loudly here rather
-     * than being absorbed by a tolerance.
+     * axilog returns `elite_spec: ''` for exactly one of this log's 93 player
+     * entities. This pins WHICH -- by account for squad members, by `instid`
+     * for enemies (their accounts are not carried) -- so an upstream fix or a
+     * further regression both fail loudly here rather than being absorbed by
+     * a tolerance.
+     *
+     * This list held eight entries until axilog 1.4.0, which added the
+     * post-SotO elite-spec ids 77/78/79 (Antiquary/Galeshot/Conduit). Those
+     * seven were catalog gaps and are now named. The survivor is not a gap at
+     * all: Anon151.6587 genuinely runs no elite spec, which EI confirms by
+     * also reporting it as a plain "Ranger".
      */
-    it('pins the eight player entities axilog cannot name a spec for', () => {
+    it('pins the one player entity with no elite spec', () => {
         const native = loadNativeFixture();
         const blank = native.entities
             .filter(e => e.profession !== undefined && e.elite_spec === '')
             .map(e => (e.role === 'squad' ? e.account : `${e.role}:${e.instid}`));
-        expect(blank).toEqual([
-            'Anon151.6587',
-            'Anon175.7475',
-            'enemy_player:4561',
-            'enemy_player:4599',
-            'enemy_player:4031',
-            'enemy_player:5537',
-            'enemy_player:5551',
-            'enemy_player:5266',
-        ]);
+        expect(blank).toEqual(['Anon151.6587']);
     });
 
     /**
-     * The exact user-visible regression, per entity, on both sides. Seven of
-     * the eight blank-spec entities land under their base profession where
-     * EI named a spec; the eighth (Anon151.6587) agrees by coincidence --
-     * EI also calls it "Ranger", because that player genuinely runs no elite
-     * spec. Listing all of them, EI value beside native value, is what makes
-     * this an oracle instead of a tolerance.
+     * Full per-entity agreement with EI, on both sides. This test used to
+     * enumerate a divergence: seven blank-spec entities landed under their
+     * base profession where EI named a spec (one Antiquary in the squad, one
+     * Galeshot and five Conduits among the enemies). axilog 1.4.0 added those
+     * spec ids, so both lists are now empty and native names every spec EI
+     * does.
+     *
+     * The empty expectations are the point -- they are what catches the gap
+     * REopening, and comparing EI value beside native value is what makes
+     * this an oracle instead of a tolerance. The count assertions below are
+     * the same claim in user-visible terms: the specs now appear under their
+     * own names instead of folded onto a base profession.
      */
-    it('diverges from EI exactly on the specs axilog cannot name', () => {
+    it('agrees with EI on every elite spec, on both sides', () => {
         const native = loadNativeFixture();
         const ei = loadEiFixture();
         const c = extractComposition(native);
@@ -233,9 +236,7 @@ describe('extractComposition — class counts', () => {
                 native: squadByAccount.get(p.account)!.elite_spec || squadByAccount.get(p.account)!.profession,
             }))
             .filter(d => d.ei !== d.native);
-        expect(squadDiffs).toEqual([
-            { account: 'Anon175.7475', ei: 'Antiquary', native: 'Thief' },
-        ]);
+        expect(squadDiffs).toEqual([]);
 
         const enemyByInstid = new Map(
             native.entities.filter(e => e.role === 'enemy_player').map(e => [e.instid!, e]),
@@ -247,24 +248,19 @@ describe('extractComposition — class counts', () => {
                 native: enemyByInstid.get(t.instanceID!)!.elite_spec || enemyByInstid.get(t.instanceID!)!.profession,
             }))
             .filter(d => d.ei !== d.native);
-        expect(enemyDiffs).toEqual([
-            { instid: 5537, ei: 'Galeshot', native: 'Ranger' },
-            { instid: 4031, ei: 'Conduit', native: 'Revenant' },
-            { instid: 4561, ei: 'Conduit', native: 'Revenant' },
-            { instid: 4599, ei: 'Conduit', native: 'Revenant' },
-            { instid: 5266, ei: 'Conduit', native: 'Revenant' },
-            { instid: 5551, ei: 'Conduit', native: 'Revenant' },
-        ]);
+        expect(enemyDiffs).toEqual([]);
 
-        // The consequence in the emitted counts, both directions.
-        expect(c.squadClassCounts.Antiquary).toBeUndefined();
-        expect(c.squadClassCounts.Thief).toBe(1);
-        expect(c.enemyClassCountsByTeam.green.Conduit).toBeUndefined();
-        expect(c.enemyClassCountsByTeam.green.Revenant).toBe(5);
-        expect(c.enemyClassCountsByTeam.green.Galeshot).toBeUndefined();
-        // The lone Galeshot, folded onto its base profession. Green's other
-        // Ranger-profession enemy is a Druid, which axilog does name.
-        expect(c.enemyClassCountsByTeam.green.Ranger).toBe(1);
+        // The consequence in the emitted counts, both directions: each spec
+        // is now counted under its own name, and nothing is left folded onto
+        // the base profession it used to degrade to.
+        expect(c.squadClassCounts.Antiquary).toBe(1);
+        expect(c.squadClassCounts.Thief).toBeUndefined();
+        expect(c.enemyClassCountsByTeam.green.Conduit).toBe(5);
+        expect(c.enemyClassCountsByTeam.green.Revenant).toBeUndefined();
+        expect(c.enemyClassCountsByTeam.green.Galeshot).toBe(1);
+        // Green's only remaining Ranger-profession enemy is the Druid; the
+        // lone Galeshot no longer folds in alongside it.
+        expect(c.enemyClassCountsByTeam.green.Ranger).toBeUndefined();
         expect(c.enemyClassCountsByTeam.green.Druid).toBe(1);
     });
 

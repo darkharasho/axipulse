@@ -1,7 +1,7 @@
 {
   "name": "axipulse",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "AxiPulse - Personal GW2 Combat Analysis Dashboard",
   "author": {
     "name": "darkharasho",
@@ -28,7 +28,7 @@
     "test:unit": "vitest run"
   },
   "dependencies": {
-    "@axiapps/axilog": "^1.3.0",
+    "@axiapps/axilog": "1.5.1",
     "chokidar": "^3.5.3",
     "clsx": "^2.0.0",
     "electron-log": "^5.4.3",

@@ -1,5 +1,19 @@
 # Release Notes
 
+Version v0.2.1 — August 23, 2026
+
+## Half your squad could show up as the enemy
+On some fights the squad got cut clean in half: part of it stayed on your side, the rest were drawn as hostiles, and the enemy zerg you were actually fighting vanished from the report entirely. The giveaway was the enemy suddenly being labelled the wrong team colour.
+
+The parser decided who was on your side from the *last* team it saw you on — and when you zone out of a map at the end of a fight, the game stamps you onto a couple of other teams on the way out. Whichever one landed last became "your team" for the whole log. It now uses the first one, which is the team you actually fought on.
+
+Whether it hit a given log came down to whether a map transition happened to land inside the recording, so it broke some fights and left others fine. New logs are correct; anything you already have needs re-opening to pick up the fix.
+
+## Elite specs show their real names again
+The v0.2.0 note said a handful of specs would read as their base profession until the parser's spec catalog caught up. It has. Antiquary, Galeshot and Conduit are named now, so they stop showing up as Thief, Ranger and Revenant in the composition panel and the roster.
+
+On the test log this was seven players across both teams reading as the wrong class. The parser now names every spec Elite Insights does — there is no remaining gap.
+
 Version v0.2.0 — August 19, 2026
 
 ## Elite Insights is gone — logs parse inside the app now
