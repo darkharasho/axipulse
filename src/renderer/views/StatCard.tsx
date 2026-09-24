@@ -22,9 +22,9 @@ export function StatCard({ label, value, detail, detailColor = 'neutral', accent
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, delay: index * 0.05, ease: [0.16, 1, 0.3, 1] }}
-            className="axi-card overflow-hidden"
+            className="ap-stat-card"
             style={{
-                borderLeft: `var(--axi-border-control) solid ${accent}`,
+                borderLeft: `var(--axi-border-panel) solid ${accent}`,
             }}
         >
             <div className={hero ? 'px-4 py-3' : 'px-3 py-2.5'}>

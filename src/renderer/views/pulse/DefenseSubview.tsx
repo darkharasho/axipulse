@@ -6,7 +6,7 @@ export function DefenseSubview({ data }: { data: PlayerFightData }) {
     const { defense } = data;
 
     const mitigationStats = [
-        { label: 'Blocked', val: defense.blocked, color: 'var(--axi-series-metric-defensive-boons)' },
+        { label: 'Blocked', val: defense.blocked, color: 'var(--axi-series-metric-offensive-boons)' },
         { label: 'Evaded', val: defense.evaded, color: 'var(--axi-series-metric-incoming-barrier)' },
         { label: 'Missed', val: defense.missed, color: 'var(--axi-text-faint)' },
         { label: 'Invulned', val: defense.invulned, color: 'var(--axi-warn)' },
@@ -130,7 +130,7 @@ export function DefenseSubview({ data }: { data: PlayerFightData }) {
 
                 {/* Stacked bar */}
                 {totalMitigation > 0 && (
-                    <div className="ap-meter flex mb-3" style={{ height: '12px' }}>
+                    <div className="ap-meter flex mb-3">
                         {mitigationStats.filter(s => s.val > 0).map((s, i) => (
                             <motion.div
                                 key={s.label}

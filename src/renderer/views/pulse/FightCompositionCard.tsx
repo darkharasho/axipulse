@@ -65,7 +65,7 @@ export function FightCompositionCard({ composition, isSupport }: { composition: 
             </div>
 
             {/* Segmented bar */}
-            <div className="ap-meter flex gap-[2px] mb-2" style={{ height: '10px' }}>
+            <div className="ap-meter flex gap-[2px] mb-2">
                 {groups.map(g => (
                     <div
                         key={g.key}
@@ -73,6 +73,9 @@ export function FightCompositionCard({ composition, isSupport }: { composition: 
                         style={{
                             flex: g.count,
                             background: g.color,
+                            boxShadow: activeKey === g.key
+                                ? 'inset 0 0 0 var(--axi-border-hairline) var(--axi-accent-ink)'
+                                : 'none',
                         }}
                         onClick={() => toggle(g.key)}
                     />
@@ -81,25 +84,28 @@ export function FightCompositionCard({ composition, isSupport }: { composition: 
 
             {/* Legend pills */}
             <div className="flex flex-wrap gap-1.5">
-                {groups.map(g => (
-                    <button
-                        key={g.key}
-                        onClick={() => toggle(g.key)}
-                        className="flex items-center gap-1.5 text-[10px] px-2 py-0.5 transition-colors"
-                        style={{
-                            border: `var(--axi-border-hairline) solid ${activeKey === g.key ? g.color : 'transparent'}`,
-                            background: activeKey === g.key ? 'var(--axi-accent)' : 'transparent',
-                            cursor: 'pointer',
-                        }}
-                    >
-                        <span className="inline-block w-2 h-2" style={{ background: g.color }} />
-                        <span style={{ color: activeKey === g.key ? 'var(--axi-accent-ink)' : 'var(--axi-text)', fontWeight: 700 }}>{g.count}</span>
-                        <span style={{ color: activeKey === g.key ? 'var(--axi-accent-ink)' : 'var(--axi-text-dim)' }}>{g.label}</span>
-                        <span style={{ color: activeKey === g.key ? 'var(--axi-accent-ink)' : 'var(--axi-text-faint)' }}>
-                            {Math.round((g.count / total) * 100)}%
-                        </span>
-                    </button>
-                ))}
+                {groups.map(g => {
+                    const isActive = activeKey === g.key;
+                    return (
+                        <button
+                            key={g.key}
+                            onClick={() => toggle(g.key)}
+                            className="flex items-center gap-1.5 text-[10px] px-2 py-0.5 transition-colors"
+                            style={{
+                                border: `var(--axi-border-control) solid ${isActive ? 'var(--axi-accent-ink)' : 'transparent'}`,
+                                background: isActive ? 'var(--axi-accent)' : 'transparent',
+                                cursor: 'pointer',
+                            }}
+                        >
+                            <span className="inline-block w-2 h-2" style={{ background: isActive ? 'var(--axi-accent-ink)' : g.color }} />
+                            <span style={{ color: isActive ? 'var(--axi-accent-ink)' : 'var(--axi-text)', fontWeight: 700 }}>{g.count}</span>
+                            <span style={{ color: isActive ? 'var(--axi-accent-ink)' : 'var(--axi-text-dim)' }}>{g.label}</span>
+                            <span style={{ color: isActive ? 'var(--axi-accent-ink)' : 'var(--axi-text-faint)' }}>
+                                {Math.round((g.count / total) * 100)}%
+                            </span>
+                        </button>
+                    );
+                })}
             </div>
 
             {/* Class breakdown panel */}

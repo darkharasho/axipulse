@@ -96,9 +96,15 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
 /* The Pulse stat bars: a quantity is drawn as length (rule 9), not as an
    opacity or saturation change. .ap-meter-fill takes its colour from an
    inline `style={{ background: <token> }}` where a series or status ink is
-   wanted; the track itself never carries colour meaning. */
+   wanted; the track itself never carries colour meaning.
+
+   Deliberate deviation from the brief's 6px: box-sizing is border-box
+   app-wide, so a 6px track with a 2px hairline border leaves only a 2px
+   content box for the fill - a 95% bar and a 40% bar both render as
+   slivers. Raised to 10px so the fill is legible at any percentage without
+   a per-call-site height override. */
 .ap-meter {
-    height: 6px;
+    height: 10px;
     background: var(--axi-ground);
     border: var(--axi-border-hairline) solid var(--axi-ink-line);
     overflow: hidden;
@@ -106,6 +112,18 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
 .ap-meter-fill {
     height: 100%;
     background: var(--axi-accent);
+}
+
+/* A read-only stat tile (rule 4: only interactive elements earn a hover
+   state). .axi-card bundles `cursor: pointer` and a hover lift meant for
+   clickable cards; StatCard has no onClick, so it gets its own panel-weight
+   shape instead of .axi-card, with neither. */
+.ap-stat-card {
+    position: relative;
+    overflow: hidden;
+    background: var(--axi-surface);
+    border: var(--axi-border-panel) solid var(--axi-ink-line);
+    box-shadow: var(--axi-offset-panel) var(--axi-offset-panel) 0 var(--axi-ink-line);
 }
 
 /* Rajdhani's actual job here was column alignment in stat tables. Tabular
