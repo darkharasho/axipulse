@@ -125,7 +125,7 @@ describe('src/renderer/index.css obeys the axi-design contract', () => {
     // --accent-bg), so it is the way a forbidden concept would come back.
     it('hides no colour literal inside a custom property', () => {
         const bad = declarations(CSS())
-            .filter((d) => /^--[a-z0-9-]+\s*:/i.test(d.text) && COLOUR_LITERAL.test(valueOf(d.text)))
+            .filter((d) => /^--[\w-]+\s*:/.test(d.text) && COLOUR_LITERAL.test(valueOf(d.text)))
             .map((d) => `${d.line}: ${d.text.trim()}`);
         expect(bad).toEqual([]);
     });
