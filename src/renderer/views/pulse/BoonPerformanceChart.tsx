@@ -1,18 +1,20 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-    Bar, Brush, CartesianGrid, Cell, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis,
+    Bar, Brush, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis,
 } from 'recharts';
 import { MapPin, Shield, Skull } from 'lucide-react';
 import type { BoonPerfBreakdown, BoonPerformanceData } from '../../../shared/types';
-import { getProfessionColor } from '../../../shared/professionUtils';
+import { useAppStore } from '../../store';
+import { readToken } from '../../themes/readToken';
+import { SubviewCapsule } from '../../app/SubviewCapsule';
+import Tooltip from '../../components/Tooltip';
 
-const PARTY_MEMBER_COLORS = [
-    '#a78bfa', '#34d399', '#f59e0b', '#60a5fa', '#f472b6',
-    '#fb923c', '#4ade80', '#e879f9', '#38bdf8', '#fbbf24',
-];
+// Series tokens are accent-independent (Task 3), so the ramp is read once at
+// module scope. series.css is imported in main.tsx before createRoot, so the
+// stylesheet is already applied by the time this module runs.
+const SERIES = Array.from({ length: 10 }, (_, i) => readToken(`--axi-series-${i + 1}`));
 
-const FALLBACK_SELF_COLOR = '#10b981';
 const DISTANCE_THRESHOLD = 600;
 
 type BoonKey = 'stability' | 'might';
@@ -21,6 +23,8 @@ const BOON_LABELS: Record<BoonKey, string> = {
     stability: 'Stab',
     might: 'Might',
 };
+
+const BOON_PILLS = (Object.keys(BOON_LABELS) as BoonKey[]).map(key => ({ id: key, label: BOON_LABELS[key] }));
 
 type Props = {
     performance: BoonPerformanceData;
@@ -32,18 +36,22 @@ type ChartPoint = {
     value: number;
     incomingDamage: number;
     incomingIntensity: number;
-    incomingHeatBand: 1;
     [memberKey: string]: any; // pm_<key>, deaths_<key>, distance_<key>
 };
 
-export function BoonPerformanceChart({ performance, localProfession }: Props) {
+export function BoonPerformanceChart({ performance, localProfession: _localProfession }: Props) {
     const [activeBoon, setActiveBoon] = useState<BoonKey>('stability');
     const [showHeatmap, setShowHeatmap] = useState(true);
     const [showDeaths, setShowDeaths] = useState(true);
     const [showDistance, setShowDistance] = useState(true);
 
+    const accentId = useAppStore(s => s.accentId);
+    // The self series is the app's own colour rather than domain data, so it
+    // tracks the accent - and must re-read when the accent changes, since
+    // readToken reads computed style at call time.
+    const selfColor = useMemo(() => readToken('--axi-accent'), [accentId]);
+
     const breakdown = performance[activeBoon];
-    const selfColor = getProfessionColor(localProfession) || FALLBACK_SELF_COLOR;
 
     return (
         <motion.div
@@ -53,41 +61,32 @@ export function BoonPerformanceChart({ performance, localProfession }: Props) {
         >
             <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
                 <div className="flex items-center gap-3">
-                    <div className="text-xs uppercase tracking-[0.08em] font-medium flex items-center gap-1.5"
-                        style={{ color: 'var(--text-muted)' }}>
-                        <Shield className="w-3.5 h-3.5 text-violet-300" />
+                    <span className="axi-eyebrow flex items-center gap-1.5" style={{ margin: 0 }}>
+                        <Shield className="w-3.5 h-3.5" style={{ color: 'var(--axi-text-faint)' }} />
                         Boon Performance
-                    </div>
-                    <div className="flex rounded-md overflow-hidden border" style={{ borderColor: 'var(--border-subtle)' }}>
-                        {(['stability', 'might'] as const).map(key => (
-                            <button
-                                key={key}
-                                onClick={() => setActiveBoon(key)}
-                                className={`px-2.5 py-1 text-[10px] uppercase tracking-wider transition-colors ${
-                                    activeBoon === key
-                                        ? 'bg-white/10 text-slate-100'
-                                        : 'text-slate-500 hover:text-slate-300 hover:bg-white/[0.03]'
-                                }`}
-                            >
-                                {BOON_LABELS[key]}
-                            </button>
-                        ))}
-                    </div>
+                    </span>
+                    <SubviewCapsule
+                        pills={BOON_PILLS}
+                        activeId={activeBoon}
+                        onSelect={(id) => setActiveBoon(id as BoonKey)}
+                        layoutGroup="boon-perf"
+                    />
                 </div>
                 <div className="flex gap-3">
-                    <ToggleButton active={showHeatmap} onClick={() => setShowHeatmap(v => !v)}
-                        activeColor="text-red-300" hoverActive="hover:text-red-200">
+                    <ToggleButton active={showHeatmap} onClick={() => setShowHeatmap(v => !v)} ink="var(--axi-danger)">
                         Party Damage
                     </ToggleButton>
-                    <ToggleButton active={showDeaths} onClick={() => setShowDeaths(v => !v)}
-                        activeColor="text-red-400" hoverActive="hover:text-red-300">
+                    <ToggleButton active={showDeaths} onClick={() => setShowDeaths(v => !v)} ink="var(--axi-danger)">
                         Deaths
                     </ToggleButton>
-                    <ToggleButton active={showDistance} onClick={() => setShowDistance(v => !v)}
-                        activeColor="text-yellow-300" hoverActive="hover:text-yellow-200"
-                        title={`Flags party members averaging more than ${DISTANCE_THRESHOLD} units from the commander`}>
-                        Distance
-                    </ToggleButton>
+                    <Tooltip
+                        text={`Flags party members averaging more than ${DISTANCE_THRESHOLD} units from the commander`}
+                        position="bottom"
+                    >
+                        <ToggleButton active={showDistance} onClick={() => setShowDistance(v => !v)} ink="var(--axi-warn)">
+                            Distance
+                        </ToggleButton>
+                    </Tooltip>
                 </div>
             </div>
 
@@ -100,8 +99,8 @@ export function BoonPerformanceChart({ performance, localProfession }: Props) {
                     showDistance={showDistance}
                 />
             ) : (
-                <div className="h-[260px] rounded-md p-2 flex items-center justify-center text-xs italic"
-                    style={{ background: 'var(--bg-card)', color: 'var(--text-muted)' }}>
+                <div className="h-[260px] p-2 flex items-center justify-center text-xs italic"
+                    style={{ color: 'var(--axi-text-faint)' }}>
                     No {BOON_LABELS[activeBoon].toLowerCase()} data for this fight
                 </div>
             )}
@@ -118,10 +117,23 @@ function ChartBody({
     showDeaths: boolean;
     showDistance: boolean;
 }) {
+    const accentId = useAppStore(s => s.accentId);
+    // Chrome tokens read under the same accentId dependency as selfColor -
+    // --axi-text-faint/-rule/-ink-line/-ground/-warn don't themselves move
+    // with the accent, but one rule for every token read in this file is
+    // simpler than reasoning about which ones do.
+    const tickColor = useMemo(() => readToken('--axi-text-faint'), [accentId]);
+    const ruleColor = useMemo(() => readToken('--axi-rule'), [accentId]);
+    const controlLineColor = useMemo(() => readToken('--axi-ink-line'), [accentId]);
+    const groundColor = useMemo(() => readToken('--axi-ground'), [accentId]);
+    const dangerColor = useMemo(() => readToken('--axi-danger'), [accentId]);
+    const warnColor = useMemo(() => readToken('--axi-warn'), [accentId]);
+    const textColor = useMemo(() => readToken('--axi-text'), [accentId]);
+
     const { data, hasIncomingHeat, partyColorByKey } = useMemo(() => {
         const incomingMax = breakdown.partyIncomingDamage.reduce((m, v) => Math.max(m, v), 0);
         const colorByKey = Object.fromEntries(
-            breakdown.partyMembers.map((m, mi) => [m.key, PARTY_MEMBER_COLORS[mi % PARTY_MEMBER_COLORS.length]] as const),
+            breakdown.partyMembers.map((m, mi) => [m.key, SERIES[mi % SERIES.length]] as const),
         );
         const points: ChartPoint[] = breakdown.buckets.map((b, i) => {
             const incomingDamage = breakdown.partyIncomingDamage[i] ?? 0;
@@ -131,7 +143,6 @@ function ChartBody({
                 value: breakdown.selfGeneration[i] ?? 0,
                 incomingDamage,
                 incomingIntensity: intensity,
-                incomingHeatBand: 1,
             };
             for (const m of breakdown.partyMembers) {
                 point[`pm_${m.key}`] = m.stacks[i] ?? 0;
@@ -151,53 +162,55 @@ function ChartBody({
                         <div key={m.key} className="flex items-center gap-1.5">
                             <div className="w-5 h-0"
                                 style={{ borderTop: `2px dashed ${partyColorByKey[m.key]}` }} />
-                            <span className="text-[10px] text-[color:var(--text-muted)]">{m.displayName}</span>
+                            <span className="text-[10px] text-[color:var(--axi-text-faint)]">{m.displayName}</span>
                         </div>
                     ))}
                 </div>
             ) : (
-                <div className="text-[10px] text-[color:var(--text-muted)] mb-2 italic">
+                <div className="text-[10px] text-[color:var(--axi-text-faint)] mb-2 italic">
                     No group-mates in this fight
                 </div>
             )}
 
-            <div className="h-[260px] rounded-md p-2" style={{ background: 'var(--bg-card)' }}>
+            <div className="h-[260px] p-2"
+                style={{ background: 'var(--axi-surface)', border: 'var(--axi-border-panel) solid var(--axi-ink-line)' }}>
                 <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={data}>
-                        <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" />
-                        <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#64748b' }}
-                            axisLine={{ stroke: 'rgba(255,255,255,0.08)' }} tickLine={false} />
-                        <YAxis tick={{ fontSize: 10, fill: '#64748b' }}
-                            axisLine={{ stroke: 'rgba(255,255,255,0.08)' }} tickLine={false}
+                        <CartesianGrid stroke={ruleColor} strokeDasharray="3 3" />
+                        <XAxis dataKey="label" tick={{ fontSize: 10, fill: tickColor }}
+                            axisLine={{ stroke: ruleColor }} tickLine={false} />
+                        <YAxis tick={{ fontSize: 10, fill: tickColor }}
+                            axisLine={{ stroke: ruleColor }} tickLine={false}
                             tickFormatter={(v: number) => v.toFixed(1)} width={36} />
                         <YAxis yAxisId="incomingHeat" hide domain={[0, 1]} />
                         <YAxis yAxisId="boonStacks" orientation="right"
                             domain={[0, 25]} ticks={[0, 5, 10, 15, 20, 25]}
-                            tick={{ fontSize: 10, fill: '#64748b' }}
-                            axisLine={{ stroke: 'rgba(255,255,255,0.08)' }} tickLine={false}
+                            tick={{ fontSize: 10, fill: tickColor }}
+                            axisLine={{ stroke: ruleColor }} tickLine={false}
                             width={32} />
-                        <Tooltip content={(props: any) => (
+                        <RechartsTooltip content={(props: any) => (
                             <BoonTooltip {...props} breakdown={breakdown}
                                 partyColorByKey={partyColorByKey}
                                 selfColor={selfColor}
+                                warnColor={warnColor}
+                                textColor={textColor}
                                 showHeatmap={showHeatmap}
                                 showDeaths={showDeaths}
                                 showDistance={showDistance} />
                         )} />
                         {showHeatmap && hasIncomingHeat && (
+                            // Incoming party damage per bucket is a quantity, drawn as
+                            // length (bar height against the hidden 0-1 axis), never as
+                            // colour intensity (rule 7) - a solid danger fill, not a
+                            // per-cell alpha ramp.
                             <Bar
                                 yAxisId="incomingHeat"
-                                dataKey="incomingHeatBand"
+                                dataKey="incomingIntensity"
                                 barSize={24}
-                                fill="rgba(239,68,68,0.35)"
+                                fill={dangerColor}
                                 stroke="none"
                                 isAnimationActive={false}
-                            >
-                                {data.map((entry, idx) => {
-                                    const alpha = 0.06 + 0.52 * entry.incomingIntensity;
-                                    return <Cell key={`heat-${idx}`} fill={`rgba(239, 68, 68, ${alpha.toFixed(3)})`} />;
-                                })}
-                            </Bar>
+                            />
                         )}
                         <Line type="monotone" dataKey="value"
                             name="Self Generation"
@@ -226,8 +239,8 @@ function ChartBody({
                                         const half = size / 2;
                                         return (
                                             <g transform={`translate(${props.cx - half}, ${props.cy - half})`}>
-                                                {hasDeath && <Skull width={size} height={size} color="#ffffff" strokeWidth={2} />}
-                                                {!hasDeath && hasFar && <MapPin width={size} height={size} color="#fbbf24" strokeWidth={2} />}
+                                                {hasDeath && <Skull width={size} height={size} color={textColor} strokeWidth={2} />}
+                                                {!hasDeath && hasFar && <MapPin width={size} height={size} color={warnColor} strokeWidth={2} />}
                                             </g>
                                         );
                                     }}
@@ -237,7 +250,7 @@ function ChartBody({
                         })}
                         {data.length > 10 && (
                             <Brush dataKey="label" height={20}
-                                stroke="rgba(129,140,248,0.4)" fill="rgba(15,23,42,0.8)"
+                                stroke={controlLineColor} fill={groundColor}
                                 travellerWidth={8} tickFormatter={() => ''} />
                         )}
                     </ComposedChart>
@@ -248,22 +261,18 @@ function ChartBody({
 }
 
 function ToggleButton({
-    active, onClick, activeColor, hoverActive, title, children,
+    active, onClick, ink, children,
 }: {
     active: boolean;
     onClick: () => void;
-    activeColor: string;
-    hoverActive: string;
-    title?: string;
+    ink: string;
     children: React.ReactNode;
 }) {
     return (
         <button
             onClick={onClick}
-            title={title}
-            className={`text-[10px] uppercase tracking-wider transition-colors ${
-                active ? `${activeColor} ${hoverActive}` : 'text-slate-500 hover:text-slate-300'
-            }`}
+            className={`ap-chart-toggle ${active ? 'ap-chart-toggle--active' : ''}`}
+            style={active ? ({ '--ap-chart-toggle-ink': ink } as React.CSSProperties) : undefined}
         >
             {children}
         </button>
@@ -271,13 +280,15 @@ function ToggleButton({
 }
 
 function BoonTooltip({
-    payload, label, breakdown, partyColorByKey, selfColor, showHeatmap, showDeaths, showDistance,
+    payload, label, breakdown, partyColorByKey, selfColor, warnColor, textColor, showHeatmap, showDeaths, showDistance,
 }: {
     payload?: any[];
     label?: string;
     breakdown: BoonPerfBreakdown;
     partyColorByKey: Record<string, string>;
     selfColor: string;
+    warnColor: string;
+    textColor: string;
     showHeatmap: boolean;
     showDeaths: boolean;
     showDistance: boolean;
@@ -290,15 +301,15 @@ function BoonTooltip({
         .sort((a, b) => a.displayName.localeCompare(b.displayName));
 
     return (
-        <div className="bg-slate-900 border border-white/10 rounded-lg px-3 py-2 text-xs shadow-xl">
-            <div className="text-slate-200 font-medium mb-1">
+        <div className="axi-tooltip">
+            <div style={{ color: textColor }}>
                 {String(label || '')}
                 {gen > 0 && (
                     <span style={{ color: selfColor }}>{` · Gen: ${gen.toFixed(2)} stacks`}</span>
                 )}
             </div>
             {showHeatmap && damage > 0 && (
-                <div className="text-red-300 mb-1">
+                <div style={{ color: 'var(--axi-danger)' }}>
                     Party Incoming Damage: {Math.round(damage).toLocaleString()}
                 </div>
             )}
@@ -313,12 +324,12 @@ function BoonTooltip({
                         <span>{m.displayName}</span>
                         <span>: {stacks === 0 ? 'None' : `${stacks.toFixed(1)} stacks`}</span>
                         {showDistance && distance > 0 && (
-                            <span className={`flex items-center gap-0.5 ${hasFar ? 'text-yellow-400' : 'text-slate-400'}`}>
+                            <span className="flex items-center gap-0.5" style={{ color: hasFar ? warnColor : 'var(--axi-text-dim)' }}>
                                 <MapPin className="inline w-3 h-3" />
                                 {Math.round(distance)}u
                             </span>
                         )}
-                        {showDeaths && deaths > 0 && <Skull className="inline w-3.5 h-3.5 text-white" />}
+                        {showDeaths && deaths > 0 && <Skull className="inline w-3.5 h-3.5" style={{ color: textColor }} />}
                     </div>
                 );
             })}

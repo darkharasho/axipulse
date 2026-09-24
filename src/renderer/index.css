@@ -255,6 +255,25 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
 .ap-status-dot--danger { background: var(--axi-danger); }
 .ap-status-dot--idle { background: var(--axi-surface-raised); }
 
+/* A BoonPerformanceChart layer filter (Party Damage / Deaths / Distance):
+   plain clickable micro-text, not a chip - toggling a chart overlay is not
+   itself a status assertion, so the active state reads via an ink rather
+   than R5's solid fill. The ink varies per instance (danger for damage/
+   deaths, warn for distance), carried in via --ap-chart-toggle-ink. */
+.ap-chart-toggle {
+    font: var(--axi-t-micro);
+    letter-spacing: var(--axi-ls-micro);
+    text-transform: uppercase;
+    color: var(--axi-text-faint);
+    cursor: pointer;
+    transition: color var(--ap-duration-fast) ease;
+}
+.ap-chart-toggle:hover { color: var(--axi-text-dim); }
+.ap-chart-toggle--active,
+.ap-chart-toggle--active:hover {
+    color: var(--ap-chart-toggle-ink, var(--axi-accent));
+}
+
 /* --- reduced motion --- */
 
 @media (prefers-reduced-motion: reduce) {
