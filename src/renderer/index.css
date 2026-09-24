@@ -398,4 +398,11 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
     .theme-transitioning *,
     .theme-transitioning *::before,
     .theme-transitioning *::after { transition: none !important; }
+    /* Tailwind ships no reduced-motion guard on its own utilities, so the
+       three Loader2/RefreshCw spinners keep turning without this. Resting
+       the spin leaves the glyph itself in place - the indicator still says
+       "working", it just stops rotating. Framer-motion is NOT covered here:
+       it writes inline styles a media query cannot reach, which is why
+       App.tsx wraps the tree in <MotionConfig reducedMotion="user">. */
+    .animate-spin { animation: none; }
 }
