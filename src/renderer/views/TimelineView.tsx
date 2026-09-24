@@ -24,10 +24,10 @@ export function TimelineView() {
 
     if (!currentFight) {
         return (
-            <div className="flex flex-col items-center justify-center h-full gap-4 text-[color:var(--text-muted)]">
+            <div className="flex flex-col items-center justify-center h-full gap-4" style={{ color: 'var(--axi-text-faint)' }}>
                 <GanttChart className="w-12 h-12 opacity-30" />
                 <div className="text-center">
-                    <p className="text-sm font-medium text-[color:var(--text-secondary)]">Fight Timeline</p>
+                    <p className="text-sm font-medium" style={{ color: 'var(--axi-text-dim)' }}>Fight Timeline</p>
                     <p className="text-xs mt-1">Timeline analysis will appear here after a fight is parsed</p>
                 </div>
             </div>

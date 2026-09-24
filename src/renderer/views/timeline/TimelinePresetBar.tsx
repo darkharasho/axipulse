@@ -7,18 +7,19 @@ export function TimelineLaneToggles() {
 
     return (
         <div className="flex items-center gap-1.5">
-            <span className="text-[9px] text-[color:var(--text-muted)]">Lanes:</span>
+            <span className="text-[9px]" style={{ color: 'var(--axi-text-faint)' }}>Lanes:</span>
             {TIMELINE_LANES.map(lane => (
-                <div
+                <button
                     key={lane.key}
+                    type="button"
                     title={lane.label}
+                    aria-pressed={toggles[lane.key]}
                     onClick={() => setToggle(lane.key, !toggles[lane.key])}
-                    className="w-2 h-2 rounded-sm cursor-pointer transition-opacity"
-                    style={{
-                        background: lane.color,
-                        opacity: toggles[lane.key] ? 0.9 : 0.25,
-                    }}
-                />
+                    className="axi-pill"
+                    style={{ padding: '2px 6px', font: 'var(--axi-t-micro)', '--axi-pill-fill': lane.color } as React.CSSProperties}
+                >
+                    {lane.label}
+                </button>
             ))}
         </div>
     );

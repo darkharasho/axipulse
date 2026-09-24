@@ -8,16 +8,16 @@ export interface TimelineLayer {
 }
 
 export const TIMELINE_LANES: TimelineLayer[] = [
-    { key: 'health', label: 'Health', color: '#10b981', type: 'area' },
-    { key: 'damageDealt', label: 'Dmg Dealt', color: '#ef4444', type: 'area' },
-    { key: 'damageTaken', label: 'Dmg Taken', color: '#f87171', type: 'area' },
-    { key: 'distanceToTag', label: 'Dist to Tag', color: '#f59e0b', type: 'area' },
-    { key: 'incomingHealing', label: 'Healing', color: '#4ade80', type: 'area' },
-    { key: 'incomingBarrier', label: 'Barrier', color: '#a78bfa', type: 'area' },
-    { key: 'offensiveBoons', label: 'Off Boons', color: '#60a5fa', type: 'bars' },
-    { key: 'defensiveBoons', label: 'Def Boons', color: '#38bdf8', type: 'bars' },
-    { key: 'hardCC', label: 'Hard CC', color: '#f43f5e', type: 'bars' },
-    { key: 'softCC', label: 'Soft CC', color: '#c084fc', type: 'bars' },
+    { key: 'health', label: 'Health', color: 'var(--axi-series-metric-health)', type: 'area' },
+    { key: 'damageDealt', label: 'Dmg Dealt', color: 'var(--axi-series-metric-damage-dealt)', type: 'area' },
+    { key: 'damageTaken', label: 'Dmg Taken', color: 'var(--axi-series-metric-damage-taken)', type: 'area' },
+    { key: 'distanceToTag', label: 'Dist to Tag', color: 'var(--axi-series-metric-distance-to-tag)', type: 'area' },
+    { key: 'incomingHealing', label: 'Healing', color: 'var(--axi-series-metric-incoming-healing)', type: 'area' },
+    { key: 'incomingBarrier', label: 'Barrier', color: 'var(--axi-series-metric-incoming-barrier)', type: 'area' },
+    { key: 'offensiveBoons', label: 'Off Boons', color: 'var(--axi-series-metric-offensive-boons)', type: 'bars' },
+    { key: 'defensiveBoons', label: 'Def Boons', color: 'var(--axi-series-metric-defensive-boons)', type: 'bars' },
+    { key: 'hardCC', label: 'Hard CC', color: 'var(--axi-series-metric-hard-cc)', type: 'bars' },
+    { key: 'softCC', label: 'Soft CC', color: 'var(--axi-series-metric-soft-cc)', type: 'bars' },
 ];
 
 export const PRESET_LABELS: { key: string; label: string }[] = [

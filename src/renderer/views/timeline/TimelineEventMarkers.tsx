@@ -18,7 +18,7 @@ export function TimelineEventMarkers({ downEvents, deathEvents, durationMs, onEv
                     onClick={(e) => { e.stopPropagation(); onEventClick(t); }}
                 >
                     <div className="absolute top-[-12px] left-[2px] text-[8px]">⬇</div>
-                    <div className="absolute left-[5px] top-0 bottom-0 w-0 border-l border-dashed" style={{ borderColor: 'rgba(245,158,11,0.35)' }} />
+                    <div className="absolute left-[5px] top-0 bottom-0 w-0 border-l border-dashed" style={{ borderColor: 'var(--axi-warn)' }} />
                 </div>
             ))}
             {deathEvents.map((t, i) => (
@@ -29,7 +29,7 @@ export function TimelineEventMarkers({ downEvents, deathEvents, durationMs, onEv
                     onClick={(e) => { e.stopPropagation(); onEventClick(t); }}
                 >
                     <div className="absolute top-[-12px] left-[1px] text-[8px]">💀</div>
-                    <div className="absolute left-[5px] top-0 bottom-0 w-0 border-l border-dashed" style={{ borderColor: 'rgba(239,68,68,0.35)' }} />
+                    <div className="absolute left-[5px] top-0 bottom-0 w-0 border-l border-dashed" style={{ borderColor: 'var(--axi-danger)' }} />
                 </div>
             ))}
         </>

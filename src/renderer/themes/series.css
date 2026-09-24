@@ -62,4 +62,16 @@
     --axi-series-boon-aegis: #7dd3fc;
     --axi-series-boon-resolution: #a78bfa;
     --axi-series-boon-retaliation: #fb923c;
+
+    /* --- hard/soft CC effects (fixed per effect identity, GW2 icon colours) ---
+       Same contract as the boon block above: a Stun and a Daze are drawn
+       inside the same Hard CC lane, so they need their own fixed identity
+       colours to stay distinguishable from one another, not just from other
+       lanes. */
+    --axi-series-cc-stun: #f43f5e;
+    --axi-series-cc-daze: #e879f9;
+    --axi-series-cc-fear: #fb923c;
+    --axi-series-cc-chill: #67e8f9;
+    --axi-series-cc-immobilize: #fbbf24;
+    --axi-series-cc-slow: #a78bfa;
 }

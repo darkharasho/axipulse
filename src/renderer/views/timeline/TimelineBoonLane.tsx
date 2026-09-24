@@ -37,21 +37,27 @@ function getBarSegments(states: [number, number][], durationMs: number): BarSegm
     return segments;
 }
 
+// Fixed per-buff/effect identity colours (rule 9/10: domain data carries its
+// own colour, independent of the accent). Canonical boon tokens are the same
+// ones BoonsSubview reads from series.css; the CC-only effects (Stun, Daze,
+// Fear, Chill, Immobilize, Slow) have no boon-panel equivalent, so Task 10
+// adds a matching --axi-series-cc-* block to series.css rather than keeping
+// them as one-off literals here.
 const BUFF_COLORS: Record<number, string> = {
-    740: '#f59e0b',   // Might
-    725: '#ef4444',   // Fury
-    1187: '#a78bfa',  // Quickness
-    30328: '#818cf8', // Alacrity
-    1122: '#10b981',  // Stability
-    717: '#60a5fa',   // Protection
-    26980: '#a78bfa', // Resistance
-    743: '#fbbf24',   // Aegis
-    872: '#f43f5e',   // Stun
-    833: '#e879f9',   // Daze
-    791: '#fb923c',   // Fear
-    722: '#67e8f9',   // Chill
-    727: '#fbbf24',   // Immobilize
-    26766: '#a78bfa', // Slow
+    740: 'var(--axi-series-boon-might)',
+    725: 'var(--axi-series-boon-fury)',
+    1187: 'var(--axi-series-boon-quickness)',
+    30328: 'var(--axi-series-boon-alacrity)',
+    1122: 'var(--axi-series-boon-stability)',
+    717: 'var(--axi-series-boon-protection)',
+    26980: 'var(--axi-series-boon-resistance)',
+    743: 'var(--axi-series-boon-aegis)',
+    872: 'var(--axi-series-cc-stun)',
+    833: 'var(--axi-series-cc-daze)',
+    791: 'var(--axi-series-cc-fear)',
+    722: 'var(--axi-series-cc-chill)',
+    727: 'var(--axi-series-cc-immobilize)',
+    26766: 'var(--axi-series-cc-slow)',
 };
 
 export function TimelineBoonLane({ label, color, buffs, durationMs }: TimelineBoonLaneProps) {
@@ -62,10 +68,13 @@ export function TimelineBoonLane({ label, color, buffs, durationMs }: TimelineBo
     return (
         <div className="flex items-center mb-0.5" style={{ height: laneHeight }}>
             <div className="w-[90px] text-right pr-2.5 text-[10px] font-medium shrink-0" style={{ color }}>{label}</div>
-            <div className="flex-1 h-full bg-[#0f0f0f] rounded border border-[#1a1a1a] relative overflow-hidden" style={{ padding: '2px 0' }}>
+            <div
+                className="flex-1 h-full relative overflow-hidden"
+                style={{ background: 'var(--axi-ground)', border: 'var(--axi-border-control) solid var(--axi-ink-line)', padding: '2px 0' }}
+            >
                 {buffEntries.length === 0 && (
                     <div className="flex items-center justify-center h-full">
-                        <span className="text-[8px] text-[#333]">None detected</span>
+                        <span className="text-[8px]" style={{ color: 'var(--axi-text-faint)' }}>None detected</span>
                     </div>
                 )}
                 {buffEntries.map(([idStr, entry], rowIdx) => {
@@ -82,21 +91,19 @@ export function TimelineBoonLane({ label, color, buffs, durationMs }: TimelineBo
                             {segments.map((seg, i) => (
                                 <div
                                     key={i}
-                                    className="absolute rounded-sm"
+                                    className="absolute"
                                     style={{
                                         left: `${seg.startPct}%`,
                                         width: `${seg.widthPct}%`,
                                         height: '100%',
                                         background: barColor,
-                                        opacity: 0.5,
                                     }}
                                 >
                                     {i === 0 && entry.icon && seg.widthPct > 3 && (
                                         <img
                                             src={entry.icon}
                                             alt={entry.name}
-                                            className="absolute rounded-sm"
-                                            style={{ left: 1, top: 0, height: rowHeight, width: rowHeight }}
+                                            style={{ left: 1, top: 0, height: rowHeight, width: rowHeight, position: 'absolute' }}
                                         />
                                     )}
                                 </div>
@@ -109,9 +116,8 @@ export function TimelineBoonLane({ label, color, buffs, durationMs }: TimelineBo
                                     fontSize: 10, color: barColor,
                                     lineHeight: `${rowHeight}px`,
                                     maxWidth: 70,
-                                    background: 'rgba(0,0,0,0.5)',
+                                    background: 'var(--axi-surface-raised)',
                                     padding: '0 3px',
-                                    borderRadius: 2,
                                 }}
                             >
                                 {entry.name}

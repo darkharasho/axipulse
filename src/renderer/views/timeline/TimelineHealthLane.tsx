@@ -1,4 +1,4 @@
-import { useMemo, useId } from 'react';
+import { useMemo } from 'react';
 import type { TimelineBucket } from '../../../shared/types';
 
 interface TimelineHealthLaneProps {
@@ -6,92 +6,112 @@ interface TimelineHealthLaneProps {
     domainMs: [number, number];
 }
 
-function healthColor(pct: number): string {
+// Health is status, not a free-form domain colour, so it reads through the
+// fixed --axi-ok/-warn/-danger inks (rule 5) rather than a continuous
+// red-amber-green blend (rule 2 forbids the gradient/opacity that used to
+// draw it, rule 7 keeps the quantity itself on the y-axis as length). These
+// land on an SVG `style={{ fill }}` object below, which is a CSS declaration
+// and parses var() fine (unlike a bare `fill="var(--x)"` attribute), so no
+// readToken() resolution is needed here.
+const STATUS_COLORS = { ok: 'var(--axi-ok)', warn: 'var(--axi-warn)', danger: 'var(--axi-danger)' } as const;
+
+type Band = keyof typeof STATUS_COLORS;
+
+function healthBand(pct: number): Band {
     const clamped = Math.max(0, Math.min(100, pct));
-    if (clamped > 50) {
-        const t = (clamped - 50) / 50;
-        const r = Math.round(234 * (1 - t) + 16 * t);
-        const g = Math.round(179 * (1 - t) + 185 * t);
-        const b = Math.round(8 * (1 - t) + 129 * t);
-        return `rgb(${r},${g},${b})`;
+    if (clamped > 66) return 'ok';
+    if (clamped > 33) return 'warn';
+    return 'danger';
+}
+
+interface Segment {
+    fillPath: string;
+    strokePath: string;
+    band: Band;
+}
+
+function buildSegments(pts: { x: number; y: number; pct: number }[]): Segment[] {
+    if (pts.length === 0) return [];
+    const segments: Segment[] = [];
+    let run: typeof pts = [pts[0]];
+    let runBand = healthBand(pts[0].pct);
+
+    const flush = () => {
+        if (run.length === 0) return;
+        let d = `M ${run[0].x} ${run[0].y}`;
+        for (let i = 1; i < run.length; i++) d += ` L ${run[i].x} ${run[i].y}`;
+        const fill = `${d} L ${run[run.length - 1].x} 1 L ${run[0].x} 1 Z`;
+        segments.push({ fillPath: fill, strokePath: d, band: runBand });
+    };
+
+    for (let i = 1; i < pts.length; i++) {
+        const band = healthBand(pts[i].pct);
+        if (band !== runBand) {
+            // Close the run at the boundary point so segments stay contiguous
+            // (no gap between bands), then start the next run from that same
+            // point.
+            run.push(pts[i]);
+            flush();
+            run = [pts[i]];
+            runBand = band;
+        } else {
+            run.push(pts[i]);
+        }
     }
-    const t = clamped / 50;
-    const r = Math.round(239 * (1 - t) + 234 * t);
-    const g = Math.round(68 * (1 - t) + 179 * t);
-    const b = Math.round(68 * (1 - t) + 8 * t);
-    return `rgb(${r},${g},${b})`;
+    flush();
+
+    return segments;
 }
 
 export function TimelineHealthLane({ data, domainMs }: TimelineHealthLaneProps) {
-    const gradientId = useId();
-
-    const { path, stops } = useMemo(() => {
-        if (data.length === 0) return { path: '', stops: [], maxVal: 0 };
+    const segments = useMemo(() => {
+        if (data.length === 0) return [];
         const max = Math.max(...data.map(d => d.value), 1);
         const pts = data.map(d => ({
             x: (d.time - domainMs[0]) / (domainMs[1] - domainMs[0]),
             y: 1 - d.value / max,
             pct: d.value,
         }));
-
-        let d = `M ${pts[0].x} ${pts[0].y}`;
-        for (let i = 1; i < pts.length; i++) {
-            d += ` L ${pts[i].x} ${pts[i].y}`;
-        }
-        const fillPath = `${d} L ${pts[pts.length - 1].x} 1 L ${pts[0].x} 1 Z`;
-
-        const colorStops = pts.map(p => ({
-            offset: p.x,
-            color: healthColor(p.pct),
-        }));
-
-        return { path: fillPath, stops: colorStops };
+        return buildSegments(pts);
     }, [data, domainMs]);
 
     if (data.length === 0) {
         return (
             <div className="flex items-center mb-0.5" style={{ height: 32 }}>
-                <div className="w-[90px] text-right pr-2.5 text-[10px] font-medium" style={{ color: '#10b981' }}>Health</div>
-                <div className="flex-1 h-full bg-[#0f0f0f] rounded border border-[#1a1a1a] flex items-center justify-center">
-                    <span className="text-[8px] text-[#333]">No data</span>
+                <div className="w-[90px] text-right pr-2.5 text-[10px] font-medium" style={{ color: 'var(--axi-series-metric-health)' }}>Health</div>
+                <div
+                    className="flex-1 h-full flex items-center justify-center"
+                    style={{ background: 'var(--axi-ground)', border: 'var(--axi-border-control) solid var(--axi-ink-line)' }}
+                >
+                    <span className="text-[8px]" style={{ color: 'var(--axi-text-faint)' }}>No data</span>
                 </div>
             </div>
         );
     }
 
-    const strokePath = useMemo(() => {
-        if (data.length === 0) return '';
-        const max = Math.max(...data.map(d => d.value), 1);
-        const pts = data.map(d => ({
-            x: (d.time - domainMs[0]) / (domainMs[1] - domainMs[0]),
-            y: 1 - d.value / max,
-        }));
-        let d = `M ${pts[0].x} ${pts[0].y}`;
-        for (let i = 1; i < pts.length; i++) {
-            d += ` L ${pts[i].x} ${pts[i].y}`;
-        }
-        return d;
-    }, [data, domainMs]);
+    const status = STATUS_COLORS;
 
     return (
         <div className="flex items-center mb-0.5" style={{ height: 32 }}>
-            <div className="w-[90px] text-right pr-2.5 text-[10px] font-medium shrink-0" style={{ color: '#10b981' }}>Health</div>
-            <div className="flex-1 h-full bg-[#0f0f0f] rounded border border-[#1a1a1a] overflow-hidden">
+            <div className="w-[90px] text-right pr-2.5 text-[10px] font-medium shrink-0" style={{ color: 'var(--axi-series-metric-health)' }}>Health</div>
+            <div
+                className="flex-1 h-full overflow-hidden"
+                style={{ background: 'var(--axi-ground)', border: 'var(--axi-border-control) solid var(--axi-ink-line)' }}
+            >
                 <svg width="100%" height="100%" viewBox="0 0 1 1" preserveAspectRatio="none">
-                    <defs>
-                        <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
-                            {stops.map((s, i) => (
-                                <stop key={i} offset={s.offset} stopColor={s.color} stopOpacity={0.3} />
-                            ))}
-                        </linearGradient>
-                        <linearGradient id={`${gradientId}-stroke`} x1="0" y1="0" x2="1" y2="0">
-                            {stops.map((s, i) => (
-                                <stop key={i} offset={s.offset} stopColor={s.color} stopOpacity={1} />
-                            ))}
-                        </linearGradient>
-                    </defs>
-                    <path d={path} fill={`url(#${gradientId})`} />
-                    <path d={strokePath} fill="none" stroke={`url(#${gradientId}-stroke)`} strokeWidth={0.02} vectorEffect="non-scaling-stroke" />
+                    {segments.map((seg, i) => (
+                        <path key={`fill-${i}`} d={seg.fillPath} style={{ fill: status[seg.band] }} />
+                    ))}
+                    {segments.map((seg, i) => (
+                        <path
+                            key={`stroke-${i}`}
+                            d={seg.strokePath}
+                            fill="none"
+                            style={{ stroke: status[seg.band] }}
+                            strokeWidth={0.02}
+                            vectorEffect="non-scaling-stroke"
+                        />
+                    ))}
                 </svg>
             </div>
         </div>
