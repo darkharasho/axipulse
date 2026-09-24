@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { resolve, join } from 'node:path';
 
 const CSS = () => readFileSync(resolve('src/renderer/index.css'), 'utf8');
 
@@ -136,8 +136,122 @@ describe('src/renderer/index.css obeys the axi-design contract', () => {
         expect(clean).not.toMatch(/@import\s+url\(/i);
     });
 
-    // Un-skip this in the final task, when the last shim row is gone.
-    it.skip('no longer carries the legacy shim', () => {
+    it('no longer carries the legacy shim', () => {
         expect(CSS()).not.toMatch(/LEGACY SHIM/);
+    });
+});
+
+// stripComments above only removes /* */. TSX uses // freely, and a comment
+// that mentions a hex or the word "rounded" while explaining a decision must
+// not read as a violation.
+const stripLineComments = (text: string) =>
+    text.split('\n').map((l) => l.replace(/\/\/.*$/, '')).join('\n');
+
+const clean = (file: string) => stripLineComments(stripComments(readFileSync(file, 'utf8')));
+
+const walk = (dir: string): string[] =>
+    readdirSync(dir).flatMap((name) => {
+        const p = join(dir, name);
+        return statSync(p).isDirectory() ? walk(p) : [p];
+    });
+
+const RENDERER = resolve('src/renderer');
+const SERIES = resolve('src/renderer/themes/series.css');
+
+const sourceFiles = () =>
+    walk(RENDERER).filter((p) => /\.(tsx?|css)$/.test(p) && p !== SERIES);
+
+describe('the whole renderer obeys the axi-design contract', () => {
+    it('names no colour literal outside series.css', () => {
+        const bad: string[] = [];
+        for (const file of sourceFiles()) {
+            const text = clean(file);
+            text.split('\n').forEach((line, i) => {
+                // accents.json supplies the swatch colours in SettingsView:
+                // a colour picker must show the colour it selects, which no
+                // token can express. That value is read from the package's
+                // own JSON, never spelled here.
+                if (/a\.hex/.test(line)) return;
+                if (/#[0-9a-f]{3,8}\b|\b(rgba?|hsla?)\s*\(/i.test(line)) {
+                    bad.push(`${file.replace(RENDERER, '')}:${i + 1}: ${line.trim()}`);
+                }
+            });
+        }
+        expect(bad).toEqual([]);
+    });
+
+    it('uses no rounded utility and declares no border-radius', () => {
+        const bad: string[] = [];
+        for (const file of sourceFiles()) {
+            const text = clean(file);
+            text.split('\n').forEach((line, i) => {
+                if (/\brounded(-[a-z0-9[\]]+)?\b|border-radius\s*:/.test(line)) {
+                    bad.push(`${file.replace(RENDERER, '')}:${i + 1}: ${line.trim()}`);
+                }
+            });
+        }
+        expect(bad).toEqual([]);
+    });
+
+    it('uses no Tailwind palette colour utility', () => {
+        const PALETTE =
+            /\b(text|bg|border|from|to|via|ring|divide|fill|stroke|placeholder)-(slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|white|black)(-[0-9]{2,3})?\b/;
+        const bad: string[] = [];
+        for (const file of sourceFiles()) {
+            const text = clean(file);
+            text.split('\n').forEach((line, i) => {
+                if (PALETTE.test(line)) {
+                    bad.push(`${file.replace(RENDERER, '')}:${i + 1}: ${line.trim()}`);
+                }
+            });
+        }
+        expect(bad).toEqual([]);
+    });
+
+    it('declares no font-family and imports no webfont anywhere', () => {
+        for (const file of sourceFiles()) {
+            const text = clean(file);
+            expect(text, file).not.toMatch(/fontFamily\s*:|font-family\s*:/);
+            expect(text, file).not.toMatch(/@import\s+url\(/);
+        }
+    });
+});
+
+// Why this test exists, and what breaks if it fails:
+//
+// readToken() reads getComputedStyle(), so it only returns a real value once
+// a stylesheet has been applied. ES modules evaluate in IMPORT-DECLARATION
+// ORDER, and the renderer's whole component tree is statically imported
+// (App -> AppLayout -> PulseView -> BoonsSubview -> BoonPerformanceChart,
+// with no lazy() anywhere), so every one of those module bodies runs the
+// instant `import App from './App.tsx'` is evaluated.
+//
+// If that App import is ever moved back ABOVE the four CSS imports, those
+// module bodies run before any stylesheet exists and every readToken call
+// reachable from them silently resolves to its 'currentColor' fallback -
+// chart series, profession colours, timeline inks, all flattened to one ink.
+//
+// The failure is invisible to every other check in this repo: `npm run
+// build` stays green, because Vite emits the stylesheet <link> ahead of the
+// module <script> in the built index.html, so production applies CSS first
+// regardless of import order. Only `npm run dev` is broken, and only a human
+// looking at the screen would notice. This test is the only automated guard.
+describe('main.tsx loads its stylesheets before the app', () => {
+    it('imports all four stylesheets ahead of App', () => {
+        const main = readFileSync(resolve('src/renderer/main.tsx'), 'utf8');
+        const lines = stripLineComments(stripComments(main)).split('\n');
+
+        const lineOf = (needle: RegExp) => {
+            const i = lines.findIndex((l) => /^\s*import\b/.test(l) && needle.test(l));
+            expect(i, `no import line matching ${needle}`).toBeGreaterThanOrEqual(0);
+            return i;
+        };
+
+        const app = lineOf(/from\s+['"]\.\/App(\.tsx)?['"]/);
+
+        for (const sheet of [/axi-design\/axi\.css/, /axi-design\/accents\.css/,
+            /['"]\.\/index\.css['"]/, /['"]\.\/themes\/series\.css['"]/]) {
+            expect(lineOf(sheet), `${sheet} must be imported before App`).toBeLessThan(app);
+        }
     });
 });

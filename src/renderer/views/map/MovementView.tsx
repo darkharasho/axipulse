@@ -580,6 +580,9 @@ export function MovementView() {
                             style={{ background: 'var(--axi-surface)', aspectRatio: `${width}/${height}`, minHeight: 400 }}
                         />
                     )}
+                    {/* Raster basemap tiles. Rule 2 bans mixing a COLOUR with the
+                        ground; this fades an image, which no token can express, so the
+                        mechanism stays. */}
                     {tiles.length > 0 && (
                         <div className="absolute inset-0" style={{ opacity: 0.8, overflow: 'hidden' }}>
                             {tiles.map((tile) => (
@@ -632,12 +635,25 @@ export function MovementView() {
                             const color = TYPE_COLORS[lm.type];
                             const dotOffsetY = 10 * s;
                             return (
+                                /* The group `opacity` is KEPT deliberately. It de-emphasises
+                                   the whole landmark layer against the squad marks, and the
+                                   only legal substitute - recolouring the pins to a dimmer
+                                   token - would collapse TYPE_COLORS' type encoding
+                                   (keep/tower/camp = accent, ruins = meta, named = faint)
+                                   into a single ink. A
+                                   whole-group dim of already-outlined geometry is a far
+                                   weaker rule-2 violation than a colour mixed at alpha, and
+                                   removing it costs a live affordance. The two mechanisms
+                                   that WERE colour-at-alpha are converted: the pin's tinted
+                                   body becomes an outline (rule 5: annotation is outlined,
+                                   not filled) and the label takes --axi-text-faint instead
+                                   of --axi-text at 0.6. */
                                 <g key={i} transform={`translate(${lm.x}, ${lm.y})`} opacity={0.4}>
                                     <g transform={`translate(${-12 * s}, ${-dotOffsetY}) scale(${s})`}>
-                                        <path d={PIN_PATH} style={{ fill: color, stroke: color }} fillOpacity={0.1} strokeWidth={1} />
+                                        <path d={PIN_PATH} style={{ fill: 'none', stroke: color }} strokeWidth={1} />
                                         <circle cx={12} cy={10} r={2.5} style={{ fill: color }} />
                                     </g>
-                                    <text x={0} y={-dotOffsetY - 2} textAnchor="middle" style={{ fill: 'var(--axi-text)' }} fontSize={7} opacity={0.6}>
+                                    <text x={0} y={-dotOffsetY - 2} textAnchor="middle" style={{ fill: 'var(--axi-text-faint)' }} fontSize={7}>
                                         {lm.name}
                                     </text>
                                 </g>
@@ -653,6 +669,12 @@ export function MovementView() {
                             const sz = 14;
                             const status = getMemberStatus(member, timeMs);
                             return (
+                                /* KEPT, same reasoning as the landmark group: the enemy
+                                   marker is built from bitmap <image> profession icons under
+                                   an SVG filter, and no token can dim a bitmap. There is no
+                                   legal replacement for "enemies read quieter than allies",
+                                   so the weaker violation stays rather than the affordance
+                                   being deleted. */
                                 <g key={enemyId} opacity={0.3}>
                                     <g transform={`translate(${pos[0]}, ${pos[1]}) scale(${markerScale})`}>
                                         {/* down/dead are status, so they take the fixed warn/danger
@@ -661,7 +683,7 @@ export function MovementView() {
                                         {status === 'down' && (
                                             <g transform="translate(-6, -18)">
                                                 <svg width="12" height="14" viewBox="0 0 24 24">
-                                                    <path d={PIN_PATH} style={{ fill: 'var(--axi-warn)', stroke: 'var(--axi-ink-line)' }} fillOpacity={0.8} strokeWidth={1.5} />
+                                                    <path d={PIN_PATH} style={{ fill: 'var(--axi-warn)', stroke: 'var(--axi-ink-line)' }} strokeWidth={1.5} />
                                                 </svg>
                                             </g>
                                         )}
@@ -731,7 +753,6 @@ export function MovementView() {
                                             strokeDasharray={`${3 * markerScale} ${3 * markerScale}`}
                                             strokeLinecap="round"
                                             strokeLinejoin="round"
-                                            opacity={0.3}
                                         />
                                     )}
                                     {/* Recent trail (solid) */}
@@ -743,7 +764,6 @@ export function MovementView() {
                                             strokeWidth={(member.isLocal ? 2.5 : 1.5) * markerScale}
                                             strokeLinecap="round"
                                             strokeLinejoin="round"
-                                            opacity={0.5}
                                         />
                                     )}
 
@@ -754,7 +774,7 @@ export function MovementView() {
                                         {status === 'down' && (
                                             <g transform="translate(-8, -22)">
                                                 <svg width="16" height="20" viewBox="0 0 24 24">
-                                                    <path d={PIN_PATH} style={{ fill: 'var(--axi-warn)', stroke: 'var(--axi-ink-line)' }} fillOpacity={0.8} strokeWidth={1.5} />
+                                                    <path d={PIN_PATH} style={{ fill: 'var(--axi-warn)', stroke: 'var(--axi-ink-line)' }} strokeWidth={1.5} />
                                                 </svg>
                                             </g>
                                         )}
@@ -778,7 +798,7 @@ export function MovementView() {
                                                 return (
                                                     <>
                                                         {member.isLocal && (
-                                                            <circle r={sz / 2 + 4} fill="none" style={{ stroke: 'var(--axi-accent)' }} strokeWidth={2.5} opacity={0.85} />
+                                                            <circle r={sz / 2 + 4} fill="none" style={{ stroke: 'var(--axi-accent)' }} strokeWidth={2.5} />
                                                         )}
                                                         <image href={iconUrl} x={-sz / 2} y={-sz / 2} width={sz} height={sz} />
                                                     </>
@@ -796,10 +816,10 @@ export function MovementView() {
                                                                 case (see BoonPerformanceChart's selfColor guard and
                                                                 the Timeline's contrast guard for the same problem). */}
                                                             <circle r={10} fill="none" style={{ stroke: 'var(--axi-ground)' }} strokeWidth={1.5} />
-                                                            <circle r={12} fill="none" style={{ stroke: 'var(--axi-accent)' }} strokeWidth={2.5} opacity={0.85} />
+                                                            <circle r={12} fill="none" style={{ stroke: 'var(--axi-accent)' }} strokeWidth={2.5} />
                                                         </>
                                                     )}
-                                                    <circle r={member.isLocal ? 8 : 6} style={{ fill: color, stroke: color }} fillOpacity={0.9} strokeWidth={1} />
+                                                    <circle r={member.isLocal ? 8 : 6} style={{ fill: color, stroke: color }} strokeWidth={1} />
                                                 </>
                                             );
                                         })()}

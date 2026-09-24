@@ -317,6 +317,25 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
         background-color var(--ap-duration-normal) ease;
 }
 
+/* The squad average-position ripple on the static map. It replaces two SMIL
+   <animate> elements that drove `r` and `opacity`: `r` is not a compositor
+   property, and SMIL is not CSS, so no media query could ever reach it
+   (rule 11, twice over). scale() on a circle is safe here - the element
+   bears no text - and `vector-effect: non-scaling-stroke` on the element
+   keeps the ring's stroke weight constant as it grows, which animating `r`
+   used to give for free. The 4.6667 factor is 28 / 6, the SMIL radii it
+   replaces. */
+.ap-map-pulse {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: ap-map-pulse 1.8s ease-out infinite;
+}
+
+@keyframes ap-map-pulse {
+    from { transform: scale(1); opacity: 1; }
+    to { transform: scale(4.6667); opacity: 0; }
+}
+
 /* --- reduced motion --- */
 
 @media (prefers-reduced-motion: reduce) {
@@ -325,32 +344,11 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
     .ap-work { animation: none; }
     .stat-bar-fill { animation: none; }
     .ap-map-toggle, .ap-map-chevron, .ap-map-bar, .ap-map-fade { transition: none; }
+    /* `animation: none` rests the ripple at its base keyframe - a static,
+       full-strength r=6 accent ring around the average-position dot. The
+       "this is where the squad is" mark survives; only the motion goes. */
+    .ap-map-pulse { animation: none; }
     .theme-transitioning *,
     .theme-transitioning *::before,
     .theme-transitioning *::after { transition: none !important; }
 }
-
-/* ── LEGACY SHIM — DELETE IN THE FINAL COMMIT ──
-   Temporary bridge so un-converted screens stay legible mid-conversion.
-   Each screen commit removes the rows it no longer consumes.
-   tests/renderer/tokens.test.ts has a skipped assertion that this
-   block is gone; un-skip it when the last row goes.
-
-   Only MAPPABLE rows appear here. The deleted concepts - --accent-bg,
-   --brand-gradient, --glow-*, --status-*-bg, --bg-hover - are deliberately
-   absent, so that every un-converted rule-violating call site renders
-   visibly wrong. That is the to-do list, not a bug. */
-:root {
-    --border-subtle: var(--axi-ink-line);
-
-    --text-primary: var(--axi-text);
-    --text-secondary: var(--axi-text-dim);
-    --text-muted: var(--axi-text-faint);
-
-    --brand-primary: var(--axi-accent);
-
-    --status-success: var(--axi-ok);
-    --status-error: var(--axi-danger);
-    --status-warning: var(--axi-warn);
-}
-/* ── END LEGACY SHIM ── */

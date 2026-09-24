@@ -40,13 +40,13 @@ export function WhatsNewModal({ open, version, markdown, onClose }: Props) {
                         transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
                         onClick={e => e.stopPropagation()}
                     >
-                        <div className="flex items-center justify-between px-5 py-3 border-b"
-                            style={{ borderColor: 'var(--border-subtle)' }}>
+                        <div className="flex items-center justify-between px-5 py-3"
+                            style={{ borderBottom: 'var(--axi-border-hairline) solid var(--axi-rule)' }}>
                             <div className="flex items-center gap-2">
                                 <span style={{ color: 'var(--axi-accent)' }}>
                                     What's New
                                 </span>
-                                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                                <span className="text-xs" style={{ color: 'var(--axi-text-faint)' }}>
                                     v{version}
                                 </span>
                             </div>
@@ -64,14 +64,14 @@ export function WhatsNewModal({ open, version, markdown, onClose }: Props) {
                                     {markdown}
                                 </ReactMarkdown>
                             ) : (
-                                <div className="italic" style={{ color: 'var(--text-muted)' }}>
+                                <div className="italic" style={{ color: 'var(--axi-text-faint)' }}>
                                     Couldn't load release notes for v{version}.
                                 </div>
                             )}
                         </div>
 
-                        <div className="flex justify-end px-5 py-3 border-t"
-                            style={{ borderColor: 'var(--border-subtle)' }}>
+                        <div className="flex justify-end px-5 py-3"
+                            style={{ borderTop: 'var(--axi-border-hairline) solid var(--axi-rule)' }}>
                             <button
                                 onClick={onClose}
                                 className="axi-btn axi-btn--primary"
@@ -96,39 +96,39 @@ function openExternal(url: string) {
 
 const mdComponents = {
     h1: ({ children }: { children?: ReactNode }) => (
-        <h2 className="text-base font-semibold mb-2 mt-3" style={{ color: 'var(--text-primary)' }}>{children}</h2>
+        <h2 className="text-base font-semibold mb-2 mt-3" style={{ color: 'var(--axi-text)' }}>{children}</h2>
     ),
     h2: ({ children }: { children?: ReactNode }) => (
-        <h3 className="text-sm font-semibold uppercase tracking-wider mt-4 mb-1.5" style={{ color: 'var(--brand-primary)' }}>{children}</h3>
+        <h3 className="text-sm font-semibold uppercase tracking-wider mt-4 mb-1.5" style={{ color: 'var(--axi-accent)' }}>{children}</h3>
     ),
     h3: ({ children }: { children?: ReactNode }) => (
-        <h4 className="text-xs font-semibold uppercase tracking-wider mt-3 mb-1" style={{ color: 'var(--text-muted)' }}>{children}</h4>
+        <h4 className="text-xs font-semibold uppercase tracking-wider mt-3 mb-1" style={{ color: 'var(--axi-text-faint)' }}>{children}</h4>
     ),
     p: ({ children }: { children?: ReactNode }) => (
-        <p className="mb-2 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{children}</p>
+        <p className="mb-2 leading-relaxed" style={{ color: 'var(--axi-text-dim)' }}>{children}</p>
     ),
     ul: ({ children }: { children?: ReactNode }) => (
-        <ul className="list-disc pl-5 mb-2 space-y-1" style={{ color: 'var(--text-secondary)' }}>{children}</ul>
+        <ul className="list-disc pl-5 mb-2 space-y-1" style={{ color: 'var(--axi-text-dim)' }}>{children}</ul>
     ),
     ol: ({ children }: { children?: ReactNode }) => (
-        <ol className="list-decimal pl-5 mb-2 space-y-1" style={{ color: 'var(--text-secondary)' }}>{children}</ol>
+        <ol className="list-decimal pl-5 mb-2 space-y-1" style={{ color: 'var(--axi-text-dim)' }}>{children}</ol>
     ),
     li: ({ children }: { children?: ReactNode }) => <li className="leading-relaxed">{children}</li>,
     code: ({ children }: { children?: ReactNode }) => (
         <code className="px-1 py-0.5 text-[0.85em]"
-            style={{ background: 'var(--axi-ground)', border: 'var(--axi-border-hairline) solid var(--axi-ink-line)', color: 'var(--text-primary)' }}>
+            style={{ background: 'var(--axi-ground)', border: 'var(--axi-border-hairline) solid var(--axi-ink-line)', color: 'var(--axi-text)' }}>
             {children}
         </code>
     ),
     pre: ({ children }: { children?: ReactNode }) => (
         <pre className="overflow-x-auto px-3 py-2 my-2 text-[0.85em]"
-            style={{ background: 'var(--axi-ground)', border: 'var(--axi-border-control) solid var(--axi-ink-line)', color: 'var(--text-primary)' }}>
+            style={{ background: 'var(--axi-ground)', border: 'var(--axi-border-control) solid var(--axi-ink-line)', color: 'var(--axi-text)' }}>
             {children}
         </pre>
     ),
     blockquote: ({ children }: { children?: ReactNode }) => (
-        <blockquote className="border-l-2 pl-3 my-2 italic"
-            style={{ borderColor: 'var(--brand-primary)', color: 'var(--text-muted)' }}>
+        <blockquote className="pl-3 my-2 italic"
+            style={{ borderLeft: 'var(--axi-border-control) solid var(--axi-accent)', color: 'var(--axi-text-faint)' }}>
             {children}
         </blockquote>
     ),
@@ -136,13 +136,13 @@ const mdComponents = {
         <a
             href={href}
             onClick={e => { e.preventDefault(); if (href) openExternal(href); }}
-            style={{ color: 'var(--brand-primary)' }}
+            style={{ color: 'var(--axi-accent)' }}
             className="hover:underline"
         >
             {children}
         </a>
     ),
     strong: ({ children }: { children?: ReactNode }) => (
-        <strong style={{ color: 'var(--text-primary)' }}>{children}</strong>
+        <strong style={{ color: 'var(--axi-text)' }}>{children}</strong>
     ),
 };

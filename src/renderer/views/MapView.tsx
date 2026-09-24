@@ -254,6 +254,11 @@ function MapOverview() {
                             src={mapImageUrl}
                             alt={mapName}
                             className="w-full h-full object-contain"
+                            // A photographic basemap, not a token colour: fading the
+                            // raster is what keeps the overlay readable over it, and
+                            // there is no token that can express "this bitmap, quieter".
+                            // Rule 2 bans mixing a COLOUR with the ground; this mixes an
+                            // image, so it stays.
                             style={{ opacity: 0.7 }}
                             draggable={false}
                         />
@@ -280,8 +285,14 @@ function MapOverview() {
                             return (
                                 <g key={i} transform={`translate(${lm.x}, ${lm.y})`}>
                                     <g transform={`translate(${-12 * s}, ${-dotOffsetY}) scale(${s})`}>
-                                        <path d={PIN_PATH} style={{ fill: color, stroke: color }} fillOpacity={0.15} strokeWidth={1.5} opacity={0.8} />
-                                        <circle cx={12} cy={10} r={2.5} style={{ fill: color }} opacity={0.8} />
+                                        {/* The tinted body (fillOpacity) and the group dim were
+                                            a colour mixed with the ground - rule 2's exact
+                                            prohibition. Rule 5 gives the legal cue for the same
+                                            job: a landmark is an annotation, so it is OUTLINED
+                                            rather than filled, and the outline then needs no
+                                            dimming to sit behind the squad marks. */}
+                                        <path d={PIN_PATH} style={{ fill: 'none', stroke: color }} strokeWidth={1.5} />
+                                        <circle cx={12} cy={10} r={2.5} style={{ fill: color }} />
                                     </g>
                                     <text
                                         x={0}
@@ -298,11 +309,26 @@ function MapOverview() {
 
                         {avgPosition && (
                             <>
-                                <circle cx={avgPosition[0]} cy={avgPosition[1]} r={4} style={{ fill: 'var(--axi-accent)' }} opacity={0.9} />
-                                <circle cx={avgPosition[0]} cy={avgPosition[1]} r={6} fill="none" style={{ stroke: 'var(--axi-accent)' }} strokeWidth={1.5} opacity={0}>
-                                    <animate attributeName="r" values="6;28" dur="1.8s" repeatCount="indefinite" />
-                                    <animate attributeName="opacity" values="0.8;0" dur="1.8s" repeatCount="indefinite" />
-                                </circle>
+                                <circle cx={avgPosition[0]} cy={avgPosition[1]} r={4} style={{ fill: 'var(--axi-accent)' }} />
+                                {/* Was a pair of SMIL <animate> elements on `r` and `opacity`.
+                                    `r` is not a compositor property (it forces a geometry
+                                    re-resolve every frame) and SMIL is not CSS, so
+                                    `prefers-reduced-motion` could never reach it - rule 11
+                                    broken twice. .ap-map-pulse re-draws the same ripple as a
+                                    CSS transform+opacity keyframe, and rests as a plain static
+                                    ring under reduced motion. vector-effect keeps the stroke
+                                    1.5 wide while the ring scales, which is what animating `r`
+                                    used to give for free. */}
+                                <circle
+                                    className="ap-map-pulse"
+                                    cx={avgPosition[0]}
+                                    cy={avgPosition[1]}
+                                    r={6}
+                                    fill="none"
+                                    style={{ stroke: 'var(--axi-accent)' }}
+                                    strokeWidth={1.5}
+                                    vectorEffect="non-scaling-stroke"
+                                />
                             </>
                         )}
                     </svg>

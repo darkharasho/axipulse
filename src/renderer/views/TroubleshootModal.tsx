@@ -23,7 +23,7 @@ const INITIAL_STEPS: Step[] = [
 function StepIcon({ status }: { status: StepStatus }) {
     switch (status) {
         case 'running':
-            return <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" style={{ color: 'var(--brand-primary)' }} />;
+            return <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" style={{ color: 'var(--axi-accent)' }} />;
         case 'pass':
             return <span className="ap-status-dot ap-status-dot--ok flex-shrink-0" />;
         case 'fail':
@@ -153,19 +153,19 @@ export function TroubleshootModal({ onClose }: Props) {
     const hasWarnings = steps.some(s => s.status === 'warn');
 
     const summary = !done ? null
-        : hasFailures ? { label: 'Issues found', color: 'var(--status-error)' }
-        : hasWarnings ? { label: 'Warnings', color: 'var(--status-warning)' }
-        : { label: 'All checks passed', color: 'var(--status-success)' };
+        : hasFailures ? { label: 'Issues found', color: 'var(--axi-danger)' }
+        : hasWarnings ? { label: 'Warnings', color: 'var(--axi-warn)' }
+        : { label: 'All checks passed', color: 'var(--axi-ok)' };
 
     return (
         <div className="axi-scrim flex items-center justify-center">
             <div className="axi-panel w-full max-w-md" style={{ '--axi-panel-pad': 0 } as CSSProperties}>
 
                 {/* Header */}
-                <div className="flex items-center justify-between px-5 pt-5 pb-4" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                <div className="flex items-center justify-between px-5 pt-5 pb-4" style={{ borderBottom: 'var(--axi-border-hairline) solid var(--axi-rule)' }}>
                     <div className="flex items-center gap-2.5">
                         <div className="w-0.5 h-4" style={{ background: 'var(--axi-accent)' }} />
-                        <span style={{ font: 'var(--axi-t-label)', letterSpacing: 'var(--axi-ls-label)', textTransform: 'uppercase', color: 'var(--text-primary)' }}>
+                        <span style={{ font: 'var(--axi-t-label)', letterSpacing: 'var(--axi-ls-label)', textTransform: 'uppercase', color: 'var(--axi-text)' }}>
                             Troubleshoot
                         </span>
                     </div>
@@ -184,15 +184,15 @@ export function TroubleshootModal({ onClose }: Props) {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-baseline justify-between gap-3 min-w-0">
-                                        <span className="text-xs flex-shrink-0" style={{ color: step.status === 'pending' ? 'var(--text-muted)' : 'var(--text-primary)' }}>
+                                        <span className="text-xs flex-shrink-0" style={{ color: step.status === 'pending' ? 'var(--axi-text-faint)' : 'var(--axi-text)' }}>
                                             {step.label}
                                         </span>
                                         {step.detail && (
                                             <span className="text-[11px] truncate min-w-0 text-right" style={{
-                                                color: step.status === 'pass' ? 'var(--status-success)'
-                                                    : step.status === 'fail' ? 'var(--status-error)'
-                                                    : step.status === 'warn' ? 'var(--status-warning)'
-                                                    : 'var(--text-muted)',
+                                                color: step.status === 'pass' ? 'var(--axi-ok)'
+                                                    : step.status === 'fail' ? 'var(--axi-danger)'
+                                                    : step.status === 'warn' ? 'var(--axi-warn)'
+                                                    : 'var(--axi-text-faint)',
                                             }}>
                                                 {step.detail}
                                             </span>
@@ -200,14 +200,14 @@ export function TroubleshootModal({ onClose }: Props) {
                                     </div>
                                     {step.fix && (step.status === 'fail' || step.status === 'warn') && (
                                         <div className="mt-1.5 flex items-start gap-1.5 text-[11px] px-2 py-1.5" style={{ background: 'var(--axi-ground)', color: 'var(--axi-text-dim)' }}>
-                                            <ChevronRight className="w-3 h-3 mt-0.5 flex-shrink-0" style={{ color: 'var(--brand-primary)' }} />
+                                            <ChevronRight className="w-3 h-3 mt-0.5 flex-shrink-0" style={{ color: 'var(--axi-accent)' }} />
                                             <span>{step.fix}</span>
                                         </div>
                                     )}
                                 </div>
                             </div>
                             {/* separator */}
-                            <div style={{ height: '1px', background: 'var(--border-subtle)', marginLeft: '28px' }} />
+                            <div style={{ height: 'var(--axi-border-hairline)', background: 'var(--axi-rule)', marginLeft: '28px' }} />
                         </div>
                     ))}
                 </div>

@@ -32,7 +32,6 @@ const BOON_PILLS = (Object.keys(BOON_LABELS) as BoonKey[]).map(key => ({ id: key
 
 type Props = {
     performance: BoonPerformanceData;
-    localProfession: string;
 };
 
 type ChartPoint = {
@@ -43,7 +42,7 @@ type ChartPoint = {
     [memberKey: string]: any; // pm_<key>, deaths_<key>, distance_<key>
 };
 
-export function BoonPerformanceChart({ performance, localProfession: _localProfession }: Props) {
+export function BoonPerformanceChart({ performance }: Props) {
     const [activeBoon, setActiveBoon] = useState<BoonKey>('stability');
     const [showHeatmap, setShowHeatmap] = useState(true);
     const [showDeaths, setShowDeaths] = useState(true);
