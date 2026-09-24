@@ -97,6 +97,59 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
    numerals do that job without leaving the language's type scale. */
 .font-stat { font-variant-numeric: tabular-nums; }
 
+/* --- nav bar --- */
+
+/* The nav tabs are clickable, so they earn a hover colour step (rule 4); the
+   active tab is a solid fill (R5's status branch) and does not itself gain a
+   hover treatment beyond the colour it already has. */
+.ap-navbtn { color: var(--axi-text-dim); transition: color 150ms, background-color 150ms; }
+.ap-navbtn:hover { color: var(--axi-text); }
+.ap-navbtn--active,
+.ap-navbtn--active:hover {
+    background: var(--axi-accent);
+    color: var(--axi-accent-ink);
+}
+
+/* --- subview capsule --- */
+
+/* A segmented control, smaller and denser than .axi-pill: the subviews it
+   switches between live inside a view that is already inside a panel, so it
+   takes the control weight, not the panel weight. The active segment is a
+   solid fill (R5's status branch: it reads which one is on) rather than the
+   translucent gradient it replaces. */
+.ap-capsule {
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+    padding: 3px;
+    background: var(--axi-ground);
+    border: var(--axi-border-control) solid var(--axi-ink-line);
+}
+
+.ap-capsule-seg {
+    position: relative;
+    padding: 5px 13px;
+    font: var(--axi-t-micro);
+    letter-spacing: var(--axi-ls-micro);
+    color: var(--axi-text-faint);
+    cursor: pointer;
+    transition: color 150ms;
+}
+
+/* The segment is clickable, so its hover earns a colour step (rule 4's
+   "only on things that respond"); it never lifts, because it sits flush
+   inside the capsule's own control-weight border rather than raised off it. */
+.ap-capsule-seg:hover { color: var(--axi-text-dim); }
+
+.ap-capsule-seg--active { color: var(--axi-accent-ink); }
+
+.ap-capsule-seg__fill {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background: var(--axi-accent);
+}
+
 /* --- reduced motion --- */
 
 @media (prefers-reduced-motion: reduce) {
@@ -128,31 +181,16 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
 
     --border-subtle: var(--axi-ink-line);
     --border-default: var(--axi-ink-line);
-    --border-hover: var(--axi-ink-line);
 
     --text-primary: var(--axi-text);
     --text-secondary: var(--axi-text-dim);
     --text-muted: var(--axi-text-faint);
-    --text-inverse: var(--axi-accent-ink);
 
     --brand-primary: var(--axi-accent);
     --brand-secondary: var(--axi-accent);
 
-    --shadow-card: var(--axi-offset-panel) var(--axi-offset-panel) 0 var(--axi-ink-line);
-    --shadow-button: var(--axi-offset-control) var(--axi-offset-control) 0 var(--axi-ink-line);
-    --shadow-dropdown: var(--axi-offset-panel) var(--axi-offset-panel) 0 var(--axi-ink-line);
-
-    --radius-sm: var(--axi-radius-sm);
-    --radius-md: var(--axi-radius);
-    --radius-lg: var(--axi-radius);
-
     --status-success: var(--axi-ok);
     --status-error: var(--axi-danger);
     --status-warning: var(--axi-warn);
-
-    --ease-out-expo: var(--ap-ease-out-expo);
-    --duration-fast: var(--ap-duration-fast);
-    --duration-normal: var(--ap-duration-normal);
-    --duration-slow: var(--ap-duration-slow);
 }
 /* ── END LEGACY SHIM ── */
