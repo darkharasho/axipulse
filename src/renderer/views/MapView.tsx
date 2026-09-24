@@ -303,7 +303,11 @@ function MapOverview() {
                                    landmark recession it had before the branch: MapView had no
                                    group opacity and carried 0.8 on the pin path and dot
                                    individually, which the group `opacity={0.8}` below now
-                                   expresses in one place; MovementView already had its group
+                                   carries instead. That is NOT a pure regrouping — the
+                                   landmark label had no opacity pre-branch and the group now
+                                   dims it to 0.8 too. That widening landed earlier in the
+                                   branch, is recorded as a residual, and is left alone here
+                                   rather than fixed blind; MovementView already had its group
                                    at 0.4 (MovementView.tsx:654) and keeps it. They legitimately
                                    differ because they are different pictures — this map is a
                                    static overview where the landmarks are most of the content,
