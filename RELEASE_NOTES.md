@@ -1,5 +1,28 @@
 # Release Notes
 
+Version v0.3.0 — September 24, 2026
+
+## AxiPulse has a new look
+The whole app has been redrawn in axi-design, the visual language shared across the Axi apps. It is flat and outlined: square corners, hard offset blocks instead of blurred shadows, and colours used at full strength or not at all. Panels sit on the page as outlined blocks and lift toward you when you point at something you can click.
+
+Nothing about what the app *does* has changed. Every screen holds the same numbers in the same places — the Pulse overview, the timeline, the maps, history, settings. This is a reskin, not a rebuild.
+
+## Pick your accent colour
+Settings has an accent picker with eleven colours in it. The one you choose repaints the app's chrome — buttons, highlights, the selected row in history, the active tab — and it sticks between launches.
+
+Profession and chart colours are deliberately left alone. A Guardian is still Guardian blue whatever accent you pick, because those are the game's colours and recolouring them would make the charts lie.
+
+## Charts read as length, not brightness
+Bars and meters now show a quantity by how long they are rather than how bright they are. Faint used to mean "a little" and saturated meant "a lot", which is hard to judge by eye and harder still if you don't see colour the way the designer did. Length you can just compare.
+
+## Reduced motion is respected
+If your system is set to reduce motion, AxiPulse now honours it everywhere — spinners rest, the map pulse holds still, and panels stop sliding on hover. The indicators stay on screen and stay readable; they just stop moving.
+
+## Smaller things
+- No more downloaded webfonts. Text uses the fonts already on your machine, so the first frame after launch no longer reflows.
+- Statistics line up in columns properly, because digits are now drawn at a fixed width.
+- Tooltips on the maps and charts no longer get clipped by the panel they live in.
+
 Version v0.2.1 — August 23, 2026
 
 ## Half your squad could show up as the enemy
