@@ -190,6 +190,29 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
     box-shadow: var(--axi-offset-control) var(--axi-offset-control) 0 var(--axi-ink-line);
 }
 
+/* A bare icon-only affordance (a modal's close button) has no box to lift,
+   so it takes the plain colour-step hover .axi-tabs uses for the same
+   reason - never an opacity fade (R4). */
+.ap-icon-btn {
+    color: var(--axi-text-dim);
+    transition: color var(--ap-duration-fast) ease;
+}
+.ap-icon-btn:hover { color: var(--axi-text); }
+
+/* A troubleshoot check's result, drawn as a small bordered dot per R8 rather
+   than a coloured icon glyph: filled means status. */
+.ap-status-dot {
+    display: inline-block;
+    width: 13px;
+    height: 13px;
+    flex: none;
+    border: var(--axi-border-hairline) solid var(--axi-ink-line);
+}
+.ap-status-dot--ok { background: var(--axi-ok); }
+.ap-status-dot--warn { background: var(--axi-warn); }
+.ap-status-dot--danger { background: var(--axi-danger); }
+.ap-status-dot--idle { background: var(--axi-surface-raised); }
+
 /* --- reduced motion --- */
 
 @media (prefers-reduced-motion: reduce) {
@@ -214,7 +237,6 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
    visibly wrong. That is the to-do list, not a bug. */
 :root {
     --bg-base: var(--axi-ground);
-    --bg-elevated: var(--axi-surface-raised);
     --bg-card: var(--axi-surface);
     --bg-card-inner: var(--axi-ground);
     --bg-input: var(--axi-surface);

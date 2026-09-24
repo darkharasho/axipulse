@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { X, CheckCircle, XCircle, AlertCircle, Loader2, ChevronRight } from 'lucide-react';
+import type { CSSProperties } from 'react';
+import { X, Loader2, ChevronRight } from 'lucide-react';
 import { useAppStore } from '../store';
 
 type StepStatus = 'pending' | 'running' | 'pass' | 'fail' | 'warn';
@@ -24,13 +25,13 @@ function StepIcon({ status }: { status: StepStatus }) {
         case 'running':
             return <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" style={{ color: 'var(--brand-primary)' }} />;
         case 'pass':
-            return <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--status-success)' }} />;
+            return <span className="ap-status-dot ap-status-dot--ok flex-shrink-0" />;
         case 'fail':
-            return <XCircle className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--status-error)' }} />;
+            return <span className="ap-status-dot ap-status-dot--danger flex-shrink-0" />;
         case 'warn':
-            return <AlertCircle className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--status-warning)' }} />;
+            return <span className="ap-status-dot ap-status-dot--warn flex-shrink-0" />;
         default:
-            return <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ border: '1px solid var(--border-default)' }} />;
+            return <span className="ap-status-dot ap-status-dot--idle flex-shrink-0" />;
     }
 }
 
@@ -157,18 +158,18 @@ export function TroubleshootModal({ onClose }: Props) {
         : { label: 'All checks passed', color: 'var(--status-success)' };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }}>
-            <div className="w-full max-w-md rounded-xl shadow-2xl" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-default)' }}>
+        <div className="axi-scrim flex items-center justify-center">
+            <div className="axi-panel w-full max-w-md" style={{ '--axi-panel-pad': 0 } as CSSProperties}>
 
                 {/* Header */}
                 <div className="flex items-center justify-between px-5 pt-5 pb-4" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                     <div className="flex items-center gap-2.5">
-                        <div className="w-0.5 h-4 rounded-full" style={{ background: 'var(--brand-primary)' }} />
-                        <span style={{ fontFamily: 'Rajdhani, sans-serif', fontSize: '13px', fontWeight: 700, letterSpacing: '0.12em', color: 'var(--text-primary)', textTransform: 'uppercase' }}>
+                        <div className="w-0.5 h-4" style={{ background: 'var(--axi-accent)' }} />
+                        <span style={{ font: 'var(--axi-t-label)', letterSpacing: 'var(--axi-ls-label)', textTransform: 'uppercase', color: 'var(--text-primary)' }}>
                             Troubleshoot
                         </span>
                     </div>
-                    <button onClick={onClose} className="transition-opacity hover:opacity-60" style={{ color: 'var(--text-muted)' }}>
+                    <button onClick={onClose} className="ap-icon-btn">
                         <X className="w-4 h-4" />
                     </button>
                 </div>
@@ -198,7 +199,7 @@ export function TroubleshootModal({ onClose }: Props) {
                                         )}
                                     </div>
                                     {step.fix && (step.status === 'fail' || step.status === 'warn') && (
-                                        <div className="mt-1.5 flex items-start gap-1.5 text-[11px] rounded px-2 py-1.5" style={{ background: 'var(--bg-card)', color: 'var(--text-secondary)' }}>
+                                        <div className="mt-1.5 flex items-start gap-1.5 text-[11px] px-2 py-1.5" style={{ background: 'var(--axi-ground)', color: 'var(--axi-text-dim)' }}>
                                             <ChevronRight className="w-3 h-3 mt-0.5 flex-shrink-0" style={{ color: 'var(--brand-primary)' }} />
                                             <span>{step.fix}</span>
                                         </div>
@@ -223,16 +224,14 @@ export function TroubleshootModal({ onClose }: Props) {
                         {done && (
                             <button
                                 onClick={run}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] rounded transition-opacity hover:opacity-80"
-                                style={{ background: 'var(--accent-bg)', color: 'var(--brand-primary)', border: '1px solid var(--accent-border)' }}
+                                className="axi-btn axi-btn--primary"
                             >
                                 Run Again
                             </button>
                         )}
                         <button
                             onClick={onClose}
-                            className="px-3 py-1.5 text-[11px] rounded transition-opacity hover:opacity-80"
-                            style={{ background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}
+                            className="axi-btn axi-btn--ghost"
                         >
                             Close
                         </button>
