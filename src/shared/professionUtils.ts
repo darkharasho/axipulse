@@ -1,7 +1,7 @@
 // src/shared/professionUtils.ts
 //
-// The 51 profession/elite-spec names collapse onto ten base professions, so
-// there are ten colours, not 51. Those colours are GW2 domain data - rule 10
+// The 46 profession/elite-spec names collapse onto ten base professions, so
+// there are ten colours, not 46. Those colours are GW2 domain data - rule 10
 // of the axi-design spec - and live as fixed tokens in
 // src/renderer/themes/series.css; they are NOT recoloured by the accent.
 // This module names the token; it never names the colour.
