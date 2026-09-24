@@ -34,12 +34,16 @@ export function MapView() {
     );
 }
 
+// Landmarks are chrome, not domain data - see MovementView.tsx for the full
+// rationale. This file already imports MovementView's component below but
+// not its TYPE_COLORS/TYPE_SCALES consts, which predate this task and stay
+// duplicated here rather than being refactored into a shared export.
 const TYPE_COLORS: Record<WvwLandmark['type'], string> = {
-    keep: '#ef4444',
-    tower: '#f59e0b',
-    camp: '#22c55e',
-    ruins: '#8b5cf6',
-    named: '#6b7280',
+    keep: 'var(--axi-accent)',
+    tower: 'var(--axi-accent)',
+    camp: 'var(--axi-accent)',
+    ruins: 'var(--axi-meta)',
+    named: 'var(--axi-text-faint)',
 };
 
 const TYPE_SCALES: Record<WvwLandmark['type'], number> = {
@@ -152,9 +156,9 @@ function MapOverview() {
     if (!currentFight) {
         return (
             <div className="flex flex-col items-center justify-center h-full gap-2">
-                <MapPin className="w-8 h-8" style={{ color: 'var(--text-muted)' }} />
-                <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Fight Map</span>
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Map data will appear here after a fight is parsed</span>
+                <MapPin className="w-8 h-8" style={{ color: 'var(--axi-text-faint)' }} />
+                <span className="text-sm font-medium" style={{ color: 'var(--axi-text-dim)' }}>Fight Map</span>
+                <span className="text-xs" style={{ color: 'var(--axi-text-faint)' }}>Map data will appear here after a fight is parsed</span>
             </div>
         );
     }
@@ -170,9 +174,9 @@ function MapOverview() {
     if (pixelSize === null) {
         return (
             <div className="flex flex-col items-center justify-center h-full gap-2">
-                <MapPin className="w-8 h-8" style={{ color: 'var(--text-muted)' }} />
-                <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>No Map Assets</span>
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                <MapPin className="w-8 h-8" style={{ color: 'var(--axi-text-faint)' }} />
+                <span className="text-sm font-medium" style={{ color: 'var(--axi-text-dim)' }}>No Map Assets</span>
+                <span className="text-xs" style={{ color: 'var(--axi-text-faint)' }}>
                     {mapName} is not a WvW map this app has landmark or tile data for
                 </span>
             </div>
@@ -183,33 +187,46 @@ function MapOverview() {
     return (
         <div className="flex flex-col h-full gap-3">
             <div className="flex items-center gap-4">
-                <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{mapName}</span>
+                <span className="text-sm font-medium" style={{ color: 'var(--axi-text)' }}>{mapName}</span>
                 {currentFight.nearestLandmark && (
-                    <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>Near {currentFight.nearestLandmark}</span>
+                    <span className="text-xs" style={{ color: 'var(--axi-text-dim)' }}>Near {currentFight.nearestLandmark}</span>
                 )}
                 <div className="flex items-center gap-2 ml-auto">
-                    <button onClick={() => zoomCenter(1)} className="p-1 rounded hover:bg-white/10 transition-colors" style={{ color: 'var(--text-muted)' }}>
+                    <button onClick={() => zoomCenter(1)} className="ap-icon-btn p-1">
                         <ZoomIn className="w-3.5 h-3.5" />
                     </button>
-                    <button onClick={() => zoomCenter(-1)} className="p-1 rounded hover:bg-white/10 transition-colors" style={{ color: 'var(--text-muted)' }}>
+                    <button onClick={() => zoomCenter(-1)} className="ap-icon-btn p-1">
                         <ZoomOut className="w-3.5 h-3.5" />
                     </button>
                     {view.scale !== 1 && (
-                        <button onClick={resetView} className="p-1 rounded hover:bg-white/10 transition-colors" style={{ color: 'var(--text-muted)' }}>
+                        <button onClick={resetView} className="ap-icon-btn p-1">
                             <RotateCcw className="w-3.5 h-3.5" />
                         </button>
                     )}
-                    <div className="flex items-center gap-3 ml-2 text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                        {(['keep', 'tower', 'camp', 'ruins'] as const).map(type => (
-                            <span key={type} className="flex items-center gap-1">
-                                <svg width="10" height="12" viewBox="0 0 24 24" fill={TYPE_COLORS[type]}>
-                                    <path d={PIN_PATH} />
-                                </svg>
-                                {type}
-                            </span>
-                        ))}
+                    <div className="flex items-center gap-3 ml-2 text-[10px]" style={{ color: 'var(--axi-text-faint)' }}>
+                        {/* TYPE_COLORS is a THREE-ink encoding over five landmark types
+                            (keep/tower/camp = accent, ruins = meta, named = faint), so hue
+                            still separates those three bands — but it cannot separate keep
+                            from tower from camp, which share the accent. Size is the
+                            additional cue that does (TYPE_SCALES, also applied to the on-map
+                            pins below). The legend has to carry the same cue or it stops
+                            teaching the mapping it exists to teach. Scaled relative to `keep`,
+                            the largest type, so it keeps its previous 10x12 size exactly. */}
+                        {(['keep', 'tower', 'camp', 'ruins'] as const).map(type => {
+                            const legendScale = TYPE_SCALES[type] / TYPE_SCALES.keep;
+                            return (
+                                <span key={type} className="flex items-center gap-1">
+                                    <svg width={10 * legendScale} height={12 * legendScale} viewBox="0 0 24 24" style={{ fill: TYPE_COLORS[type] }}>
+                                        <path d={PIN_PATH} />
+                                    </svg>
+                                    {type}
+                                </span>
+                            );
+                        })}
+                        {/* No border-radius (rule 2), so the "fight" legend swatch is a
+                            small bordered square, the same shape .ap-status-dot uses. */}
                         <span className="flex items-center gap-1">
-                            <span className="inline-block w-2.5 h-2.5 rounded-full border-2" style={{ borderColor: 'var(--brand-primary)', background: 'transparent' }} />
+                            <span className="inline-block w-2.5 h-2.5" style={{ border: 'var(--axi-border-hairline) solid var(--axi-accent)', background: 'transparent' }} />
                             fight
                         </span>
                     </div>
@@ -238,14 +255,19 @@ function MapOverview() {
                         <img
                             src={mapImageUrl}
                             alt={mapName}
-                            className="w-full h-full object-contain rounded"
+                            className="w-full h-full object-contain"
+                            // A photographic basemap, not a token colour: fading the
+                            // raster is what keeps the overlay readable over it, and
+                            // there is no token that can express "this bitmap, quieter".
+                            // Rule 2 bans mixing a COLOUR with the ground; this mixes an
+                            // image, so it stays.
                             style={{ opacity: 0.7 }}
                             draggable={false}
                         />
                     ) : (
                         <div
-                            className="w-full h-full rounded"
-                            style={{ background: 'var(--bg-card)', aspectRatio: `${width}/${height}`, minHeight: 400 }}
+                            className="w-full h-full"
+                            style={{ background: 'var(--axi-surface)', aspectRatio: `${width}/${height}`, minHeight: 400 }}
                         />
                     )}
 
@@ -255,23 +277,54 @@ function MapOverview() {
                         preserveAspectRatio="xMidYMid meet"
                         overflow="visible"
                     >
+                        {/* fill/stroke are SVG presentation attributes and do not parse
+                            var(), so the token-bearing colour is set via style - see
+                            MovementView.tsx for the same fix. */}
                         {landmarks.map((lm, i) => {
                             const s = TYPE_SCALES[lm.type];
                             const color = TYPE_COLORS[lm.type];
                             const dotOffsetY = 10 * s;
                             return (
-                                <g key={i} transform={`translate(${lm.x}, ${lm.y})`}>
+                                /* The tinted pin body (fillOpacity) WAS a colour mixed with
+                                   the ground - rule 2's exact prohibition - and is converted:
+                                   rule 5 makes a landmark an annotation, so it is OUTLINED
+                                   rather than filled. The group `opacity` is KEPT, for the
+                                   same reason MovementView keeps its own: it pushes the whole
+                                   landmark layer behind the squad marks, and the only legal
+                                   substitute - recolouring the pins to a dimmer token - would
+                                   collapse TYPE_COLORS' three-ink encoding over five types
+                                   (keep/tower/camp = accent, ruins = meta, named = faint) into
+                                   a single ink. A whole-group dim of already-outlined geometry
+                                   is a far weaker violation than a colour mixed at alpha, and
+                                   removing it deletes a live affordance.
+
+                                   The two maps do NOT share a number here, and that is
+                                   deliberate. This is a reskin, so each map preserves the
+                                   landmark recession it had before the branch: MapView had no
+                                   group opacity and carried 0.8 on the pin path and dot
+                                   individually, which the group `opacity={0.8}` below now
+                                   carries instead. That is NOT a pure regrouping — the
+                                   landmark label had no opacity pre-branch and the group now
+                                   dims it to 0.8 too. That widening landed earlier in the
+                                   branch, is recorded as a residual, and is left alone here
+                                   rather than fixed blind; MovementView already had its group
+                                   at 0.4 (MovementView.tsx:654) and keeps it. They legitimately
+                                   differ because they are different pictures — this map is a
+                                   static overview where the landmarks are most of the content,
+                                   while MovementView animates a replay over them and needs the
+                                   layer pushed further back. Do not "reconcile" 0.8 and 0.4;
+                                   changing either is a behaviour change. */
+                                <g key={i} transform={`translate(${lm.x}, ${lm.y})`} opacity={0.8}>
                                     <g transform={`translate(${-12 * s}, ${-dotOffsetY}) scale(${s})`}>
-                                        <path d={PIN_PATH} fill={color} fillOpacity={0.15} stroke={color} strokeWidth={1.5} opacity={0.8} />
-                                        <circle cx={12} cy={10} r={2.5} fill={color} opacity={0.8} />
+                                        <path d={PIN_PATH} style={{ fill: 'none', stroke: color }} strokeWidth={1.5} />
+                                        <circle cx={12} cy={10} r={2.5} style={{ fill: color }} />
                                     </g>
                                     <text
                                         x={0}
                                         y={-dotOffsetY - 2}
                                         textAnchor="middle"
-                                        fill="#e8eaed"
+                                        style={{ fill: 'var(--axi-text)' }}
                                         fontSize={9}
-                                        fontFamily="Inter, sans-serif"
                                     >
                                         {lm.name}
                                     </text>
@@ -281,11 +334,26 @@ function MapOverview() {
 
                         {avgPosition && (
                             <>
-                                <circle cx={avgPosition[0]} cy={avgPosition[1]} r={4} fill="#10b981" opacity={0.9} />
-                                <circle cx={avgPosition[0]} cy={avgPosition[1]} r={6} fill="none" stroke="#10b981" strokeWidth={1.5} opacity={0}>
-                                    <animate attributeName="r" values="6;28" dur="1.8s" repeatCount="indefinite" />
-                                    <animate attributeName="opacity" values="0.8;0" dur="1.8s" repeatCount="indefinite" />
-                                </circle>
+                                <circle cx={avgPosition[0]} cy={avgPosition[1]} r={4} style={{ fill: 'var(--axi-accent)' }} />
+                                {/* Was a pair of SMIL <animate> elements on `r` and `opacity`.
+                                    `r` is not a compositor property (it forces a geometry
+                                    re-resolve every frame) and SMIL is not CSS, so
+                                    `prefers-reduced-motion` could never reach it - rule 11
+                                    broken twice. .ap-map-pulse re-draws the same ripple as a
+                                    CSS transform+opacity keyframe, and rests as a plain static
+                                    ring under reduced motion. vector-effect keeps the stroke
+                                    1.5 wide while the ring scales, which is what animating `r`
+                                    used to give for free. */}
+                                <circle
+                                    className="ap-map-pulse"
+                                    cx={avgPosition[0]}
+                                    cy={avgPosition[1]}
+                                    r={6}
+                                    fill="none"
+                                    style={{ stroke: 'var(--axi-accent)' }}
+                                    strokeWidth={1.5}
+                                    vectorEffect="non-scaling-stroke"
+                                />
                             </>
                         )}
                     </svg>

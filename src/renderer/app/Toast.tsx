@@ -15,15 +15,12 @@ export function ToastContainer() {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -10, scale: 0.95 }}
                         transition={{ duration: 0.2 }}
-                        className="px-3 py-2 rounded-md border text-xs max-w-[280px]"
-                        style={{
-                            background: 'var(--bg-card)',
-                            borderColor: 'var(--accent-border)',
-                            boxShadow: 'var(--shadow-dropdown)',
-                        }}
+                        className="axi-notice text-xs max-w-[280px]"
                     >
-                        <div className="text-[color:var(--brand-primary)] font-medium">{toast.fightLabel}</div>
-                        <div className="text-[color:var(--text-secondary)] mt-0.5">{toast.message}</div>
+                        <div>
+                            <div style={{ color: 'var(--axi-accent)' }} className="font-medium">{toast.fightLabel}</div>
+                            <div style={{ color: 'var(--axi-text-dim)' }} className="mt-0.5">{toast.message}</div>
+                        </div>
                     </motion.div>
                 ))}
             </AnimatePresence>

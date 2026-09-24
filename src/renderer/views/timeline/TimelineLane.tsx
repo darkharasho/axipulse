@@ -13,8 +13,11 @@ export function TimelineLane({ label, color, data, domainMs }: TimelineLaneProps
         return (
             <div className="flex items-center mb-0.5" style={{ height: 32 }}>
                 <div className="w-[90px] text-right pr-2.5 text-[10px] font-medium" style={{ color }}>{label}</div>
-                <div className="flex-1 h-full bg-[#0f0f0f] rounded border border-[#1a1a1a] flex items-center justify-center">
-                    <span className="text-[8px] text-[#333]">No data</span>
+                <div
+                    className="flex-1 h-full flex items-center justify-center"
+                    style={{ background: 'var(--axi-ground)', border: 'var(--axi-border-control) solid var(--axi-ink-line)' }}
+                >
+                    <span className="text-[8px]" style={{ color: 'var(--axi-text-faint)' }}>No data</span>
                 </div>
             </div>
         );
@@ -44,10 +47,17 @@ export function TimelineLane({ label, color, data, domainMs }: TimelineLaneProps
     return (
         <div className="flex items-center mb-0.5" style={{ height: 32 }}>
             <div className="w-[90px] text-right pr-2.5 text-[10px] font-medium shrink-0" style={{ color }}>{label}</div>
-            <div className="flex-1 h-full bg-[#0f0f0f] rounded border border-[#1a1a1a] overflow-hidden">
+            <div
+                className="flex-1 h-full overflow-hidden"
+                style={{ background: 'var(--axi-ground)', border: 'var(--axi-border-control) solid var(--axi-ink-line)' }}
+            >
                 <svg width="100%" height="100%" viewBox="0 0 1 1" preserveAspectRatio="none">
-                    <path d={fillPath} fill={`${color}55`} />
-                    <path d={strokePath} fill="none" stroke={color} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+                    <path d={fillPath} style={{ fill: color }} />
+                    {/* Stroke and fill would otherwise resolve to the same colour
+                        (dead paint: an invisible line on its own fill). Ground
+                        gives the top contour a crisp edge against the solid fill,
+                        which is the cue the stroke exists for. */}
+                    <path d={strokePath} fill="none" style={{ stroke: 'var(--axi-ground)' }} strokeWidth={1} vectorEffect="non-scaling-stroke" />
                 </svg>
             </div>
         </div>

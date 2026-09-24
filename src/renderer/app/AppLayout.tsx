@@ -37,8 +37,16 @@ export function AppLayout() {
     useFightListener();
 
     useEffect(() => {
+        // electron-store is the source of truth, but this resolves after first
+        // paint, so a swatch clicked in the meantime would be reverted by a
+        // value fetched before the click. The snapshot settles that race in
+        // the user's favour: only adopt the disk value if nothing changed.
+        const accentAtMount = useAppStore.getState().accentId;
         window.electronAPI?.getSettings().then(s => {
             if (s.logDirectory) useAppStore.getState().setLogDirectory(s.logDirectory);
+            if (useAppStore.getState().accentId === accentAtMount) {
+                useAppStore.getState().setAccentId(s.accentId);
+            }
         });
         window.electronAPI?.getAppVersion().then((v: string) => setAppVersion(v));
         const cleanupDownloaded = window.electronAPI?.onUpdateDownloaded(() => setUpdateDownloaded(true));
@@ -107,26 +115,22 @@ export function AppLayout() {
     const isFirstParse = isParsing && !currentFight;
 
     return (
-        <div className="h-full w-full flex flex-col select-none">
+        <div className="axi-window select-none">
             {/* Title Bar */}
-            <div
-                className="h-11 shrink-0 w-full flex justify-between items-center px-4 border-b drag-region"
-                style={{ background: 'var(--bg-base)', borderColor: 'var(--border-subtle)' }}
-            >
+            <div className="axi-titlebar draggable px-4 justify-between">
                 <div className="flex items-center gap-2.5">
                     <img src="./img/axipulse-glyph.svg" alt="AxiPulse" className="h-5 w-5 object-contain opacity-90" draggable={false} />
-                    <span style={{ fontFamily: '"Cinzel", serif', fontSize: '0.95rem', letterSpacing: '0.06em', fontWeight: 500 }}>
-                        <span style={{ color: '#ffffff' }}>Axi</span>
-                        <span style={{ color: 'var(--brand-primary)' }}>Pulse</span>
+                    <span className="axi-brand">
+                        <span style={{ color: 'var(--axi-text)' }}>Axi</span>
+                        <span style={{ color: 'var(--axi-accent)' }}>Pulse</span>
                     </span>
                     {currentFight && (
-                        <span className="ml-1 px-1.5 py-0.5 text-[9px] font-semibold rounded border"
-                            style={{ color: 'var(--brand-primary)', borderColor: 'var(--accent-border)', background: 'var(--accent-bg)' }}>
+                        <span className="ml-1 axi-chip axi-chip--accent">
                             F{currentFight.fightNumber}
                         </span>
                     )}
                     {currentFight && (
-                        <span className="text-[10px] truncate max-w-[300px]" style={{ color: 'var(--text-secondary)' }}>
+                        <span className="text-[10px] truncate max-w-[300px]" style={{ color: 'var(--axi-text-dim)' }}>
                             {currentFight.mapName}
                             {currentFight.nearestLandmark && <> — {currentFight.nearestLandmark}</>}
                             {' — '}{currentFight.durationFormatted}
@@ -136,7 +140,7 @@ export function AppLayout() {
                 </div>
                 <div className="flex items-center gap-4 no-drag">
                     {isParsing && currentFight && (
-                        <Activity className="w-4 h-4 heartbeat-pulse" style={{ color: 'var(--brand-primary)' }} />
+                        <Activity className="w-4 h-4 ap-work" style={{ color: 'var(--axi-accent)' }} />
                     )}
                     <div className="flex items-center gap-2">
                         <AnimatePresence>
@@ -146,8 +150,7 @@ export function AppLayout() {
                                     initial={{ opacity: 0, x: 20 }}
                                     animate={{ opacity: 1, x: 0 }}
                                     exit={{ opacity: 0, x: 20 }}
-                                    className="text-[10px] px-2 py-0.5 rounded-[4px] border font-medium transition-colors hover:brightness-110"
-                                    style={{ color: 'var(--brand-primary)', borderColor: 'var(--brand-primary)', background: 'rgba(16, 185, 129, 0.1)' }}
+                                    className="axi-chip axi-chip--accent"
                                     onClick={() => window.electronAPI?.restartApp()}
                                     title="Restart to install update"
                                 >
@@ -160,11 +163,7 @@ export function AppLayout() {
                                     animate={{ opacity: 1, x: 0 }}
                                     exit={{ opacity: 0, x: 20 }}
                                     transition={{ duration: 0.2 }}
-                                    className="text-[10px] px-2 py-0.5 rounded-[4px] border flex items-center gap-1.5 font-medium"
-                                    style={updateStatus.includes('failed')
-                                        ? { color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)', background: 'var(--bg-card)' }
-                                        : { color: 'var(--brand-primary)', borderColor: 'var(--accent-border)', background: 'var(--accent-bg)' }
-                                    }
+                                    className={updateStatus.includes('failed') ? 'axi-chip' : 'axi-chip axi-chip--accent'}
                                 >
                                     <RefreshCw className={`w-3 h-3 ${updateStatus.includes('Up to date') || updateStatus.includes('failed') ? '' : 'animate-spin'}`} />
                                     {updateStatus}
@@ -173,8 +172,7 @@ export function AppLayout() {
                         </AnimatePresence>
                         {appVersion && (
                             <span
-                                className="text-[10px] px-2 py-0.5 rounded-[4px] border cursor-pointer select-none transition-colors hover:border-[color:var(--border-hover)]"
-                                style={{ color: 'var(--text-muted)', borderColor: 'var(--border-subtle)', background: 'var(--bg-card)' }}
+                                className="axi-chip cursor-pointer select-none"
                                 onClick={() => {
                                     if (!updateStatus && !updateDownloaded) {
                                         setUpdateStatus('Checking for updates\u2026');
@@ -187,35 +185,29 @@ export function AppLayout() {
                             </span>
                         )}
                     </div>
-                    <button onClick={() => window.electronAPI?.windowControl('minimize')} className="text-gray-400 hover:text-white transition-colors">
-                        <Minus className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => window.electronAPI?.windowControl('maximize')} className="text-gray-400 hover:text-white transition-colors">
-                        <Square className="w-3 h-3" />
-                    </button>
-                    <button onClick={() => window.electronAPI?.windowControl('close')} className="text-gray-400 hover:text-red-400 transition-colors">
-                        <X className="w-4 h-4" />
-                    </button>
+                    <div className="axi-titlebar__btns">
+                        <button onClick={() => window.electronAPI?.windowControl('minimize')}>
+                            <Minus className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => window.electronAPI?.windowControl('maximize')}>
+                            <Square className="w-3 h-3" />
+                        </button>
+                        <button onClick={() => window.electronAPI?.windowControl('close')}>
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
                 </div>
             </div>
 
             {/* Nav Bar */}
-            <div
-                className="flex items-center justify-between px-3 py-1.5 border-b shrink-0"
-                style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-elevated)' }}
-            >
+            <div className="flex items-center justify-between px-3 py-1.5 border-b shrink-0" style={{ borderColor: 'var(--axi-ink-line)', background: 'var(--axi-surface-raised)' }}>
                 <div className="flex items-center gap-1">
                     {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
                         <button
                             key={id}
                             title={label}
                             onClick={() => setView(id)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-                                view === id
-                                    ? 'text-[color:var(--brand-primary)]'
-                                    : 'text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]'
-                            }`}
-                            style={view === id ? { background: 'var(--accent-bg)' } : {}}
+                            className={`ap-navbtn flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${view === id ? 'ap-navbtn--active' : ''}`}
                         >
                             <Icon className="w-3.5 h-3.5" />
                             {label}
@@ -223,7 +215,7 @@ export function AppLayout() {
                     ))}
                 </div>
                 {IS_DEV && (
-                    <span title="Parse random log (Ctrl+Shift+P)" onClick={() => window.electronAPI?.devParseRandom()} className="cursor-pointer text-amber-300 hover:text-amber-200 transition-colors">
+                    <span title="Parse random log (Ctrl+Shift+P)" onClick={() => window.electronAPI?.devParseRandom()} className="cursor-pointer transition-colors" style={{ color: 'var(--axi-warn)' }}>
                         <Dices className="w-4 h-4" />
                     </span>
                 )}
@@ -233,8 +225,8 @@ export function AppLayout() {
             <div className="flex-1 overflow-auto p-4">
                 {isFirstParse ? (
                     <div className="flex flex-col items-center justify-center h-full gap-3">
-                        <Activity className="w-10 h-10 heartbeat-pulse" style={{ color: 'var(--brand-primary)' }} />
-                        <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Parsing combat log...</span>
+                        <Activity className="w-10 h-10 ap-work" style={{ color: 'var(--axi-accent)' }} />
+                        <span className="text-sm" style={{ color: 'var(--axi-text-dim)' }}>Parsing combat log...</span>
                     </div>
                 ) : (
                     <>

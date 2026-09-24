@@ -24,10 +24,16 @@ export function TimelineView() {
 
     if (!currentFight) {
         return (
-            <div className="flex flex-col items-center justify-center h-full gap-4 text-[color:var(--text-muted)]">
-                <GanttChart className="w-12 h-12 opacity-30" />
+            <div className="flex flex-col items-center justify-center h-full gap-4" style={{ color: 'var(--axi-text-faint)' }}>
+                {/* Rule 2: the empty-state glyph is decoration, so it stays the quietest
+                    mark on the screen - but an opacity multiplier over the ground is the
+                    forbidden mechanism. --axi-rule is the system's faintest ink (the one
+                    reserved for internal rules), so it keeps the icon below the faint body
+                    text without mixing a colour. Same call in PulseView, HistoryView and
+                    TimelineView. */}
+                <GanttChart className="w-12 h-12" style={{ color: 'var(--axi-rule)' }} />
                 <div className="text-center">
-                    <p className="text-sm font-medium text-[color:var(--text-secondary)]">Fight Timeline</p>
+                    <p className="text-sm font-medium" style={{ color: 'var(--axi-text-dim)' }}>Fight Timeline</p>
                     <p className="text-xs mt-1">Timeline analysis will appear here after a fight is parsed</p>
                 </div>
             </div>
@@ -43,7 +49,7 @@ export function TimelineView() {
 
     return (
         <div className="flex flex-col">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-3 min-w-0">
                 <SubviewCapsule
                     pills={TIMELINE_PILLS}
                     activeId={preset}

@@ -1,5 +1,5 @@
 // src/renderer/classIconUtils.ts
-import { getProfessionBase, PROFESSION_COLORS } from '../shared/professionUtils';
+import { getProfessionBase, isKnownProfession } from '../shared/professionUtils';
 
 const iconModules = import.meta.glob<string>(
     '../../node_modules/gw2-class-icons/wiki/svg/*.svg',
@@ -14,7 +14,7 @@ for (const [filePath, svgContent] of Object.entries(iconModules)) {
 
 export function getProfessionIconPath(profession: string | undefined | null): string | null {
     if (!profession || profession === 'Unknown') return null;
-    if (PROFESSION_COLORS[profession] && iconsByName[profession]) return iconsByName[profession];
+    if (isKnownProfession(profession) && iconsByName[profession]) return iconsByName[profession];
     const base = getProfessionBase(profession);
     if (base && base !== 'Unknown' && iconsByName[base]) return iconsByName[base];
     return null;

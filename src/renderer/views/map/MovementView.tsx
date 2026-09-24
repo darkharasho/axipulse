@@ -8,13 +8,21 @@ import type { SkillCast, SquadMemberMovement } from '../../../shared/types';
 import { lerpPos, memberFrame, memberPosAt } from '../../../shared/movementFrame';
 import { getProfessionIconPath } from '../../classIconUtils';
 import { getProfessionColor } from '../../../shared/professionUtils';
+import { healthBand, STATUS_COLORS } from '../timeline/healthBands';
+import Tooltip from '../../components/Tooltip';
 
+// Landmarks are chrome, not domain data: the accent drives them. The type is
+// carried by TYPE_SCALES below (a keep is 1.7x a camp) rather than by hue,
+// and by whether the landmark is a claimable objective or a named location.
+// `ruins` takes --axi-meta because ruins are a secondary, meta objective
+// (rule 6); `named` takes faint text because a named location is a label,
+// not an objective.
 const TYPE_COLORS: Record<WvwLandmark['type'], string> = {
-    keep: '#ef4444',
-    tower: '#f59e0b',
-    camp: '#22c55e',
-    ruins: '#8b5cf6',
-    named: '#6b7280',
+    keep: 'var(--axi-accent)',
+    tower: 'var(--axi-accent)',
+    camp: 'var(--axi-accent)',
+    ruins: 'var(--axi-meta)',
+    named: 'var(--axi-text-faint)',
 };
 
 const TYPE_SCALES: Record<WvwLandmark['type'], number> = {
@@ -120,7 +128,6 @@ export function MovementView() {
     const [view, setView] = useState({ scale: 1, tx: 0, ty: 0 });
     const dragRef = useRef<{ startX: number; startY: number; startTx: number; startTy: number } | null>(null);
     const [timeMs, setTimeMs] = useState(0);
-    const [hoveredMember, setHoveredMember] = useState<string | null>(null);
     const [showSquad, setShowSquad] = useState(false);
     const followPlayer = useAppStore(s => s.mapFollowPlayer);
     const setFollowPlayer = useAppStore(s => s.setMapFollowPlayer);
@@ -277,9 +284,9 @@ export function MovementView() {
     if (!currentFight) {
         return (
             <div className="flex flex-col items-center justify-center h-full gap-2">
-                <MapPin className="w-8 h-8" style={{ color: 'var(--text-muted)' }} />
-                <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Movement Replay</span>
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Movement data will appear here after a fight is parsed</span>
+                <MapPin className="w-8 h-8" style={{ color: 'var(--axi-text-faint)' }} />
+                <span className="text-sm font-medium" style={{ color: 'var(--axi-text-dim)' }}>Movement Replay</span>
+                <span className="text-xs" style={{ color: 'var(--axi-text-faint)' }}>Movement data will appear here after a fight is parsed</span>
             </div>
         );
     }
@@ -308,9 +315,9 @@ export function MovementView() {
     if (pixelSize === null) {
         return (
             <div className="flex flex-col items-center justify-center h-full gap-2">
-                <MapPin className="w-8 h-8" style={{ color: 'var(--text-muted)' }} />
-                <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>No Map Assets</span>
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                <MapPin className="w-8 h-8" style={{ color: 'var(--axi-text-faint)' }} />
+                <span className="text-sm font-medium" style={{ color: 'var(--axi-text-dim)' }}>No Map Assets</span>
+                <span className="text-xs" style={{ color: 'var(--axi-text-faint)' }}>
                     {mapName} is not a WvW map this app has landmark or tile data for
                 </span>
             </div>
@@ -320,9 +327,9 @@ export function MovementView() {
     if (!movementData || movementData.members.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center h-full gap-2">
-                <MapPin className="w-8 h-8" style={{ color: 'var(--text-muted)' }} />
-                <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>No Movement Data</span>
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>This fight has no combat replay position data</span>
+                <MapPin className="w-8 h-8" style={{ color: 'var(--axi-text-faint)' }} />
+                <span className="text-sm font-medium" style={{ color: 'var(--axi-text-dim)' }}>No Movement Data</span>
+                <span className="text-xs" style={{ color: 'var(--axi-text-faint)' }}>This fight has no combat replay position data</span>
             </div>
         );
     }
@@ -345,15 +352,18 @@ export function MovementView() {
     return (
         <div className="flex flex-col h-full gap-2">
             <div className="flex items-center gap-4">
-                <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{mapName}</span>
-                <span className="text-xs tabular-nums" style={{ color: 'var(--text-secondary)' }}>{formatTime(timeMs)}</span>
+                <span className="text-sm font-medium" style={{ color: 'var(--axi-text)' }}>{mapName}</span>
+                <span className="text-xs tabular-nums" style={{ color: 'var(--axi-text-dim)' }}>{formatTime(timeMs)}</span>
                 <div className="flex items-center gap-2 ml-auto">
+                    {/* Squad/Follow are on/off toggles, not status - the active
+                        state is a solid accent fill, matching the selected-state
+                        pattern used for nav tabs and the active capsule segment. */}
                     <button
                         onClick={() => setShowSquad(v => !v)}
-                        className="flex items-center gap-1.5 px-2 py-0.5 rounded text-xs transition-colors"
+                        className="flex items-center gap-1.5 px-2 py-0.5 text-xs"
                         style={{
-                            color: showSquad ? 'var(--text-primary)' : 'var(--text-muted)',
-                            background: showSquad ? 'rgba(255,255,255,0.1)' : 'transparent',
+                            color: showSquad ? 'var(--axi-accent-ink)' : 'var(--axi-text-faint)',
+                            background: showSquad ? 'var(--axi-accent)' : 'transparent',
                         }}
                     >
                         <Users className="w-3.5 h-3.5" />
@@ -361,23 +371,23 @@ export function MovementView() {
                     </button>
                     <button
                         onClick={() => setFollowPlayer(!followPlayer)}
-                        className="flex items-center gap-1.5 px-2 py-0.5 rounded text-xs transition-colors"
+                        className="flex items-center gap-1.5 px-2 py-0.5 text-xs"
                         style={{
-                            color: followPlayer ? 'var(--text-primary)' : 'var(--text-muted)',
-                            background: followPlayer ? 'rgba(255,255,255,0.1)' : 'transparent',
+                            color: followPlayer ? 'var(--axi-accent-ink)' : 'var(--axi-text-faint)',
+                            background: followPlayer ? 'var(--axi-accent)' : 'transparent',
                         }}
                     >
                         <Crosshair className="w-3.5 h-3.5" />
                         Follow
                     </button>
-                    <button onClick={() => zoomCenter(1)} className="p-1 rounded hover:bg-white/10 transition-colors" style={{ color: 'var(--text-muted)' }}>
+                    <button onClick={() => zoomCenter(1)} className="ap-icon-btn p-1">
                         <ZoomIn className="w-3.5 h-3.5" />
                     </button>
-                    <button onClick={() => zoomCenter(-1)} className="p-1 rounded hover:bg-white/10 transition-colors" style={{ color: 'var(--text-muted)' }}>
+                    <button onClick={() => zoomCenter(-1)} className="ap-icon-btn p-1">
                         <ZoomOut className="w-3.5 h-3.5" />
                     </button>
                     {view.scale !== 1 && (
-                        <button onClick={resetView} className="p-1 rounded hover:bg-white/10 transition-colors" style={{ color: 'var(--text-muted)' }}>
+                        <button onClick={resetView} className="ap-icon-btn p-1">
                             <RotateCcw className="w-3.5 h-3.5" />
                         </button>
                     )}
@@ -388,69 +398,89 @@ export function MovementView() {
                 {/* Party panel tab */}
                 <button
                     onClick={() => setShowPanel(v => !v)}
-                    className="absolute top-2 left-0 z-20 flex items-center px-1 py-2 rounded-r transition-all"
+                    className="ap-map-toggle absolute top-2 left-0 z-20 flex items-center px-1 py-2"
                     style={{
-                        background: 'rgba(26,31,46,0.9)',
-                        border: '1px solid rgba(255,255,255,0.1)',
+                        background: 'var(--axi-surface)',
+                        border: `var(--axi-border-hairline) solid var(--axi-rule)`,
                         borderLeft: 'none',
-                        color: showPanel ? 'var(--text-primary)' : 'var(--text-muted)',
+                        color: showPanel ? 'var(--axi-text)' : 'var(--axi-text-faint)',
                         transform: showPanel ? 'translateX(260px)' : 'translateX(0)',
-                        transition: 'transform 0.25s ease, color 0.15s',
                     }}
                 >
-                    <ChevronRight className="w-3.5 h-3.5" style={{ transform: showPanel ? 'rotate(180deg)' : 'none', transition: 'transform 0.25s ease' }} />
+                    <ChevronRight className="ap-map-chevron w-3.5 h-3.5" style={{ transform: showPanel ? 'rotate(180deg)' : 'none' }} />
                 </button>
 
                 {/* Party info panel */}
                 <div
-                    className="absolute top-0 left-0 bottom-0 z-10 overflow-y-auto"
+                    className="ap-map-toggle absolute top-0 left-0 bottom-0 z-10 overflow-y-auto"
                     style={{
                         width: 260,
-                        background: 'rgba(26,31,46,0.95)',
-                        borderRight: '1px solid rgba(255,255,255,0.1)',
+                        background: 'var(--axi-surface)',
+                        borderRight: `var(--axi-border-hairline) solid var(--axi-rule)`,
                         transform: showPanel ? 'translateX(0)' : 'translateX(-100%)',
-                        transition: 'transform 0.25s ease',
                         pointerEvents: showPanel ? 'auto' : 'none',
                     }}
                 >
                     <div className="p-3 flex flex-col gap-2">
-                        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Party</span>
+                        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--axi-text-faint)' }}>Party</span>
                         {allies.filter(m => m.group === localGroup).map((member) => {
                             const status = getMemberStatus(member, timeMs);
                             const iconUrl = getProfessionIconPath(member.eliteSpec) ?? getProfessionIconPath(member.profession) ?? '';
                             const health = getHealthPercent(member, timeMs);
-                            const healthColor = status === 'dead' ? '#ef4444' : status === 'down' ? '#3b82f6' : health > 50 ? '#22c55e' : health > 25 ? '#f59e0b' : '#ef4444';
+                            // The bar's length is the quantity (rule 9); its fill is the
+                            // threshold, imported from the Timeline's healthBands so the two
+                            // screens agree on what a given percentage means.
+                            const healthFill = STATUS_COLORS[healthBand(health)];
+                            // down and dead are discrete states, so they get a dot rather
+                            // than a fourth/fifth ink (only three status inks exist). `down`
+                            // loses its old distinct blue for the same reason.
+                            const stateDot = status === 'dead' ? 'ap-status-dot--danger' : status === 'down' ? 'ap-status-dot--warn' : null;
                             const memberPos = memberPosAt(member, timeMs, pollingRate);
                             const panelDist = memberPos && commanderPos && !member.isCommander
                                 ? Math.round(Math.hypot(memberPos[0] - commanderPos[0], memberPos[1] - commanderPos[1]) / inchToPixel)
                                 : null;
                             return (
-                                <div key={member.account} className="flex flex-col gap-1.5 rounded-lg px-2.5 py-2" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                                <div key={member.account} className="flex flex-col gap-1.5 px-2.5 py-2" style={{ background: 'var(--axi-ground)' }}>
                                     <div className="flex items-center gap-2">
                                         {iconUrl ? (
                                             <img src={iconUrl} alt="" className="w-5 h-5" />
                                         ) : (
-                                            <div className="w-5 h-5 rounded-full" style={{ background: getProfessionColor(member.profession) }} />
+                                            <div className="w-5 h-5" style={{ background: getProfessionColor(member.profession) }} />
                                         )}
-                                        <span className="text-xs font-medium truncate flex-1" style={{ color: 'var(--text-primary)' }}>
+                                        <span className="text-xs font-medium truncate flex-1" style={{ color: 'var(--axi-text)' }}>
                                             {member.name}
                                         </span>
-                                        {panelDist != null && <span className="text-[9px] tabular-nums px-1 rounded font-semibold" style={{ background: panelDist > 600 ? 'rgba(239,68,68,0.25)' : panelDist > 300 ? 'rgba(245,158,11,0.25)' : 'rgba(34,197,94,0.2)', color: panelDist > 600 ? '#fca5a5' : panelDist > 300 ? '#fcd34d' : '#86efac' }}>{panelDist}</span>}
-                                        {member.isCommander && <span className="text-[9px] px-1 rounded" style={{ background: 'rgba(16,185,129,0.2)', color: '#6ee7b7' }}>CMD</span>}
-                                        {member.isLocal && <span className="text-[9px] px-1 rounded" style={{ background: 'rgba(16,185,129,0.2)', color: '#6ee7b7' }}>YOU</span>}
+                                        {panelDist != null && (
+                                            <span
+                                                className="text-[9px] tabular-nums px-1 font-semibold"
+                                                style={{
+                                                    background: panelDist > 600 ? 'var(--axi-danger)' : panelDist > 300 ? 'var(--axi-warn)' : 'var(--axi-ok)',
+                                                    color: 'var(--axi-ink-line)',
+                                                }}
+                                            >
+                                                {panelDist}
+                                            </span>
+                                        )}
+                                        {/* CMD/YOU are an identity tag, not a status: solid accent fill
+                                            matches the selected-state pattern used elsewhere (nav tabs,
+                                            active capsule segment, active history entry). */}
+                                        {member.isCommander && <span className="text-[9px] px-1" style={{ background: 'var(--axi-accent)', color: 'var(--axi-accent-ink)' }}>CMD</span>}
+                                        {member.isLocal && <span className="text-[9px] px-1" style={{ background: 'var(--axi-accent)', color: 'var(--axi-accent-ink)' }}>YOU</span>}
                                     </div>
                                     <div className="flex items-center gap-1.5">
-                                        <div className="flex-1 h-3 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                                        <div className="ap-meter flex-1">
                                             <div
-                                                className="h-full rounded-full"
+                                                className="ap-meter-fill ap-map-bar"
                                                 style={{
-                                                    width: `${Math.max(0, Math.min(100, health))}%`,
-                                                    background: healthColor,
-                                                    transition: 'width 0.2s ease, background-color 0.2s ease',
+                                                    // dead additionally renders an empty bar - width 0 - so a
+                                                    // corpse is not shown holding health.
+                                                    width: `${status === 'dead' ? 0 : Math.max(0, Math.min(100, health))}%`,
+                                                    background: healthFill,
                                                 }}
                                             />
                                         </div>
-                                        <span className="text-[10px] tabular-nums w-8 text-right" style={{ color: healthColor }}>
+                                        {stateDot && <span className={`ap-status-dot ${stateDot}`} />}
+                                        <span className="text-[10px] tabular-nums w-8 text-right" style={{ color: 'var(--axi-text-dim)' }}>
                                             {status === 'dead' ? 'Dead' : status === 'down' ? 'Down' : `${Math.round(health)}%`}
                                         </span>
                                     </div>
@@ -463,12 +493,19 @@ export function MovementView() {
                                                 return (
                                                     <div key={boonId} className="relative flex items-center justify-center" style={{ width: 18, height: 18 }} title={boon?.name ?? String(boonId)}>
                                                         {boon?.icon ? (
-                                                            <img src={boon.icon} alt="" className="w-full h-full rounded-sm" />
+                                                            <img src={boon.icon} alt="" className="w-full h-full" />
                                                         ) : (
-                                                            <div className="w-full h-full rounded-sm" style={{ background: 'rgba(255,255,255,0.15)' }} />
+                                                            // One elevation step above the (ground-toned) card, so it
+                                                            // reads as a tile sitting on the card.
+                                                            <div className="w-full h-full" style={{ background: 'var(--axi-surface)' }} />
                                                         )}
                                                         {stacks > 1 && (
-                                                            <span className="absolute -bottom-0.5 -right-0.5 text-[8px] font-bold leading-none px-0.5 rounded" style={{ background: '#1a1f2e', color: '#e8eaed' }}>
+                                                            // A chip raised off the tile/card beneath it (surface-raised
+                                                            // is one step above both --axi-ground, the card, and
+                                                            // --axi-surface, the iconless placeholder tile above), or
+                                                            // the count would sit at the same value as whatever is
+                                                            // directly behind it and disappear.
+                                                            <span className="absolute -bottom-0.5 -right-0.5 text-[8px] font-bold leading-none px-0.5" style={{ background: 'var(--axi-surface-raised)', color: 'var(--axi-text)' }}>
                                                                 {stacks}
                                                             </span>
                                                         )}
@@ -486,16 +523,15 @@ export function MovementView() {
                                                     const skill = skillIcons![s.id];
                                                     const isLatest = i === recent.length - 1;
                                                     return (
-                                                        <div key={`${s.id}-${i}`} className="flex items-center gap-1" style={{ opacity: s.opacity, transition: 'opacity 0.15s ease' }}>
+                                                        <div key={`${s.id}-${i}`} className="flex items-center gap-1 ap-map-fade" style={{ opacity: s.opacity }}>
                                                             <img
                                                                 src={skill.icon}
                                                                 alt=""
                                                                 title={skill.name}
-                                                                className="rounded-sm"
                                                                 style={{ width: 20, height: 20 }}
                                                             />
                                                             {isLatest && (
-                                                                <span className="text-[10px] font-medium truncate" style={{ color: 'var(--text-secondary)', maxWidth: 120 }}>
+                                                                <span className="text-[10px] font-medium truncate" style={{ color: 'var(--axi-text-dim)', maxWidth: 120 }}>
                                                                     {skill.name}
                                                                 </span>
                                                             )}
@@ -534,16 +570,22 @@ export function MovementView() {
                         <img
                             src={mapImageUrl}
                             alt={mapName}
-                            className="w-full h-full object-contain rounded"
+                            className="w-full h-full object-contain"
+                            // Raster basemap, same ruling as the tile layer below and as
+                            // MapView's twin: rule 2 bans mixing a COLOUR with the ground,
+                            // and no token can express "this bitmap, quieter".
                             style={{ opacity: tiles.length > 0 ? 0 : 0.7 }}
                             draggable={false}
                         />
                     ) : (
                         <div
-                            className="w-full h-full rounded"
-                            style={{ background: 'var(--bg-card)', aspectRatio: `${width}/${height}`, minHeight: 400 }}
+                            className="w-full h-full"
+                            style={{ background: 'var(--axi-surface)', aspectRatio: `${width}/${height}`, minHeight: 400 }}
                         />
                     )}
+                    {/* Raster basemap tiles. Rule 2 bans mixing a COLOUR with the
+                        ground; this fades an image, which no token can express, so the
+                        mechanism stays. */}
                     {tiles.length > 0 && (
                         <div className="absolute inset-0" style={{ opacity: 0.8, overflow: 'hidden' }}>
                             {tiles.map((tile) => (
@@ -572,29 +614,49 @@ export function MovementView() {
                         overflow="visible"
                     >
                         <defs>
+                            {/* feFlood/flood-color are stylable like fill/stroke (SVG2), so this
+                                takes the same style={{}} route rather than a var()-fed attribute.
+                                Two shades are needed for a legible silhouette: the outline takes
+                                the universal outline ink (--axi-ink-line, rule 3's outline colour
+                                everywhere else) and the tint takes the enemy status ink
+                                (--axi-danger) rather than inventing a third red. */}
                             <filter id="enemy-red-tint" x="-15%" y="-15%" width="130%" height="130%">
                                 <feMorphology in="SourceAlpha" operator="dilate" radius="0.6" result="expanded" />
-                                <feFlood floodColor="#7f1d1d" result="darkColor" />
+                                <feFlood style={{ floodColor: 'var(--axi-ink-line)' }} result="darkColor" />
                                 <feComposite in="darkColor" in2="expanded" operator="in" result="outline" />
-                                <feFlood floodColor="#ef4444" result="redOverlay" />
+                                <feFlood style={{ floodColor: 'var(--axi-danger)' }} result="redOverlay" />
                                 <feComposite in="redOverlay" in2="SourceAlpha" operator="in" result="tint" />
                                 <feBlend in="SourceGraphic" in2="tint" mode="overlay" result="tinted" />
                                 <feComposite in="tinted" in2="SourceAlpha" operator="in" result="clipped" />
                                 <feComposite in="clipped" in2="outline" operator="over" />
                             </filter>
                         </defs>
-                        {/* Landmark pins */}
+                        {/* Landmark pins. fill/stroke are SVG presentation attributes and do
+                            not parse var(), so the token-bearing colour is set via style. */}
                         {landmarks.map((lm, i) => {
                             const s = TYPE_SCALES[lm.type];
                             const color = TYPE_COLORS[lm.type];
                             const dotOffsetY = 10 * s;
                             return (
+                                /* The group `opacity` is KEPT deliberately. It de-emphasises
+                                   the whole landmark layer against the squad marks, and the
+                                   only legal substitute - recolouring the pins to a dimmer
+                                   token - would collapse TYPE_COLORS' three-ink encoding
+                                   over five types (keep/tower/camp = accent, ruins = meta,
+                                   named = faint) into a single ink. A
+                                   whole-group dim of already-outlined geometry is a far
+                                   weaker rule-2 violation than a colour mixed at alpha, and
+                                   removing it costs a live affordance. The two mechanisms
+                                   that WERE colour-at-alpha are converted: the pin's tinted
+                                   body becomes an outline (rule 5: annotation is outlined,
+                                   not filled) and the label takes --axi-text-faint instead
+                                   of --axi-text at 0.6. */
                                 <g key={i} transform={`translate(${lm.x}, ${lm.y})`} opacity={0.4}>
                                     <g transform={`translate(${-12 * s}, ${-dotOffsetY}) scale(${s})`}>
-                                        <path d={PIN_PATH} fill={color} fillOpacity={0.1} stroke={color} strokeWidth={1} />
-                                        <circle cx={12} cy={10} r={2.5} fill={color} />
+                                        <path d={PIN_PATH} style={{ fill: 'none', stroke: color }} strokeWidth={1} />
+                                        <circle cx={12} cy={10} r={2.5} style={{ fill: color }} />
                                     </g>
-                                    <text x={0} y={-dotOffsetY - 2} textAnchor="middle" fill="#e8eaed" fontSize={7} fontFamily="Inter, sans-serif" opacity={0.6}>
+                                    <text x={0} y={-dotOffsetY - 2} textAnchor="middle" style={{ fill: 'var(--axi-text-faint)' }} fontSize={7}>
                                         {lm.name}
                                     </text>
                                 </g>
@@ -610,41 +672,44 @@ export function MovementView() {
                             const sz = 14;
                             const status = getMemberStatus(member, timeMs);
                             return (
+                                /* KEPT, same reasoning as the landmark group: the enemy
+                                   marker is built from bitmap <image> profession icons under
+                                   an SVG filter, and no token can dim a bitmap. There is no
+                                   legal replacement for "enemies read quieter than allies",
+                                   so the weaker violation stays rather than the affordance
+                                   being deleted. */
                                 <g key={enemyId} opacity={0.3}>
                                     <g transform={`translate(${pos[0]}, ${pos[1]}) scale(${markerScale})`}>
+                                        {/* down/dead are status, so they take the fixed warn/danger
+                                            inks (outlined with the universal ink-line) rather than the
+                                            old bespoke reds - matching the party panel's status dot. */}
                                         {status === 'down' && (
                                             <g transform="translate(-6, -18)">
                                                 <svg width="12" height="14" viewBox="0 0 24 24">
-                                                    <path d={PIN_PATH} fill="#ef4444" fillOpacity={0.8} stroke="#991b1b" strokeWidth={1.5} />
+                                                    <path d={PIN_PATH} style={{ fill: 'var(--axi-warn)', stroke: 'var(--axi-ink-line)' }} strokeWidth={1.5} />
                                                 </svg>
                                             </g>
                                         )}
                                         {status === 'dead' && (
                                             <g transform="translate(-6, -18)">
                                                 <svg width="12" height="14" viewBox="0 0 24 24">
-                                                    <path d={SKULL_PATH} fill="#ef4444" stroke="#991b1b" strokeWidth={0.5} />
+                                                    <path d={SKULL_PATH} style={{ fill: 'var(--axi-danger)', stroke: 'var(--axi-ink-line)' }} strokeWidth={0.5} />
                                                 </svg>
                                             </g>
                                         )}
                                         {status === 'alive' && (iconUrl ? (
                                             <image href={iconUrl} x={-sz / 2} y={-sz / 2} width={sz} height={sz} filter="url(#enemy-red-tint)" />
                                         ) : (
-                                            <circle r={4} fill="#ef4444" />
+                                            <circle r={4} style={{ fill: 'var(--axi-danger)' }} />
                                         ))}
-                                        <rect
-                                            x={-12} y={-12} width={24} height={24}
-                                            fill="transparent"
-                                            onMouseEnter={() => setHoveredMember(enemyId)}
-                                            onMouseLeave={() => setHoveredMember(null)}
-                                            style={{ cursor: 'pointer' }}
-                                        />
-                                        {hoveredMember === enemyId && (
-                                            <g transform="translate(0, -20)" opacity={5}>
-                                                <rect x={-100} y={-50} width={200} height={50} rx={8} fill="#1a1f2e" fillOpacity={0.95} stroke="rgba(255,255,255,0.15)" strokeWidth={1.5} />
-                                                <text x={0} y={-28} textAnchor="middle" fill="#ef4444" fontSize={18} fontWeight={600} fontFamily="Inter, sans-serif">{member.name}</text>
-                                                <text x={0} y={-10} textAnchor="middle" fill="#8b929e" fontSize={14} fontFamily="Inter, sans-serif">{member.profession}</text>
-                                            </g>
-                                        )}
+                                        {/* A real DOM element (not raw SVG geometry) so Tooltip's
+                                            getBoundingClientRect measures true screen position under the
+                                            map's own pan/zoom transform - see Tooltip.tsx's portal note. */}
+                                        <foreignObject x={-12} y={-12} width={24} height={24} style={{ overflow: 'visible' }}>
+                                            <Tooltip text={`${member.name} · ${member.profession}`} position="top" delay={0}>
+                                                <div style={{ width: 24, height: 24, cursor: 'pointer' }} />
+                                            </Tooltip>
+                                        </foreignObject>
                                     </g>
                                 </g>
                             );
@@ -661,7 +726,6 @@ export function MovementView() {
 
                             const color = getProfessionColor(member.profession);
                             const status = getMemberStatus(member, timeMs);
-                            const isHovered = hoveredMember === member.account;
 
                             const recentStart = Math.max(0, currentIdx - TRAIL_LENGTH);
                             const historyPoints = member.positions.slice(0, recentStart + 1);
@@ -672,19 +736,35 @@ export function MovementView() {
                                 distToTag = Math.round(Math.hypot(pos[0] - commanderPos[0], pos[1] - commanderPos[1]) / inchToPixel);
                             }
 
+                            // name and account are separate facts (character name vs. the
+                            // Player.1234 handle - shared/types.ts, shared/extract/movement.ts)
+                            // and share no substring for a typical player; the account handle
+                            // was rendered nowhere else after the old hand-rolled tooltip was
+                            // removed, so it belongs back in the one line that replaced it.
+                            const tooltipText = `${member.name} · ${member.account} · ${member.profession}`
+                                + (member.isCommander ? ' · Commander' : distToTag != null ? ` · ${distToTag} to tag` : '');
+
                             return (
-                                <g key={member.account} style={{ opacity: visible ? 1 : 0, transition: 'opacity 0.3s ease', pointerEvents: visible ? 'auto' : 'none' }}>
+                                <g key={member.account} className="ap-map-fade" style={{ opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none' }}>
                                     {/* Historical path (dashed) */}
                                     {historyPoints.length > 1 && (
                                         <polyline
                                             points={historyPoints.map(p => `${p[0]},${p[1]}`).join(' ')}
                                             fill="none"
-                                            stroke={color}
-                                            strokeWidth={1 * markerScale}
+                                            style={{ stroke: color }}
+                                            // historyPoints is unbounded from fight start, so a
+                                            // full squad late in a fight draws a lot of trail.
+                                            // The old opacity ramp was managing that density as
+                                            // well as signalling recency; weight is the legal
+                                            // substitute (rule 7: length, not intensity), and
+                                            // 0.5-vs-1.5 widens the history/recent step that
+                                            // dash-vs-solid already carries. The window itself is
+                                            // deliberately NOT bounded - that would change which
+                                            // data is shown.
+                                            strokeWidth={0.5 * markerScale}
                                             strokeDasharray={`${3 * markerScale} ${3 * markerScale}`}
                                             strokeLinecap="round"
                                             strokeLinejoin="round"
-                                            opacity={0.3}
                                         />
                                     )}
                                     {/* Recent trail (solid) */}
@@ -692,27 +772,28 @@ export function MovementView() {
                                         <polyline
                                             points={recentPoints.map(p => `${p[0]},${p[1]}`).join(' ')}
                                             fill="none"
-                                            stroke={color}
+                                            style={{ stroke: color }}
                                             strokeWidth={(member.isLocal ? 2.5 : 1.5) * markerScale}
                                             strokeLinecap="round"
                                             strokeLinejoin="round"
-                                            opacity={0.5}
                                         />
                                     )}
 
                                     <g transform={`translate(${pos[0]}, ${pos[1]}) scale(${markerScale})`}>
-                                        {/* Status marker: down or dead */}
+                                        {/* Status marker: down or dead - warn/danger, outlined in
+                                            ink-line, same convention as the enemy markers above. `down`
+                                            loses its old distinct blue: only three status inks exist. */}
                                         {status === 'down' && (
                                             <g transform="translate(-8, -22)">
                                                 <svg width="16" height="20" viewBox="0 0 24 24">
-                                                    <path d={PIN_PATH} fill="#3b82f6" fillOpacity={0.8} stroke="#3b82f6" strokeWidth={1.5} />
+                                                    <path d={PIN_PATH} style={{ fill: 'var(--axi-warn)', stroke: 'var(--axi-ink-line)' }} strokeWidth={1.5} />
                                                 </svg>
                                             </g>
                                         )}
                                         {status === 'dead' && (
                                             <g transform="translate(-8, -22)">
                                                 <svg width="16" height="20" viewBox="0 0 24 24">
-                                                    <path d={SKULL_PATH} fill="#ef4444" />
+                                                    <path d={SKULL_PATH} style={{ fill: 'var(--axi-danger)' }} />
                                                 </svg>
                                             </g>
                                         )}
@@ -729,7 +810,7 @@ export function MovementView() {
                                                 return (
                                                     <>
                                                         {member.isLocal && (
-                                                            <circle r={sz / 2 + 4} fill="none" stroke="#10b981" strokeWidth={2.5} opacity={0.85} />
+                                                            <circle r={sz / 2 + 4} fill="none" style={{ stroke: 'var(--axi-accent)' }} strokeWidth={2.5} />
                                                         )}
                                                         <image href={iconUrl} x={-sz / 2} y={-sz / 2} width={sz} height={sz} />
                                                     </>
@@ -738,36 +819,31 @@ export function MovementView() {
                                             return (
                                                 <>
                                                     {member.isLocal && (
-                                                        <circle r={12} fill="none" stroke="#10b981" strokeWidth={2.5} opacity={0.85} />
+                                                        <>
+                                                            {/* Ground-coloured separator between the accent ring and
+                                                                the profession-coloured dot: the accent and a domain
+                                                                colour can resolve byte-identical for some accent/
+                                                                profession pairing, and this guards the ring against
+                                                                collapsing into the dot generally rather than for one
+                                                                case (see BoonPerformanceChart's selfColor guard and
+                                                                the Timeline's contrast guard for the same problem). */}
+                                                            <circle r={10} fill="none" style={{ stroke: 'var(--axi-ground)' }} strokeWidth={1.5} />
+                                                            <circle r={12} fill="none" style={{ stroke: 'var(--axi-accent)' }} strokeWidth={2.5} />
+                                                        </>
                                                     )}
-                                                    <circle r={member.isLocal ? 8 : 6} fill={color} fillOpacity={0.9} stroke={color} strokeWidth={1} />
+                                                    <circle r={member.isLocal ? 8 : 6} style={{ fill: color, stroke: color }} strokeWidth={1} />
                                                 </>
                                             );
                                         })()}
 
-                                        {/* Hover hit area */}
-                                        <rect
-                                            x={-16}
-                                            y={-16}
-                                            width={32}
-                                            height={32}
-                                            fill="transparent"
-                                            onMouseEnter={() => setHoveredMember(member.account)}
-                                            onMouseLeave={() => setHoveredMember(null)}
-                                            style={{ cursor: 'pointer' }}
-                                        />
-
-                                        {/* Hover tooltip */}
-                                        {isHovered && (
-                                            <g transform="translate(0, -28)">
-                                                <rect x={-120} y={-78} width={240} height={78} rx={8} fill="#1a1f2e" fillOpacity={0.95} stroke="rgba(255,255,255,0.15)" strokeWidth={1.5} />
-                                                <text x={0} y={-54} textAnchor="middle" fill="#e8eaed" fontSize={22} fontWeight={600} fontFamily="Inter, sans-serif">{member.name}</text>
-                                                <text x={0} y={-32} textAnchor="middle" fill="#8b929e" fontSize={17} fontFamily="Inter, sans-serif">{member.account}</text>
-                                                <text x={0} y={-12} textAnchor="middle" fill="#6ee7b7" fontSize={14} fontFamily="Inter, sans-serif">
-                                                    {member.isCommander ? 'Commander' : distToTag != null ? `${distToTag} to tag` : ''}
-                                                </text>
-                                            </g>
-                                        )}
+                                        {/* A real DOM element (not raw SVG geometry) so Tooltip's
+                                            getBoundingClientRect measures true screen position under the
+                                            map's own pan/zoom transform - see Tooltip.tsx's portal note. */}
+                                        <foreignObject x={-16} y={-16} width={32} height={32} style={{ overflow: 'visible' }}>
+                                            <Tooltip text={tooltipText} position="top" delay={0}>
+                                                <div style={{ width: 32, height: 32, cursor: 'pointer' }} />
+                                            </Tooltip>
+                                        </foreignObject>
                                     </g>
                                 </g>
                             );
@@ -785,20 +861,19 @@ export function MovementView() {
                             if (timeMs >= durationMs) setTimeMs(0);
                             setPlaying(v => !v);
                         }}
-                        className="p-1 rounded hover:bg-white/10 transition-colors shrink-0"
-                        style={{ color: playing ? 'var(--brand-primary)' : 'var(--text-muted)' }}
+                        className={`ap-icon-btn p-1 shrink-0${playing ? ' ap-icon-btn--active' : ''}`}
                     >
                         {playing ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                     </button>
                     <button
                         onClick={() => setPlaySpeed(s => s === 1 ? 1.5 : s === 1.5 ? 2 : s === 2 ? 0.5 : 1)}
-                        className="px-1.5 py-0.5 rounded hover:bg-white/10 transition-colors shrink-0 text-[10px] tabular-nums font-semibold"
-                        style={{ color: playSpeed !== 1 ? 'var(--brand-primary)' : 'var(--text-muted)', minWidth: 28 }}
+                        className={`ap-icon-btn p-1.5 shrink-0 text-[10px] tabular-nums font-semibold${playSpeed !== 1 ? ' ap-icon-btn--active' : ''}`}
+                        style={{ minWidth: 28 }}
                         title="Playback speed"
                     >
                         {playSpeed}x
                     </button>
-                    <span className="text-[10px] tabular-nums w-8 text-right" style={{ color: 'var(--text-muted)' }}>
+                    <span className="text-[10px] tabular-nums w-8 text-right" style={{ color: 'var(--axi-text-faint)' }}>
                         {formatTime(timeMs)}
                     </span>
                     <input
@@ -811,10 +886,10 @@ export function MovementView() {
                             setTimeMs(Number(e.target.value));
                             setPlaying(false);
                         }}
-                        className="flex-1 h-1 accent-[var(--brand-primary)] cursor-pointer"
-                        style={{ accentColor: 'var(--brand-primary)' }}
+                        className="flex-1 h-1 cursor-pointer"
+                        style={{ accentColor: 'var(--axi-accent)' }}
                     />
-                    <span className="text-[10px] tabular-nums w-8" style={{ color: 'var(--text-muted)' }}>
+                    <span className="text-[10px] tabular-nums w-8" style={{ color: 'var(--axi-text-faint)' }}>
                         {formatTime(durationMs)}
                     </span>
                 </div>

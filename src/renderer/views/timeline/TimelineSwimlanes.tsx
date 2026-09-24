@@ -5,6 +5,28 @@ import { TimelineLane } from './TimelineLane';
 import { TimelineHealthLane } from './TimelineHealthLane';
 import { TimelineBoonLane } from './TimelineBoonLane';
 import { TimelineEventMarkers } from './TimelineEventMarkers';
+import { TIMELINE_LANES } from './TimelinePresets';
+
+const laneColor = (key: keyof TimelineLayerToggles): string =>
+    TIMELINE_LANES.find(l => l.key === key)?.color ?? 'var(--axi-text-dim)';
+
+// The selection band's edges are drawn in the accent, but a lane fill is
+// also drawn in whatever colour its own metric owns — and several metric
+// tokens are byte-identical to an official accent (amber-warm ===
+// --axi-series-metric-distance-to-tag, rose-pink === -hard-cc, crimson-red
+// === -damage-dealt). An accent edge sitting directly on a same-coloured
+// fill is invisible under those accents. Rather than special-case those
+// three, every edge gets a 1px --axi-ground guard on both sides so the
+// boundary reads against ANY lane fill under ANY accent.
+function EdgeGuard({ x }: { x: string }) {
+    return (
+        <>
+            <div className="absolute top-0 bottom-0 z-[5] pointer-events-none" style={{ left: `calc(${x} - 1px)`, width: 1, background: 'var(--axi-ground)' }} />
+            <div className="absolute top-0 bottom-0 z-[5] pointer-events-none" style={{ left: x, width: 'var(--axi-border-control)', background: 'var(--axi-accent)' }} />
+            <div className="absolute top-0 bottom-0 z-[5] pointer-events-none" style={{ left: `calc(${x} + var(--axi-border-control))`, width: 1, background: 'var(--axi-ground)' }} />
+        </>
+    );
+}
 
 interface TimelineSwimlanesProps {
     data: TimelineData;
@@ -126,27 +148,27 @@ export function TimelineSwimlanes({ data, toggles, durationMs, onSelectionChange
         const rows: { label: string; color: string; value: string }[] = [];
         if (toggles.health) {
             const v = nearestBucketValue(healthBuckets, hoverTimeMs);
-            if (v !== null) rows.push({ label: 'Health', color: '#10b981', value: `${Math.round(v)}%` });
+            if (v !== null) rows.push({ label: 'Health', color: laneColor('health'), value: `${Math.round(v)}%` });
         }
         if (toggles.damageDealt) {
             const v = nearestBucketValue(data.damageDealt, hoverTimeMs);
-            if (v !== null) rows.push({ label: 'Dmg Dealt', color: '#ef4444', value: v.toLocaleString() });
+            if (v !== null) rows.push({ label: 'Dmg Dealt', color: laneColor('damageDealt'), value: v.toLocaleString() });
         }
         if (toggles.damageTaken) {
             const v = nearestBucketValue(data.damageTaken, hoverTimeMs);
-            if (v !== null) rows.push({ label: 'Dmg Taken', color: '#f87171', value: v.toLocaleString() });
+            if (v !== null) rows.push({ label: 'Dmg Taken', color: laneColor('damageTaken'), value: v.toLocaleString() });
         }
         if (toggles.distanceToTag) {
             const v = nearestBucketValue(data.distanceToTag, hoverTimeMs);
-            if (v !== null) rows.push({ label: 'Dist to Tag', color: '#f59e0b', value: v.toLocaleString() });
+            if (v !== null) rows.push({ label: 'Dist to Tag', color: laneColor('distanceToTag'), value: v.toLocaleString() });
         }
         if (toggles.incomingHealing) {
             const v = nearestBucketValue(data.incomingHealing, hoverTimeMs);
-            if (v !== null) rows.push({ label: 'Healing', color: '#4ade80', value: v.toLocaleString() });
+            if (v !== null) rows.push({ label: 'Healing', color: laneColor('incomingHealing'), value: v.toLocaleString() });
         }
         if (toggles.incomingBarrier) {
             const v = nearestBucketValue(data.incomingBarrier, hoverTimeMs);
-            if (v !== null) rows.push({ label: 'Barrier', color: '#a78bfa', value: v.toLocaleString() });
+            if (v !== null) rows.push({ label: 'Barrier', color: laneColor('incomingBarrier'), value: v.toLocaleString() });
         }
         return rows;
     }, [hoverTimeMs, dragging, toggles, healthBuckets, data]);
@@ -154,7 +176,7 @@ export function TimelineSwimlanes({ data, toggles, durationMs, onSelectionChange
     return (
         <div className="relative" ref={containerRef}>
             {/* Time axis */}
-            <div className="flex justify-between text-[9px] text-[#555] mb-1.5" style={{ paddingLeft: labelWidth, paddingRight: 4 }}>
+            <div className="flex justify-between text-[9px] mb-1.5" style={{ paddingLeft: labelWidth, paddingRight: 4, color: 'var(--axi-text-faint)' }}>
                 {ticks.map(t => <span key={t}>{formatTick(t)}</span>)}
             </div>
 
@@ -166,18 +188,13 @@ export function TimelineSwimlanes({ data, toggles, durationMs, onSelectionChange
                 onMouseUp={handleMouseUp}
                 onMouseLeave={() => { handleMouseUp(); setHoverX(null); }}
             >
-                {/* Selection highlight */}
+                {/* Selection highlight — two accent edges, each guarded by
+                    ground on both sides so they read against any lane fill. */}
                 {activeSelection && activeSelection.endMs - activeSelection.startMs > 500 && (
-                    <div
-                        className="absolute top-0 bottom-0 z-[5] pointer-events-none"
-                        style={{
-                            left: `calc(${labelWidth}px + ${(activeSelection.startMs / durationMs)} * (100% - ${labelWidth}px))`,
-                            width: `calc(${((activeSelection.endMs - activeSelection.startMs) / durationMs)} * (100% - ${labelWidth}px))`,
-                            background: 'rgba(96,165,250,0.06)',
-                            borderLeft: '1.5px solid rgba(96,165,250,0.4)',
-                            borderRight: '1.5px solid rgba(96,165,250,0.4)',
-                        }}
-                    />
+                    <>
+                        <EdgeGuard x={`calc(${labelWidth}px + ${(activeSelection.startMs / durationMs)} * (100% - ${labelWidth}px))`} />
+                        <EdgeGuard x={`calc(${labelWidth}px + ${(activeSelection.endMs / durationMs)} * (100% - ${labelWidth}px) - var(--axi-border-control))`} />
+                    </>
                 )}
 
                 {/* Crosshair + tooltip */}
@@ -188,27 +205,25 @@ export function TimelineSwimlanes({ data, toggles, durationMs, onSelectionChange
                             style={{
                                 left: `calc(${labelWidth}px + ${hoverX} * (100% - ${labelWidth}px))`,
                                 width: 1,
-                                background: 'rgba(255,255,255,0.15)',
+                                background: 'var(--axi-rule)',
                             }}
                         />
                         {tooltipRows.length > 0 && (
                             <div
-                                className="absolute z-[6] pointer-events-none rounded py-1 px-2"
+                                className="axi-tooltip absolute z-[6] pointer-events-none py-1 px-2"
                                 style={{
+                                    position: 'absolute',
                                     top: 0,
                                     left: `calc(${labelWidth}px + ${hoverX} * (100% - ${labelWidth}px) + 8px)`,
-                                    background: 'rgba(10,10,22,0.92)',
-                                    border: '1px solid rgba(255,255,255,0.08)',
-                                    backdropFilter: 'blur(6px)',
                                     transform: hoverX > 0.75 ? 'translateX(calc(-100% - 16px))' : undefined,
                                 }}
                             >
-                                <div className="text-[8px] text-[#666] mb-0.5">{formatTick(hoverTimeMs!)}</div>
+                                <div className="text-[8px] mb-0.5" style={{ color: 'var(--axi-text-dim)' }}>{formatTick(hoverTimeMs!)}</div>
                                 {tooltipRows.map(r => (
                                     <div key={r.label} className="flex items-center gap-1.5 text-[9px] leading-[14px]">
-                                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: r.color }} />
-                                        <span className="text-[#888]">{r.label}</span>
-                                        <span className="ml-auto pl-2 text-[#ccc] font-medium">{r.value}</span>
+                                        <span className="w-1.5 h-1.5 shrink-0" style={{ background: r.color }} />
+                                        <span style={{ color: 'var(--axi-text-dim)' }}>{r.label}</span>
+                                        <span className="ml-auto pl-2 font-medium" style={{ color: 'var(--axi-text)' }}>{r.value}</span>
                                     </div>
                                 ))}
                             </div>
@@ -226,17 +241,17 @@ export function TimelineSwimlanes({ data, toggles, durationMs, onSelectionChange
 
                 {/* Area chart lanes */}
                 {toggles.health && <TimelineHealthLane data={healthBuckets} domainMs={domainMs} />}
-                {toggles.damageDealt && <TimelineLane label="Dmg Dealt" color="#ef4444" data={data.damageDealt} domainMs={domainMs} />}
-                {toggles.damageTaken && <TimelineLane label="Dmg Taken" color="#f87171" data={data.damageTaken} domainMs={domainMs} />}
-                {toggles.distanceToTag && <TimelineLane label="Dist to Tag" color="#f59e0b" data={data.distanceToTag} domainMs={domainMs} />}
-                {toggles.incomingHealing && <TimelineLane label="Healing" color="#4ade80" data={data.incomingHealing} domainMs={domainMs} />}
-                {toggles.incomingBarrier && <TimelineLane label="Barrier" color="#a78bfa" data={data.incomingBarrier} domainMs={domainMs} />}
+                {toggles.damageDealt && <TimelineLane label="Dmg Dealt" color={laneColor('damageDealt')} data={data.damageDealt} domainMs={domainMs} />}
+                {toggles.damageTaken && <TimelineLane label="Dmg Taken" color={laneColor('damageTaken')} data={data.damageTaken} domainMs={domainMs} />}
+                {toggles.distanceToTag && <TimelineLane label="Dist to Tag" color={laneColor('distanceToTag')} data={data.distanceToTag} domainMs={domainMs} />}
+                {toggles.incomingHealing && <TimelineLane label="Healing" color={laneColor('incomingHealing')} data={data.incomingHealing} domainMs={domainMs} />}
+                {toggles.incomingBarrier && <TimelineLane label="Barrier" color={laneColor('incomingBarrier')} data={data.incomingBarrier} domainMs={domainMs} />}
 
                 {/* Boon/condition bar lanes */}
-                {toggles.offensiveBoons && <TimelineBoonLane label="Off Boons" color="#60a5fa" buffs={data.offensiveBoons} durationMs={durationMs} />}
-                {toggles.defensiveBoons && <TimelineBoonLane label="Def Boons" color="#38bdf8" buffs={data.defensiveBoons} durationMs={durationMs} />}
-                {toggles.hardCC && <TimelineBoonLane label="Hard CC" color="#f43f5e" buffs={data.hardCC} durationMs={durationMs} />}
-                {toggles.softCC && <TimelineBoonLane label="Soft CC" color="#c084fc" buffs={data.softCC} durationMs={durationMs} />}
+                {toggles.offensiveBoons && <TimelineBoonLane label="Off Boons" color={laneColor('offensiveBoons')} buffs={data.offensiveBoons} durationMs={durationMs} />}
+                {toggles.defensiveBoons && <TimelineBoonLane label="Def Boons" color={laneColor('defensiveBoons')} buffs={data.defensiveBoons} durationMs={durationMs} />}
+                {toggles.hardCC && <TimelineBoonLane label="Hard CC" color={laneColor('hardCC')} buffs={data.hardCC} durationMs={durationMs} />}
+                {toggles.softCC && <TimelineBoonLane label="Soft CC" color={laneColor('softCC')} buffs={data.softCC} durationMs={durationMs} />}
             </div>
         </div>
     );

@@ -18,7 +18,12 @@ export function TimelineEventMarkers({ downEvents, deathEvents, durationMs, onEv
                     onClick={(e) => { e.stopPropagation(); onEventClick(t); }}
                 >
                     <div className="absolute top-[-12px] left-[2px] text-[8px]">⬇</div>
-                    <div className="absolute left-[5px] top-0 bottom-0 w-0 border-l border-dashed" style={{ borderColor: 'rgba(245,158,11,0.35)' }} />
+                    {/* Guarded on both sides by ground (rule-general, not
+                        accent-specific) so the dashed line reads against
+                        whatever colour the lane underneath it happens to be. */}
+                    <div className="absolute left-[4px] top-0 bottom-0 w-0 border-l" style={{ borderColor: 'var(--axi-ground)' }} />
+                    <div className="absolute left-[5px] top-0 bottom-0 w-0 border-l border-dashed" style={{ borderColor: 'var(--axi-warn)' }} />
+                    <div className="absolute left-[6px] top-0 bottom-0 w-0 border-l" style={{ borderColor: 'var(--axi-ground)' }} />
                 </div>
             ))}
             {deathEvents.map((t, i) => (
@@ -29,7 +34,9 @@ export function TimelineEventMarkers({ downEvents, deathEvents, durationMs, onEv
                     onClick={(e) => { e.stopPropagation(); onEventClick(t); }}
                 >
                     <div className="absolute top-[-12px] left-[1px] text-[8px]">💀</div>
-                    <div className="absolute left-[5px] top-0 bottom-0 w-0 border-l border-dashed" style={{ borderColor: 'rgba(239,68,68,0.35)' }} />
+                    <div className="absolute left-[4px] top-0 bottom-0 w-0 border-l" style={{ borderColor: 'var(--axi-ground)' }} />
+                    <div className="absolute left-[5px] top-0 bottom-0 w-0 border-l border-dashed" style={{ borderColor: 'var(--axi-danger)' }} />
+                    <div className="absolute left-[6px] top-0 bottom-0 w-0 border-l" style={{ borderColor: 'var(--axi-ground)' }} />
                 </div>
             ))}
         </>

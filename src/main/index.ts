@@ -145,15 +145,19 @@ function setupIpcHandlers(): void {
         return {
             logDirectory: store.get('logDirectory', '') as string,
             devMinFileSize: store.get('devMinFileSize', 0) as number,
+            accentId: store.get('accentId', 'emerald-mint') as string,
         };
     });
 
-    ipcMain.on('save-settings', (_event, settings: { logDirectory?: string; devMinFileSize?: number }) => {
+    ipcMain.on('save-settings', (_event, settings: { logDirectory?: string; devMinFileSize?: number; accentId?: string }) => {
         if (settings.logDirectory !== undefined) {
             store.set('logDirectory', settings.logDirectory);
         }
         if (settings.devMinFileSize !== undefined) {
             store.set('devMinFileSize', settings.devMinFileSize);
+        }
+        if (settings.accentId !== undefined) {
+            store.set('accentId', settings.accentId);
         }
     });
 

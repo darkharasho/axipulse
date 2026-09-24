@@ -78,7 +78,23 @@ each platform's package must be built on that platform (CI already does:
 
 ## Design
 
-- Dark theme matching Axi app family (axibridge, axiforge, axiam)
-- Brand color: emerald/cyan gradient (`--brand-primary: #10b981`)
-- Cinzel serif font for "AxiPulse" branding in titlebar
-- Frameless window with custom titlebar and traffic light controls
+- **axi-design** (`@axiapps/axi-design`), the Axi app family's design
+  language: flat and outlined, square corners, hard offset blocks instead of
+  blurred shadows, saturated inks at full strength only. The normative spec
+  is `docs/RULES.md` in the axi-design repo.
+- Every colour comes from an `--axi-*` token. The one exception is
+  `src/renderer/themes/series.css`, which holds the fixed GW2 domain
+  palettes (profession colours, chart series, timeline metrics) under the
+  language's rule 10 — those are the data's colours, not the system's, and
+  they are not recoloured by the accent.
+- Accents are selected with `data-axi-accent` on `<html>`; ids come from the
+  package's `accents.json`. The picker is in Settings, the choice persists in
+  electron-store, and `src/renderer/themes/applyTheme.ts` mirrors it to
+  `localStorage` so a non-default accent does not flash on launch. Default is
+  `emerald-mint`.
+- No webfonts: typography is the package's type scale over `--axi-sans`.
+- `tests/renderer/tokens.test.ts` enforces the contract — no colour
+  literals, no `border-radius`, no blurred shadows, no `font-family`. Run
+  `npm run test:unit`.
+- Frameless window with a custom titlebar; `.axi-window` draws its offset
+  block inward, and `.draggable` / `.no-drag` mark the app regions.

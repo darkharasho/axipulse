@@ -11,10 +11,10 @@ function ordinal(n: number): string {
 
 type SupportMode = 'healing' | 'barrier' | 'downed';
 
-const MODE_CONFIG: Record<SupportMode, { label: string; color: string; barColor: string }> = {
-    healing: { label: 'Healing', color: '#4ade80', barColor: 'linear-gradient(90deg, #4ade80, #22d3ee)' },
-    barrier: { label: 'Barrier', color: '#a78bfa', barColor: 'linear-gradient(90deg, #a78bfa, #818cf8)' },
-    downed: { label: 'Downed', color: '#f87171', barColor: 'linear-gradient(90deg, #f87171, #fb923c)' },
+const MODE_CONFIG: Record<SupportMode, { label: string; color: string }> = {
+    healing: { label: 'Healing', color: 'var(--axi-series-metric-incoming-healing)' },
+    barrier: { label: 'Barrier', color: 'var(--axi-series-metric-incoming-barrier)' },
+    downed: { label: 'Downed', color: 'var(--axi-series-metric-damage-taken)' },
 };
 
 function getSkillsForMode(mode: SupportMode, healingSkills: SkillDamage[], barrierSkills: SkillDamage[]): SkillDamage[] {
@@ -50,7 +50,7 @@ export function SupportSubview({ data }: { data: PlayerFightData }) {
                     value={support.boonStrips}
                     detail={`${ordinal(squadContext.stripsRank)} in squad`}
                     detailColor="good"
-                    accentColor="var(--brand-secondary)"
+                    accentColor="var(--axi-accent)"
                     hero
                     index={0}
                 />
@@ -59,7 +59,7 @@ export function SupportSubview({ data }: { data: PlayerFightData }) {
                     value={support.cleanses}
                     detail={`${ordinal(squadContext.cleanseRank)} in squad`}
                     detailColor="good"
-                    accentColor="var(--brand-secondary)"
+                    accentColor="var(--axi-accent)"
                     hero
                     index={1}
                 />
@@ -72,12 +72,12 @@ export function SupportSubview({ data }: { data: PlayerFightData }) {
                     transition={{ delay: 0.15, duration: 0.3 }}
                 >
                     <div className="flex items-center justify-between mb-3">
-                        <div className="text-xs uppercase tracking-[0.08em] font-medium" style={{ color: 'var(--text-muted)' }}>
+                        <div className="text-xs uppercase tracking-[0.08em] font-medium" style={{ color: 'var(--axi-text-faint)' }}>
                             Top Skills
                         </div>
                         <div
-                            className="flex rounded-full overflow-hidden"
-                            style={{ border: '1px solid var(--border-default)' }}
+                            className="flex overflow-hidden"
+                            style={{ border: 'var(--axi-border-control) solid var(--axi-ink-line)' }}
                         >
                             {(Object.keys(MODE_CONFIG) as SupportMode[]).map((m, i) => (
                                 <button
@@ -85,9 +85,11 @@ export function SupportSubview({ data }: { data: PlayerFightData }) {
                                     onClick={() => setMode(m)}
                                     className="px-3 py-1 text-xs font-medium transition-colors"
                                     style={{
-                                        background: mode === m ? `${MODE_CONFIG[m].color}20` : 'transparent',
-                                        color: mode === m ? MODE_CONFIG[m].color : 'var(--text-muted)',
-                                        borderLeft: i > 0 ? '1px solid var(--border-default)' : undefined,
+                                        color: mode === m ? MODE_CONFIG[m].color : 'var(--axi-text-faint)',
+                                        borderLeft: i > 0 ? 'var(--axi-border-control) solid var(--axi-ink-line)' : undefined,
+                                        borderBottom: mode === m
+                                            ? `var(--axi-border-control) solid ${MODE_CONFIG[m].color}`
+                                            : 'var(--axi-border-control) solid transparent',
                                     }}
                                 >
                                     {MODE_CONFIG[m].label}
@@ -114,38 +116,34 @@ export function SupportSubview({ data }: { data: PlayerFightData }) {
                                             <img
                                                 src={skill.icon}
                                                 alt=""
-                                                className="w-7 h-7 rounded-sm shrink-0"
-                                                style={{ border: '1px solid var(--border-default)' }}
+                                                className="w-7 h-7 shrink-0"
+                                                style={{ border: 'var(--axi-border-hairline) solid var(--axi-ink-line)' }}
                                             />
                                         ) : (
                                             <div
-                                                className="w-7 h-7 rounded-sm shrink-0"
-                                                style={{ background: 'var(--bg-card-inner)', border: '1px solid var(--border-default)' }}
+                                                className="w-7 h-7 shrink-0"
+                                                style={{ background: 'var(--axi-ground)', border: 'var(--axi-border-hairline) solid var(--axi-ink-line)' }}
                                             />
                                         )}
-                                        <span className="w-40 truncate text-sm font-medium text-[color:var(--text-secondary)] group-hover:text-[color:var(--text-primary)] transition-colors">
+                                        <span className="w-40 truncate text-sm font-medium text-[color:var(--axi-text-dim)] group-hover:text-[color:var(--axi-text)] transition-colors">
                                             {skill.name}
                                         </span>
-                                        <div className="flex-1 h-6 rounded overflow-hidden relative" style={{ background: 'var(--bg-base)' }}>
+                                        <div className="ap-meter flex-1">
                                             <div
-                                                className="h-full rounded stat-bar-fill"
+                                                className="ap-meter-fill stat-bar-fill"
                                                 style={{
                                                     width: `${barPct}%`,
-                                                    background: config.barColor,
-                                                    opacity: 0.75,
+                                                    background: config.color,
                                                     animationDelay: `${0.1 + i * 0.05}s`,
                                                 }}
                                             />
-                                            {pct > 0 && (
-                                                <span
-                                                    className="absolute inset-y-0 right-2 flex items-center text-xs font-stat font-bold text-[color:var(--text-primary)]"
-                                                    style={{ textShadow: '0 1px 3px rgba(0,0,0,0.6)' }}
-                                                >
-                                                    {pct.toFixed(1)}%
-                                                </span>
-                                            )}
                                         </div>
-                                        <span className="w-20 text-right font-stat text-base font-bold text-[color:var(--text-secondary)]">
+                                        {pct > 0 && (
+                                            <span className="w-14 text-right text-xs font-stat font-bold" style={{ color: 'var(--axi-text-faint)' }}>
+                                                {pct.toFixed(1)}%
+                                            </span>
+                                        )}
+                                        <span className="w-20 text-right font-stat text-base font-bold text-[color:var(--axi-text-dim)]">
                                             {val.toLocaleString()}
                                         </span>
                                     </motion.div>
@@ -153,7 +151,7 @@ export function SupportSubview({ data }: { data: PlayerFightData }) {
                             })}
                         </div>
                     ) : (
-                        <div className="text-sm py-4 text-center" style={{ color: 'var(--text-muted)' }}>
+                        <div className="text-sm py-4 text-center" style={{ color: 'var(--axi-text-faint)' }}>
                             No {config.label.toLowerCase()} skill data
                         </div>
                     )}
@@ -164,7 +162,7 @@ export function SupportSubview({ data }: { data: PlayerFightData }) {
                 <StatCard
                     label="Stability Gen"
                     value={`${support.stabilityGeneration.toFixed(1)}s`}
-                    accentColor="var(--status-warning)"
+                    accentColor="var(--axi-warn)"
                     index={5}
                 />
             </div>

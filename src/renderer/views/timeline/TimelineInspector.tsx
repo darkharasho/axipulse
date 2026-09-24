@@ -24,8 +24,11 @@ export function TimelineInspector({ data, selection, topDamageTakenSkills, isFul
 
     return (
         <div>
-            <div className="border-t border-[#333] my-3 relative">
-                <span className="absolute top-[-8px] left-1/2 -translate-x-1/2 bg-[#0a0a0a] px-3 text-[9px] text-[#60a5fa] tracking-wider">
+            <div className="my-3 relative" style={{ borderTop: 'var(--axi-border-hairline) solid var(--axi-ink-line)' }}>
+                <span
+                    className="absolute top-[-8px] left-1/2 -translate-x-1/2 px-3 text-[9px] tracking-wider"
+                    style={{ background: 'var(--axi-ground)', color: 'var(--axi-accent)' }}
+                >
                     {label}
                 </span>
             </div>

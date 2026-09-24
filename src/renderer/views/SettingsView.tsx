@@ -3,15 +3,16 @@ import { useEffect, useState } from 'react';
 import { useAppStore } from '../store';
 import { FolderOpen, CheckCircle, AlertCircle, Loader2, Dices, ExternalLink, Stethoscope } from 'lucide-react';
 import { TroubleshootModal } from './TroubleshootModal';
+import { ACCENTS } from '../themes/accents';
 
 const IS_DEV = import.meta.env.DEV;
 
 function SectionCard({ label, children }: { label: string; children: React.ReactNode }) {
     return (
-        <div className="rounded-lg p-4" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-default)' }}>
+        <div className="axi-panel" style={{ ['--axi-panel-pad' as string]: '16px' }}>
             <div className="flex items-center gap-2.5 mb-3.5">
-                <div className="w-0.5 h-3.5 rounded-full flex-shrink-0" style={{ background: 'var(--brand-primary)' }} />
-                <span style={{ fontFamily: 'Rajdhani, sans-serif', fontSize: '11px', fontWeight: 700, letterSpacing: '0.14em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                <div className="w-0.5 h-3.5 flex-shrink-0" style={{ background: 'var(--axi-accent)' }} />
+                <span className="axi-eyebrow" style={{ margin: 0 }}>
                     {label}
                 </span>
             </div>
@@ -27,18 +28,17 @@ function Btn({ onClick, disabled, variant = 'ghost', children, title }: {
     children: React.ReactNode;
     title?: string;
 }) {
-    const styles: Record<string, React.CSSProperties> = {
-        primary: { background: 'var(--accent-bg)', color: 'var(--brand-primary)', border: '1px solid var(--accent-border)' },
-        ghost: { background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-default)' },
-        danger: { background: 'transparent', color: 'var(--status-error)', border: '1px solid rgba(248,113,113,0.2)' },
-    };
+    const variantClass = variant === 'primary' ? ' axi-btn--primary' : variant === 'ghost' ? ' axi-btn--ghost' : '';
+    const dangerStyle: React.CSSProperties | undefined = variant === 'danger'
+        ? { color: 'var(--axi-danger)', border: 'var(--axi-border-control) solid var(--axi-danger)' }
+        : undefined;
     return (
         <button
             onClick={onClick}
             disabled={disabled}
             title={title}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] rounded transition-opacity hover:opacity-80 disabled:opacity-40"
-            style={styles[variant]}
+            className={`axi-btn${variantClass}`}
+            style={{ padding: '5px 10px', font: 'var(--axi-t-micro)', letterSpacing: 'var(--axi-ls-micro)', ...dangerStyle }}
         >
             {children}
         </button>
@@ -52,6 +52,8 @@ export function SettingsView() {
     const setBucketSizeMs = useAppStore(s => s.setBucketSizeMs);
     const setView = useAppStore(s => s.setView);
     const requestWhatsNew = useAppStore(s => s.requestWhatsNew);
+    const accentId = useAppStore(s => s.accentId);
+    const setAccentId = useAppStore(s => s.setAccentId);
     const [devMinFileSize, setDevMinFileSize] = useState<number>(0);
     const [debugParsing, setDebugParsing] = useState(false);
     const [debugResult, setDebugResult] = useState<{ ok: boolean; msg: string } | null>(null);
@@ -103,8 +105,8 @@ export function SettingsView() {
                 {/* Log Directory */}
                 <SectionCard label="Log Directory">
                     <div className="flex items-center gap-2">
-                        <div className="flex-1 px-2.5 py-1.5 rounded text-[11px] truncate font-mono min-w-0"
-                            style={{ background: 'var(--bg-input)', color: logDirectory ? 'var(--text-primary)' : 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}>
+                        <div className="flex-1 px-2.5 py-1.5 text-[11px] truncate font-mono min-w-0"
+                            style={{ background: 'var(--axi-ground)', color: logDirectory ? 'var(--axi-text)' : 'var(--axi-text-faint)', border: 'var(--axi-border-control) solid var(--axi-ink-line)' }}>
                             {logDirectory || 'Not configured'}
                         </div>
                         <Btn onClick={handleBrowse} variant="primary">
@@ -112,26 +114,47 @@ export function SettingsView() {
                         </Btn>
                     </div>
                     {logDirectory && (
-                        <div className="flex items-center gap-1.5 mt-2 text-[11px]" style={{ color: 'var(--status-success)' }}>
+                        <div className="flex items-center gap-1.5 mt-2 text-[11px]" style={{ color: 'var(--axi-ok)' }}>
                             <CheckCircle className="w-3 h-3" /> Watching for new logs
                         </div>
                     )}
                 </SectionCard>
 
+                {/* Accent */}
+                <SectionCard label="Accent">
+                    <div className="flex flex-wrap gap-2">
+                        {ACCENTS.map((a) => (
+                            <button
+                                key={a.id}
+                                type="button"
+                                title={a.label}
+                                aria-label={a.label}
+                                aria-pressed={a.id === accentId}
+                                className={`ap-swatch${a.id === accentId ? ' ap-swatch--active' : ''}`}
+                                style={{ background: a.hex }}
+                                onClick={() => {
+                                    setAccentId(a.id);
+                                    window.electronAPI?.saveSettings({ accentId: a.id });
+                                }}
+                            />
+                        ))}
+                    </div>
+                </SectionCard>
+
                 {/* Timeline */}
                 <SectionCard label="Timeline">
                     <div className="flex items-center gap-3">
-                        <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Bucket size</span>
-                        <div className="flex rounded overflow-hidden" style={{ border: '1px solid var(--border-default)' }}>
+                        <span className="text-[11px]" style={{ color: 'var(--axi-text-faint)' }}>Bucket size</span>
+                        <div className="flex overflow-hidden" style={{ border: 'var(--axi-border-control) solid var(--axi-ink-line)' }}>
                             {[1000, 2000, 3000, 5000].map((ms, i) => (
                                 <button
                                     key={ms}
                                     onClick={() => setBucketSizeMs(ms)}
                                     className="px-3 py-1 text-[11px] transition-colors"
                                     style={{
-                                        background: bucketSizeMs === ms ? 'var(--accent-bg)' : 'transparent',
-                                        color: bucketSizeMs === ms ? 'var(--brand-primary)' : 'var(--text-muted)',
-                                        borderLeft: i > 0 ? '1px solid var(--border-default)' : 'none',
+                                        background: bucketSizeMs === ms ? 'var(--axi-accent)' : 'transparent',
+                                        color: bucketSizeMs === ms ? 'var(--axi-accent-ink)' : 'var(--axi-text-faint)',
+                                        borderLeft: i > 0 ? 'var(--axi-border-control) solid var(--axi-ink-line)' : 'none',
                                         fontWeight: bucketSizeMs === ms ? 600 : 400,
                                     }}
                                 >
@@ -144,7 +167,7 @@ export function SettingsView() {
 
                 {/* Troubleshooting */}
                 <SectionCard label="Troubleshooting">
-                    <p className="text-[11px] mb-3" style={{ color: 'var(--text-secondary)' }}>
+                    <p className="text-[11px] mb-3" style={{ color: 'var(--axi-text-dim)' }}>
                         Run a step-by-step check of your setup — log directory, arcdps WvW logging, and a live parse test.
                     </p>
                     <div className="flex items-center gap-3">
@@ -157,7 +180,7 @@ export function SettingsView() {
                         </Btn>
                     </div>
                     {debugResult && (
-                        <div className="mt-2.5 flex items-start gap-1.5 text-[11px]" style={{ color: debugResult.ok ? 'var(--status-success)' : 'var(--status-error)' }}>
+                        <div className="mt-2.5 flex items-start gap-1.5 text-[11px]" style={{ color: debugResult.ok ? 'var(--axi-ok)' : 'var(--axi-danger)' }}>
                             {debugResult.ok
                                 ? <CheckCircle className="w-3 h-3 mt-0.5 shrink-0" />
                                 : <AlertCircle className="w-3 h-3 mt-0.5 shrink-0" />}
@@ -171,7 +194,7 @@ export function SettingsView() {
                 {/* About */}
                 <SectionCard label="About">
                     <div className="flex items-center justify-between">
-                        <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+                        <span className="text-[11px]" style={{ color: 'var(--axi-text-dim)' }}>
                             See what changed in this version
                         </span>
                         <Btn variant="ghost" onClick={handleOpenWhatsNew}>
@@ -185,15 +208,15 @@ export function SettingsView() {
                     <div className="flex gap-2">
                         <button
                             onClick={() => window.electronAPI?.openExternal?.('https://discord.gg/UjzMXMGXEg')}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] rounded-full transition-opacity hover:opacity-80"
-                            style={{ background: 'var(--bg-card)', color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}
+                            className="axi-btn"
+                            style={{ padding: '6px 12px', font: 'var(--axi-t-micro)', letterSpacing: 'var(--axi-ls-micro)' }}
                         >
                             <ExternalLink className="w-3 h-3" /> Discord
                         </button>
                         <button
                             onClick={() => window.electronAPI?.openExternal?.('https://github.com/darkharasho/axipulse')}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] rounded-full transition-opacity hover:opacity-80"
-                            style={{ background: 'var(--bg-card)', color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}
+                            className="axi-btn"
+                            style={{ padding: '6px 12px', font: 'var(--axi-t-micro)', letterSpacing: 'var(--axi-ls-micro)' }}
                         >
                             <ExternalLink className="w-3 h-3" /> GitHub
                         </button>
@@ -202,17 +225,17 @@ export function SettingsView() {
 
                 {IS_DEV && (
                     <div
-                        className="rounded-lg p-4"
-                        style={{ background: 'var(--bg-elevated)', border: '1px solid rgba(251,191,36,0.25)' }}
+                        className="axi-panel"
+                        style={{ ['--axi-panel-pad' as string]: '16px', border: 'var(--axi-border-control) solid var(--axi-warn)' }}
                     >
                         <div className="flex items-center gap-2.5 mb-3.5">
-                            <div className="w-0.5 h-3.5 rounded-full flex-shrink-0" style={{ background: '#fbbf24' }} />
-                            <span style={{ fontFamily: 'Rajdhani, sans-serif', fontSize: '11px', fontWeight: 700, letterSpacing: '0.14em', color: '#fbbf24', textTransform: 'uppercase' }}>
+                            <div className="w-0.5 h-3.5 flex-shrink-0" style={{ background: 'var(--axi-warn)' }} />
+                            <span className="axi-eyebrow" style={{ margin: 0, color: 'var(--axi-warn)' }}>
                                 Dev Tools
                             </span>
                         </div>
                         <div className="flex items-center gap-3">
-                            <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>Min file size (KB)</span>
+                            <span className="text-[11px]" style={{ color: 'var(--axi-text-dim)' }}>Min file size (KB)</span>
                             <input
                                 type="number"
                                 min={0}
@@ -223,11 +246,11 @@ export function SettingsView() {
                                     setDevMinFileSize(val);
                                     window.electronAPI?.saveSettings({ devMinFileSize: val });
                                 }}
-                                className="w-24 px-2 py-1 text-xs rounded outline-none"
-                                style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+                                className="axi-input w-24"
+                                style={{ padding: '4px 8px', fontSize: '12px' }}
                             />
                             {devMinFileSize > 0 && (
-                                <span className="text-[11px]" style={{ color: '#fcd34d' }}>
+                                <span className="text-[11px]" style={{ color: 'var(--axi-warn)' }}>
                                     ≥ {devMinFileSize >= 1024 ? `${(devMinFileSize / 1024).toFixed(1)} MB` : `${devMinFileSize} KB`}
                                 </span>
                             )}

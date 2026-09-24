@@ -37,85 +37,115 @@ function getBarSegments(states: [number, number][], durationMs: number): BarSegm
     return segments;
 }
 
+// Fixed per-buff/effect identity colours (rule 9/10: domain data carries its
+// own colour, independent of the accent). Canonical boon tokens are the same
+// ones BoonsSubview reads from series.css; the CC-only effects (Stun, Daze,
+// Fear, Chill, Immobilize, Slow) have no boon-panel equivalent, so Task 10
+// adds a matching --axi-series-cc-* block to series.css rather than keeping
+// them as one-off literals here.
 const BUFF_COLORS: Record<number, string> = {
-    740: '#f59e0b',   // Might
-    725: '#ef4444',   // Fury
-    1187: '#a78bfa',  // Quickness
-    30328: '#818cf8', // Alacrity
-    1122: '#10b981',  // Stability
-    717: '#60a5fa',   // Protection
-    26980: '#a78bfa', // Resistance
-    743: '#fbbf24',   // Aegis
-    872: '#f43f5e',   // Stun
-    833: '#e879f9',   // Daze
-    791: '#fb923c',   // Fear
-    722: '#67e8f9',   // Chill
-    727: '#fbbf24',   // Immobilize
-    26766: '#a78bfa', // Slow
+    740: 'var(--axi-series-boon-might)',
+    725: 'var(--axi-series-boon-fury)',
+    1187: 'var(--axi-series-boon-quickness)',
+    30328: 'var(--axi-series-boon-alacrity)',
+    1122: 'var(--axi-series-boon-stability)',
+    717: 'var(--axi-series-boon-protection)',
+    26980: 'var(--axi-series-boon-resistance)',
+    743: 'var(--axi-series-boon-aegis)',
+    872: 'var(--axi-series-cc-stun)',
+    833: 'var(--axi-series-cc-daze)',
+    791: 'var(--axi-series-cc-fear)',
+    722: 'var(--axi-series-cc-chill)',
+    727: 'var(--axi-series-cc-immobilize)',
+    26766: 'var(--axi-series-cc-slow)',
 };
+
+// The row label used to sit inline with the bar (right: 2, overlapping
+// whatever segment was drawn there) with an opaque backdrop plate behind it.
+// Two of Task 10's fix-round rulings make that untenable together: solid
+// fills (no more translucency) mean the bar segment nearest the label is now
+// fully opaque, and the canonical boon-token remap collapsed several boons
+// in the same lane onto near-identical hues (Def Boons is two blues and two
+// ambers), so the NAME label is now the primary way to tell them apart. A
+// label that occludes the exact moment ("did I still have Stability when I
+// died?") fights its own job. So the label gets its own thin strip above
+// the bar instead of overlaying it — no backdrop needed, nothing to hide.
+const LABEL_HEIGHT = 8;
+const ROW_GAP = 2;
+
+// box-sizing is border-box app-wide, so the track's own `border:
+// var(--axi-border-control) solid ...` (3px, top and bottom) eats into its
+// height budget: the PADDING box — the containing block absolutely
+// positioned rows are placed against — is the track's own `height` (which
+// we set to `laneHeight` via the parent's `h-full`) minus 2 * that border
+// width, not `laneHeight` itself. This is the exact bug class documented at
+// index.css:99-102 for `.ap-meter` (a 6px track with a 2px border left only
+// a 2px content box): here it clipped the last buff row's bar, and it got
+// worse when the label-above-bar restructure made each row taller. Budget
+// the border explicitly rather than approximating it away.
+const CONTROL_BORDER_PX = 3; // matches --axi-border-control
+const TRACK_BORDER_BUDGET = CONTROL_BORDER_PX * 2; // top + bottom
 
 export function TimelineBoonLane({ label, color, buffs, durationMs }: TimelineBoonLaneProps) {
     const buffEntries = Object.entries(buffs);
     const rowHeight = buffEntries.length > 0 ? Math.max(7, Math.min(10, 36 / buffEntries.length)) : 10;
-    const laneHeight = Math.max(28, buffEntries.length * (rowHeight + 2) + 4);
+    const rowUnit = LABEL_HEIGHT + rowHeight + ROW_GAP;
+    const laneHeight = Math.max(28, buffEntries.length * rowUnit + ROW_GAP + TRACK_BORDER_BUDGET);
 
     return (
         <div className="flex items-center mb-0.5" style={{ height: laneHeight }}>
             <div className="w-[90px] text-right pr-2.5 text-[10px] font-medium shrink-0" style={{ color }}>{label}</div>
-            <div className="flex-1 h-full bg-[#0f0f0f] rounded border border-[#1a1a1a] relative overflow-hidden" style={{ padding: '2px 0' }}>
+            <div
+                className="flex-1 h-full relative overflow-hidden"
+                style={{ background: 'var(--axi-ground)', border: 'var(--axi-border-control) solid var(--axi-ink-line)', padding: '2px 0' }}
+            >
                 {buffEntries.length === 0 && (
                     <div className="flex items-center justify-center h-full">
-                        <span className="text-[8px] text-[#333]">None detected</span>
+                        <span className="text-[8px]" style={{ color: 'var(--axi-text-faint)' }}>None detected</span>
                     </div>
                 )}
                 {buffEntries.map(([idStr, entry], rowIdx) => {
                     const id = Number(idStr);
                     const segments = getBarSegments(entry.states, durationMs);
                     const barColor = BUFF_COLORS[id] ?? color;
+                    const rowTop = ROW_GAP + rowIdx * rowUnit;
 
                     return (
-                        <div
-                            key={id}
-                            className="absolute w-full"
-                            style={{ top: 2 + rowIdx * (rowHeight + 2), height: rowHeight }}
-                        >
-                            {segments.map((seg, i) => (
-                                <div
-                                    key={i}
-                                    className="absolute rounded-sm"
-                                    style={{
-                                        left: `${seg.startPct}%`,
-                                        width: `${seg.widthPct}%`,
-                                        height: '100%',
-                                        background: barColor,
-                                        opacity: 0.5,
-                                    }}
-                                >
-                                    {i === 0 && entry.icon && seg.widthPct > 3 && (
-                                        <img
-                                            src={entry.icon}
-                                            alt={entry.name}
-                                            className="absolute rounded-sm"
-                                            style={{ left: 1, top: 0, height: rowHeight, width: rowHeight }}
-                                        />
-                                    )}
-                                </div>
-                            ))}
+                        <div key={id} className="absolute w-full" style={{ top: rowTop, height: rowUnit }}>
                             <span
                                 className="absolute text-right truncate pointer-events-none"
                                 style={{
                                     right: 2, top: 0,
                                     zIndex: 2,
-                                    fontSize: 10, color: barColor,
-                                    lineHeight: `${rowHeight}px`,
-                                    maxWidth: 70,
-                                    background: 'rgba(0,0,0,0.5)',
-                                    padding: '0 3px',
-                                    borderRadius: 2,
+                                    fontSize: 8, color: barColor,
+                                    lineHeight: `${LABEL_HEIGHT}px`,
+                                    maxWidth: 80,
                                 }}
                             >
                                 {entry.name}
                             </span>
+                            <div className="absolute w-full" style={{ top: LABEL_HEIGHT, height: rowHeight }}>
+                                {segments.map((seg, i) => (
+                                    <div
+                                        key={i}
+                                        className="absolute"
+                                        style={{
+                                            left: `${seg.startPct}%`,
+                                            width: `${seg.widthPct}%`,
+                                            height: '100%',
+                                            background: barColor,
+                                        }}
+                                    >
+                                        {i === 0 && entry.icon && seg.widthPct > 3 && (
+                                            <img
+                                                src={entry.icon}
+                                                alt={entry.name}
+                                                style={{ left: 1, top: 0, height: rowHeight, width: rowHeight, position: 'absolute' }}
+                                            />
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     );
                 })}
