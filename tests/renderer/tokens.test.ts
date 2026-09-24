@@ -118,6 +118,18 @@ describe('src/renderer/index.css obeys the axi-design contract', () => {
         expect(bad).toEqual([]);
     });
 
+    // A colour literal hidden in a custom property and consumed through var()
+    // is invisible to the check above, which only scans the values of real
+    // colour-carrying properties. That indirection is exactly the shape of the
+    // legacy :root block this app layer replaced (--brand-gradient,
+    // --accent-bg), so it is the way a forbidden concept would come back.
+    it('hides no colour literal inside a custom property', () => {
+        const bad = declarations(CSS())
+            .filter((d) => /^--[a-z0-9-]+\s*:/i.test(d.text) && COLOUR_LITERAL.test(valueOf(d.text)))
+            .map((d) => `${d.line}: ${d.text.trim()}`);
+        expect(bad).toEqual([]);
+    });
+
     it('declares no font-family and imports no webfont', () => {
         const clean = stripComments(CSS());
         expect(clean).not.toMatch(/font-family\s*:/i);
