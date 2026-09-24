@@ -47,4 +47,19 @@
     --axi-series-metric-defensive-boons: #38bdf8;
     --axi-series-metric-hard-cc: #f43f5e;
     --axi-series-metric-soft-cc: #c084fc;
+
+    /* --- boons (fixed per boon identity, GW2 icon colours) --- */
+    --axi-series-boon-might: #e85d3a;
+    --axi-series-boon-fury: #e8983a;
+    --axi-series-boon-quickness: #c06cf0;
+    --axi-series-boon-alacrity: #f06cbe;
+    --axi-series-boon-protection: #5b9bd5;
+    --axi-series-boon-regeneration: #4ade80;
+    --axi-series-boon-vigor: #a3e635;
+    --axi-series-boon-swiftness: #facc15;
+    --axi-series-boon-resistance: #c4a35a;
+    --axi-series-boon-stability: #f59e0b;
+    --axi-series-boon-aegis: #7dd3fc;
+    --axi-series-boon-resolution: #a78bfa;
+    --axi-series-boon-retaliation: #fb923c;
 }
