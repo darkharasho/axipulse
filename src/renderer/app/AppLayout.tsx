@@ -37,9 +37,16 @@ export function AppLayout() {
     useFightListener();
 
     useEffect(() => {
+        // electron-store is the source of truth, but this resolves after first
+        // paint, so a swatch clicked in the meantime would be reverted by a
+        // value fetched before the click. The snapshot settles that race in
+        // the user's favour: only adopt the disk value if nothing changed.
+        const accentAtMount = useAppStore.getState().accentId;
         window.electronAPI?.getSettings().then(s => {
             if (s.logDirectory) useAppStore.getState().setLogDirectory(s.logDirectory);
-            useAppStore.getState().setAccentId(s.accentId);
+            if (useAppStore.getState().accentId === accentAtMount) {
+                useAppStore.getState().setAccentId(s.accentId);
+            }
         });
         window.electronAPI?.getAppVersion().then((v: string) => setAppVersion(v));
         const cleanupDownloaded = window.electronAPI?.onUpdateDownloaded(() => setUpdateDownloaded(true));
