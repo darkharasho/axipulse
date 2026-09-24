@@ -270,16 +270,22 @@ function ChartBody({
     );
 }
 
+// `...rest` is load-bearing, not tidiness: Tooltip clones its child with an
+// `aria-describedby` pointing at the rendered hint, and without a rest-spread
+// onto the real <button> that prop is silently dropped and the tooltip is
+// never announced to a screen reader. Any future prop Tooltip adds to its
+// trigger arrives the same way.
 function ToggleButton({
-    active, onClick, ink, children,
+    active, onClick, ink, children, ...rest
 }: {
     active: boolean;
     onClick: () => void;
     ink: string;
     children: React.ReactNode;
-}) {
+} & React.ButtonHTMLAttributes<HTMLButtonElement>) {
     return (
         <button
+            {...rest}
             onClick={onClick}
             className={`ap-chart-toggle ${active ? 'ap-chart-toggle--active' : ''}`}
             style={active ? ({ '--ap-chart-toggle-ink': ink } as React.CSSProperties) : undefined}

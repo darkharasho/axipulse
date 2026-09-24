@@ -571,6 +571,9 @@ export function MovementView() {
                             src={mapImageUrl}
                             alt={mapName}
                             className="w-full h-full object-contain"
+                            // Raster basemap, same ruling as the tile layer below and as
+                            // MapView's twin: rule 2 bans mixing a COLOUR with the ground,
+                            // and no token can express "this bitmap, quieter".
                             style={{ opacity: tiles.length > 0 ? 0 : 0.7 }}
                             draggable={false}
                         />
@@ -638,9 +641,9 @@ export function MovementView() {
                                 /* The group `opacity` is KEPT deliberately. It de-emphasises
                                    the whole landmark layer against the squad marks, and the
                                    only legal substitute - recolouring the pins to a dimmer
-                                   token - would collapse TYPE_COLORS' type encoding
-                                   (keep/tower/camp = accent, ruins = meta, named = faint)
-                                   into a single ink. A
+                                   token - would collapse TYPE_COLORS' three-ink encoding
+                                   over five types (keep/tower/camp = accent, ruins = meta,
+                                   named = faint) into a single ink. A
                                    whole-group dim of already-outlined geometry is a far
                                    weaker rule-2 violation than a colour mixed at alpha, and
                                    removing it costs a live affordance. The two mechanisms
@@ -749,7 +752,16 @@ export function MovementView() {
                                             points={historyPoints.map(p => `${p[0]},${p[1]}`).join(' ')}
                                             fill="none"
                                             style={{ stroke: color }}
-                                            strokeWidth={1 * markerScale}
+                                            // historyPoints is unbounded from fight start, so a
+                                            // full squad late in a fight draws a lot of trail.
+                                            // The old opacity ramp was managing that density as
+                                            // well as signalling recency; weight is the legal
+                                            // substitute (rule 7: length, not intensity), and
+                                            // 0.5-vs-1.5 widens the history/recent step that
+                                            // dash-vs-solid already carries. The window itself is
+                                            // deliberately NOT bounded - that would change which
+                                            // data is shown.
+                                            strokeWidth={0.5 * markerScale}
                                             strokeDasharray={`${3 * markerScale} ${3 * markerScale}`}
                                             strokeLinecap="round"
                                             strokeLinejoin="round"

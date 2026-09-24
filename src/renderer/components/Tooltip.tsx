@@ -13,6 +13,14 @@ export default function Tooltip({ text, children, delay = 400, position = 'top' 
     const [coords, setCoords] = useState({ x: 0, y: 0 });
     const timerRef = useRef<number | null>(null);
     const triggerRef = useRef<HTMLDivElement>(null);
+    // A pointer press on a FOCUSABLE child fires mousedown (which hides)
+    // and then focusin (which would immediately re-show), so the
+    // pre-existing click-to-dismiss affordance would be dead. This flag,
+    // set by onMouseDown and cleared on blur or when the pointer leaves,
+    // makes only the focus that directly follows a press bail out. A genuine
+    // keyboard focus never sets it, so the keyboard path is untouched: tab
+    // in still opens the hint, Escape still closes it, tab out still hides.
+    const pointerFocusRef = useRef(false);
     const tooltipId = `ap-tip-${useId()}`;
 
     const measure = () => {
@@ -54,6 +62,7 @@ export default function Tooltip({ text, children, delay = 400, position = 'top' 
     // passing cursor, so it opens the hint immediately rather than after
     // `delay`. Mouse timing is untouched.
     const showNow = () => {
+        if (pointerFocusRef.current) return;
         clearTimer();
         measure();
         setVisible(true);
@@ -62,6 +71,16 @@ export default function Tooltip({ text, children, delay = 400, position = 'top' 
     const hide = () => {
         clearTimer();
         setVisible(false);
+    };
+
+    const hideForPointer = () => {
+        pointerFocusRef.current = true;
+        hide();
+    };
+
+    const handleBlur = () => {
+        pointerFocusRef.current = false;
+        hide();
     };
 
     useEffect(() => () => clearTimer(), []);
@@ -105,10 +124,10 @@ export default function Tooltip({ text, children, delay = 400, position = 'top' 
         <div
             ref={triggerRef}
             onMouseEnter={show}
-            onMouseLeave={hide}
-            onMouseDown={hide}
+            onMouseLeave={handleBlur}
+            onMouseDown={hideForPointer}
             onFocus={showNow}
-            onBlur={hide}
+            onBlur={handleBlur}
             className="inline-flex"
         >
             {React.cloneElement(children, {

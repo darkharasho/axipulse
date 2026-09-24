@@ -283,14 +283,21 @@ function MapOverview() {
                             const color = TYPE_COLORS[lm.type];
                             const dotOffsetY = 10 * s;
                             return (
-                                <g key={i} transform={`translate(${lm.x}, ${lm.y})`}>
+                                /* The tinted pin body (fillOpacity) WAS a colour mixed with
+                                   the ground - rule 2's exact prohibition - and is converted:
+                                   rule 5 makes a landmark an annotation, so it is OUTLINED
+                                   rather than filled. The group `opacity` is KEPT, for the
+                                   same reason MovementView keeps its own: it pushes the whole
+                                   landmark layer behind the squad marks, and the only legal
+                                   substitute - recolouring the pins to a dimmer token - would
+                                   collapse TYPE_COLORS' three-ink encoding over five types
+                                   (keep/tower/camp = accent, ruins = meta, named = faint) into
+                                   a single ink. A whole-group dim of already-outlined geometry
+                                   is a far weaker violation than a colour mixed at alpha, and
+                                   removing it deletes a live affordance. The two maps must
+                                   agree on this. */
+                                <g key={i} transform={`translate(${lm.x}, ${lm.y})`} opacity={0.8}>
                                     <g transform={`translate(${-12 * s}, ${-dotOffsetY}) scale(${s})`}>
-                                        {/* The tinted body (fillOpacity) and the group dim were
-                                            a colour mixed with the ground - rule 2's exact
-                                            prohibition. Rule 5 gives the legal cue for the same
-                                            job: a landmark is an annotation, so it is OUTLINED
-                                            rather than filled, and the outline then needs no
-                                            dimming to sit behind the squad marks. */}
                                         <path d={PIN_PATH} style={{ fill: 'none', stroke: color }} strokeWidth={1.5} />
                                         <circle cx={12} cy={10} r={2.5} style={{ fill: color }} />
                                     </g>

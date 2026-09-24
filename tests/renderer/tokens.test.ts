@@ -144,6 +144,17 @@ describe('src/renderer/index.css obeys the axi-design contract', () => {
 // stripComments above only removes /* */. TSX uses // freely, and a comment
 // that mentions a hex or the word "rounded" while explaining a decision must
 // not read as a violation.
+//
+// KNOWN BLIND SPOT, accepted deliberately: this regex is not string-aware, so
+// it truncates at the first `//` on a line even when that `//` is inside a
+// string literal - a URL is the common case (SettingsView.tsx:210 and :217,
+// MovementView.tsx:609 all carry one today). Anything written AFTER such a
+// `//` on the same line is invisible to all four guards below, so a colour
+// literal parked at the end of a line containing a URL would not be caught.
+// Nothing currently hides there; it was checked. The regex is left alone on
+// purpose - making it string-aware means hand-rolling a tokeniser, and the
+// risk of silently breaking four working guards exceeds the value of closing
+// a hole that needs a URL and a violation on one line to open.
 const stripLineComments = (text: string) =>
     text.split('\n').map((l) => l.replace(/\/\/.*$/, '')).join('\n');
 
