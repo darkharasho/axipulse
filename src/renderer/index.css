@@ -189,6 +189,15 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
     transform: translate(-2px, -2px);
     box-shadow: var(--axi-offset-control) var(--axi-offset-control) 0 var(--axi-ink-line);
 }
+/* The row asserts selection with a solid accent fill (rule 5), so every
+   text node inside it has to switch to the ink that pairs with that fill.
+   The children declare their own colours, and a child's own colour beats an
+   inherited one, so the flip has to be declared on them rather than relying
+   on inheritance from the button. This deliberately overrides the death
+   count's danger red too: the fill already asserts state, and accent-ink is
+   the one colour guaranteed legible on the accent — do not "restore" it. */
+.ap-history-entry--active,
+.ap-history-entry--active * { color: var(--axi-accent-ink); }
 
 /* A bare icon-only affordance (a modal's close button) has no box to lift,
    so it takes the plain colour-step hover .axi-tabs uses for the same

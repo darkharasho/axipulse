@@ -43,7 +43,7 @@ export function WhatsNewModal({ open, version, markdown, onClose }: Props) {
                         <div className="flex items-center justify-between px-5 py-3 border-b"
                             style={{ borderColor: 'var(--border-subtle)' }}>
                             <div className="flex items-center gap-2">
-                                <span className="axi-brand" style={{ color: 'var(--axi-accent)' }}>
+                                <span style={{ color: 'var(--axi-accent)' }}>
                                     What's New
                                 </span>
                                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
