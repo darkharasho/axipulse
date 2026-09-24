@@ -4,7 +4,11 @@ import type { FightComposition } from '../../../shared/types';
 import { getProfessionIconPath } from '../../classIconUtils';
 import { getProfessionColor } from '../../../shared/professionUtils';
 
-const SEGMENT_COLORS = ['#ef4444', '#f97316', '#dc2626'] as const;
+const SEGMENT_COLORS = [
+    'var(--axi-series-metric-damage-dealt)',
+    'var(--axi-series-6)',
+    'var(--axi-series-metric-hard-cc)',
+] as const;
 
 interface Group {
     key: string;
@@ -15,8 +19,8 @@ interface Group {
 }
 
 const CARD_THEMES = {
-    support: { bg: 'rgba(16,185,129,0.04)', border: 'rgba(16,185,129,0.2)', label: '#34d399' },
-    damage:  { bg: 'rgba(239,68,68,0.04)',  border: 'rgba(239,68,68,0.2)',  label: '#f87171' },
+    support: { bg: 'transparent', border: 'var(--axi-ok)', label: 'var(--axi-ok)' },
+    damage: { bg: 'transparent', border: 'var(--axi-danger)', label: 'var(--axi-danger)' },
 } as const;
 
 export function FightCompositionCard({ composition, isSupport }: { composition: FightComposition; isSupport?: boolean }) {
@@ -28,8 +32,8 @@ export function FightCompositionCard({ composition, isSupport }: { composition: 
     if (squadCount + allyCount + enemyCount === 0) return null;
 
     const groups: Group[] = [];
-    if (squadCount > 0) groups.push({ key: 'squad', label: 'Squad', count: squadCount, color: '#10b981', classCounts: squadClassCounts });
-    if (allyCount > 0)  groups.push({ key: 'ally',  label: 'Allies', count: allyCount, color: '#06b6d4', classCounts: allyClassCounts });
+    if (squadCount > 0) groups.push({ key: 'squad', label: 'Squad', count: squadCount, color: 'var(--axi-accent)', classCounts: squadClassCounts });
+    if (allyCount > 0)  groups.push({ key: 'ally',  label: 'Allies', count: allyCount, color: 'var(--axi-meta)', classCounts: allyClassCounts });
     teamBreakdown.forEach(({ teamId, count }, i) => {
         groups.push({
             key: `team-${teamId}`,
@@ -49,11 +53,11 @@ export function FightCompositionCard({ composition, isSupport }: { composition: 
 
     return (
         <div
-            className="rounded-md p-2.5"
+            className="p-2.5"
             style={{
                 gridColumn: '1 / -1',
                 background: theme.bg,
-                border: `1px solid ${theme.border}`,
+                border: `var(--axi-border-control) solid ${theme.border}`,
             }}
         >
             <div className="text-[9px] uppercase tracking-[0.07em] mb-2" style={{ color: theme.label }}>
@@ -61,15 +65,14 @@ export function FightCompositionCard({ composition, isSupport }: { composition: 
             </div>
 
             {/* Segmented bar */}
-            <div className="flex h-2.5 rounded-full overflow-hidden gap-[2px] mb-2">
+            <div className="ap-meter flex gap-[2px] mb-2" style={{ height: '10px' }}>
                 {groups.map(g => (
                     <div
                         key={g.key}
-                        className="rounded-sm cursor-pointer transition-opacity duration-150"
+                        className="cursor-pointer"
                         style={{
                             flex: g.count,
                             background: g.color,
-                            opacity: activeKey && activeKey !== g.key ? 0.3 : 1,
                         }}
                         onClick={() => toggle(g.key)}
                     />
@@ -82,17 +85,17 @@ export function FightCompositionCard({ composition, isSupport }: { composition: 
                     <button
                         key={g.key}
                         onClick={() => toggle(g.key)}
-                        className="flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-full transition-colors"
+                        className="flex items-center gap-1.5 text-[10px] px-2 py-0.5 transition-colors"
                         style={{
-                            border: `1px solid ${activeKey === g.key ? g.color : 'transparent'}`,
-                            background: activeKey === g.key ? 'rgba(255,255,255,0.08)' : 'transparent',
+                            border: `var(--axi-border-hairline) solid ${activeKey === g.key ? g.color : 'transparent'}`,
+                            background: activeKey === g.key ? 'var(--axi-accent)' : 'transparent',
                             cursor: 'pointer',
                         }}
                     >
-                        <span className="inline-block w-2 h-2 rounded-sm" style={{ background: g.color }} />
-                        <span style={{ color: '#e2e8f0', fontWeight: 700 }}>{g.count}</span>
-                        <span style={{ color: '#64748b' }}>{g.label}</span>
-                        <span style={{ color: '#374151' }}>
+                        <span className="inline-block w-2 h-2" style={{ background: g.color }} />
+                        <span style={{ color: activeKey === g.key ? 'var(--axi-accent-ink)' : 'var(--axi-text)', fontWeight: 700 }}>{g.count}</span>
+                        <span style={{ color: activeKey === g.key ? 'var(--axi-accent-ink)' : 'var(--axi-text-dim)' }}>{g.label}</span>
+                        <span style={{ color: activeKey === g.key ? 'var(--axi-accent-ink)' : 'var(--axi-text-faint)' }}>
                             {Math.round((g.count / total) * 100)}%
                         </span>
                     </button>
@@ -101,7 +104,7 @@ export function FightCompositionCard({ composition, isSupport }: { composition: 
 
             {/* Class breakdown panel */}
             {activeGroup && (
-                <div className="mt-2 pt-2" style={{ borderTop: '1px solid #1a2535' }}>
+                <div className="mt-2 pt-2" style={{ borderTop: 'var(--axi-border-control) solid var(--axi-ink-line)' }}>
                     <div className="flex flex-wrap gap-1.5">
                         {Object.entries(activeGroup.classCounts)
                             .sort((a, b) => b[1] - a[1])
@@ -110,15 +113,15 @@ export function FightCompositionCard({ composition, isSupport }: { composition: 
                                 return (
                                     <div
                                         key={spec}
-                                        className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded"
-                                        style={{ background: '#0f1520', border: `1px solid ${getProfessionColor(spec)}40` }}
+                                        className="flex items-center gap-1 text-[10px] px-1.5 py-0.5"
+                                        style={{ background: 'var(--axi-ground)', border: `var(--axi-border-control) solid ${getProfessionColor(spec)}` }}
                                     >
                                         {iconUrl
-                                            ? <img src={iconUrl} alt={spec} width={14} height={14} className="rounded-sm" />
-                                            : <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ background: getProfessionColor(spec) }} />
+                                            ? <img src={iconUrl} alt={spec} width={14} height={14} />
+                                            : <span className="inline-block w-2 h-2 flex-shrink-0" style={{ background: getProfessionColor(spec) }} />
                                         }
                                         <span style={{ color: getProfessionColor(spec) }}>{spec}</span>
-                                        <span style={{ color: '#e2e8f0', fontWeight: 700 }}>{count}</span>
+                                        <span style={{ color: 'var(--axi-text)', fontWeight: 700 }}>{count}</span>
                                     </div>
                                 );
                             })}

@@ -42,10 +42,10 @@ export function PulseView() {
 
     if (!currentFight) {
         return (
-            <div className="flex flex-col items-center justify-center h-full gap-4 text-[color:var(--text-muted)]">
+            <div className="flex flex-col items-center justify-center h-full gap-4 text-[color:var(--axi-text-faint)]">
                 <Activity className="w-12 h-12 opacity-30" />
                 <div className="text-center">
-                    <p className="text-sm font-medium text-[color:var(--text-secondary)]">Waiting for combat data</p>
+                    <p className="text-sm font-medium text-[color:var(--axi-text-dim)]">Waiting for combat data</p>
                     {logDirectory ? (
                         <AnimatePresence mode="wait">
                             <motion.p
@@ -54,7 +54,7 @@ export function PulseView() {
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -6 }}
                                 transition={{ duration: 0.3 }}
-                                className="text-xs mt-1 whitespace-nowrap text-[color:var(--text-muted)]"
+                                className="text-xs mt-1 whitespace-nowrap text-[color:var(--axi-text-faint)]"
                             >
                                 {idleMessage}
                             </motion.p>

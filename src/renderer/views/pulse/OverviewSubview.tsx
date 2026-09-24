@@ -37,13 +37,13 @@ export function OverviewSubview({ data }: { data: PlayerFightData }) {
                             value={support.cleanses}
                             detail={`${ordinal(squadContext.cleanseRank)} in squad`}
                             detailColor="good"
-                            accentColor="var(--brand-secondary)"
+                            accentColor="var(--axi-accent)"
                             index={1}
                         />
                         <StatCard
                             label="Barrier Output"
                             value={support.barrierOutput.toLocaleString()}
-                            accentColor="#a78bfa"
+                            accentColor="var(--axi-series-6)"
                             index={2}
                         />
                         <StatCard
@@ -51,7 +51,7 @@ export function OverviewSubview({ data }: { data: PlayerFightData }) {
                             value={support.boonStrips}
                             detail={`${ordinal(squadContext.stripsRank)} in squad`}
                             detailColor="good"
-                            accentColor="var(--brand-secondary)"
+                            accentColor="var(--axi-accent)"
                             index={3}
                         />
                         <StatCard
@@ -59,7 +59,7 @@ export function OverviewSubview({ data }: { data: PlayerFightData }) {
                             value={`${defense.deaths} / ${defense.downs}`}
                             detail={defense.deathTimes.length > 0 ? `at ${defense.deathTimes.map(t => formatTime(t)).join(', ')}` : 'clean fight'}
                             detailColor={defense.deaths > 0 ? 'bad' : 'good'}
-                            accentColor={defense.deaths > 0 ? 'var(--status-error)' : 'var(--status-success)'}
+                            accentColor={defense.deaths > 0 ? 'var(--axi-danger)' : 'var(--axi-ok)'}
                             index={4}
                         />
                     </>
@@ -70,7 +70,7 @@ export function OverviewSubview({ data }: { data: PlayerFightData }) {
                             value={damage.downContribution}
                             detail={`${ordinal(squadContext.downContributionRank)} in squad`}
                             detailColor="good"
-                            accentColor="var(--brand-primary)"
+                            accentColor="var(--axi-accent)"
                             index={1}
                         />
                         <StatCard
@@ -78,7 +78,7 @@ export function OverviewSubview({ data }: { data: PlayerFightData }) {
                             value={`${defense.deaths} / ${defense.downs}`}
                             detail={defense.deathTimes.length > 0 ? `at ${defense.deathTimes.map(t => formatTime(t)).join(', ')}` : 'clean fight'}
                             detailColor={defense.deaths > 0 ? 'bad' : 'good'}
-                            accentColor={defense.deaths > 0 ? 'var(--status-error)' : 'var(--status-success)'}
+                            accentColor={defense.deaths > 0 ? 'var(--axi-danger)' : 'var(--axi-ok)'}
                             index={2}
                         />
                         <StatCard
@@ -86,7 +86,7 @@ export function OverviewSubview({ data }: { data: PlayerFightData }) {
                             value={support.boonStrips}
                             detail={`${ordinal(squadContext.stripsRank)} in squad`}
                             detailColor="good"
-                            accentColor="var(--brand-secondary)"
+                            accentColor="var(--axi-accent)"
                             index={3}
                         />
                         <StatCard
@@ -94,7 +94,7 @@ export function OverviewSubview({ data }: { data: PlayerFightData }) {
                             value={support.cleanses}
                             detail={`${ordinal(squadContext.cleanseRank)} in squad`}
                             detailColor="good"
-                            accentColor="var(--brand-secondary)"
+                            accentColor="var(--axi-accent)"
                             index={4}
                         />
                     </>
@@ -104,7 +104,7 @@ export function OverviewSubview({ data }: { data: PlayerFightData }) {
                     value={defense.damageTaken.toLocaleString()}
                     detail={`${ordinal(squadContext.damageTakenRank)} in squad`}
                     detailColor="neutral"
-                    accentColor="var(--status-warning, #f59e0b)"
+                    accentColor="var(--axi-warn)"
                     index={5}
                 />
                 <DistanceToTagCard distanceToTag={distanceToTag} index={6} />
@@ -116,16 +116,12 @@ export function OverviewSubview({ data }: { data: PlayerFightData }) {
 
 const BANNER_THEMES = {
     support: {
-        gradient: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(6, 182, 212, 0.08))',
-        border: '1px solid rgba(16, 185, 129, 0.2)',
-        label: 'var(--brand-primary)',
-        valueGradient: 'linear-gradient(135deg, #10b981, #06b6d4)',
+        label: 'var(--axi-accent)',
+        value: 'var(--axi-accent)',
     },
     damage: {
-        gradient: 'linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(249, 115, 22, 0.08))',
-        border: '1px solid rgba(239, 68, 68, 0.2)',
-        label: '#ef4444',
-        valueGradient: 'linear-gradient(135deg, #ef4444, #f97316)',
+        label: 'var(--axi-danger)',
+        value: 'var(--axi-danger)',
     },
 } as const;
 
@@ -143,10 +139,12 @@ function HeroBanner({ label, primaryValue, secondaryValue, secondaryLabel, rank,
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
-            className="rounded-lg p-4 relative overflow-hidden"
-            style={{ background: t.gradient }}
+            className="p-4 relative overflow-hidden"
+            style={{
+                background: 'var(--axi-surface)',
+                border: 'var(--axi-border-panel) solid var(--axi-ink-line)',
+            }}
         >
-            <div className="absolute inset-0 rounded-lg" style={{ border: t.border }} />
             <div className="relative flex items-end justify-between">
                 <div>
                     <div className="text-xs uppercase tracking-[0.1em] font-medium" style={{ color: t.label }}>
@@ -154,23 +152,16 @@ function HeroBanner({ label, primaryValue, secondaryValue, secondaryLabel, rank,
                     </div>
                     <div
                         className="font-stat font-bold text-4xl leading-none mt-1"
-                        style={{
-                            background: t.valueGradient,
-                            backgroundClip: 'text',
-                            WebkitBackgroundClip: 'text',
-                            color: 'transparent',
-                            WebkitTextFillColor: 'transparent',
-                            transform: 'translateZ(0)',
-                        }}
+                        style={{ color: t.value }}
                     >
                         {primaryValue.toLocaleString()}
                     </div>
                 </div>
                 <div className="text-right">
-                    <span className="font-stat font-bold text-2xl" style={{ color: 'var(--text-primary)' }}>
+                    <span className="font-stat font-bold text-2xl" style={{ color: 'var(--axi-text)' }}>
                         {secondaryValue.toLocaleString()}
                     </span>
-                    <span className="text-xs ml-1 font-medium" style={{ color: 'var(--text-muted)' }}>{secondaryLabel}</span>
+                    <span className="text-xs ml-1 font-medium" style={{ color: 'var(--axi-text-faint)' }}>{secondaryLabel}</span>
                     <div className="mt-0.5">
                         <RankBadge rank={rank} />
                     </div>
@@ -191,7 +182,7 @@ function DistanceToTagCard({ distanceToTag, index }: {
                 value="N/A"
                 detail="no tag data"
                 detailColor="neutral"
-                accentColor="var(--text-muted)"
+                accentColor="var(--axi-text-faint)"
                 index={index}
             />
         );
@@ -202,7 +193,7 @@ function DistanceToTagCard({ distanceToTag, index }: {
             value={`${distanceToTag.average} / ${distanceToTag.median}`}
             detail="avg / median"
             detailColor="neutral"
-            accentColor="var(--brand-secondary)"
+            accentColor="var(--axi-accent)"
             index={index}
         />
     );
@@ -215,12 +206,18 @@ function ordinal(n: number): string {
 }
 
 function RankBadge({ rank }: { rank: number }) {
-    const colors = ['#fbbf24', '#94a3b8', '#cd7f32', 'var(--text-muted)', 'var(--text-muted)'];
-    const color = colors[rank - 1] ?? 'var(--text-muted)';
+    const colors = [
+        'var(--axi-warn)',
+        'var(--axi-text-dim)',
+        'var(--axi-series-metric-distance-to-tag)',
+        'var(--axi-text-faint)',
+        'var(--axi-text-faint)',
+    ];
+    const color = colors[rank - 1] ?? 'var(--axi-text-faint)';
     return (
         <span
-            className="inline-block text-xs font-bold px-1.5 py-0.5 rounded font-stat tracking-wide"
-            style={{ color, border: `1px solid ${color}`, opacity: 0.9 }}
+            className="inline-block text-xs font-bold px-1.5 py-0.5 font-stat tracking-wide"
+            style={{ color, border: `var(--axi-border-hairline) solid ${color}` }}
         >
             {ordinal(rank)}
         </span>
