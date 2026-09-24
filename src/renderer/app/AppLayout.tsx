@@ -39,6 +39,7 @@ export function AppLayout() {
     useEffect(() => {
         window.electronAPI?.getSettings().then(s => {
             if (s.logDirectory) useAppStore.getState().setLogDirectory(s.logDirectory);
+            useAppStore.getState().setAccentId(s.accentId);
         });
         window.electronAPI?.getAppVersion().then((v: string) => setAppVersion(v));
         const cleanupDownloaded = window.electronAPI?.onUpdateDownloaded(() => setUpdateDownloaded(true));

@@ -1,6 +1,8 @@
 // src/renderer/store.ts
 import { create } from 'zustand';
 import type { PlayerFightData, FightHistoryEntry } from '../shared/types';
+import { resolveAccentId } from './themes/accents';
+import { applyTheme, readStoredAccentId } from './themes/applyTheme';
 
 export type View = 'pulse' | 'timeline' | 'map' | 'history' | 'settings';
 export type PulseSubview = 'overview' | 'damage' | 'support' | 'defense' | 'boons';
@@ -81,6 +83,9 @@ interface AppState {
     whatsNewRequest: { version: string; markdown: string | null; source: 'auto' | 'manual' } | null;
     requestWhatsNew: (req: { version: string; markdown: string | null; source: 'auto' | 'manual' }) => void;
     clearWhatsNew: () => void;
+
+    accentId: string;
+    setAccentId: (id: string) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -162,4 +167,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     whatsNewRequest: null,
     requestWhatsNew: (req) => set({ whatsNewRequest: req }),
     clearWhatsNew: () => set({ whatsNewRequest: null }),
+
+    accentId: resolveAccentId(readStoredAccentId()),
+    setAccentId: (id) => set({ accentId: applyTheme(id) }),
 }));

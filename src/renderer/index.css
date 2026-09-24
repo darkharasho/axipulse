@@ -150,6 +150,33 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
     background: var(--axi-accent);
 }
 
+/* --- accent swatch --- */
+
+/* The settings accent picker: a row of clickable swatches (rule 4). The
+   selected swatch needs an affordance that isn't a hover state (rule 4's
+   guard against hover on non-interactive elements does not apply here - the
+   swatch is itself a button - but "selected" must still read without a
+   pointer over it), so it takes the same blocked offset a hover lift ends
+   at, permanently, per R4. */
+.ap-swatch {
+    width: 26px;
+    height: 26px;
+    border: var(--axi-border-control) solid var(--axi-ink-line);
+    cursor: pointer;
+    transition: transform var(--ap-duration-fast) ease, box-shadow var(--ap-duration-fast) ease;
+}
+.ap-swatch:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: var(--axi-offset-control) var(--axi-offset-control) 0 var(--axi-ink-line);
+}
+.ap-swatch--active {
+    box-shadow: var(--axi-offset-control) var(--axi-offset-control) 0 var(--axi-ink-line);
+}
+.ap-swatch--active:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: var(--axi-offset-control-hover) var(--axi-offset-control-hover) 0 var(--axi-ink-line);
+}
+
 /* --- reduced motion --- */
 
 @media (prefers-reduced-motion: reduce) {
