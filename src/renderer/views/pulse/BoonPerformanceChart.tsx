@@ -10,10 +10,14 @@ import { readToken } from '../../themes/readToken';
 import { SubviewCapsule } from '../../app/SubviewCapsule';
 import Tooltip from '../../components/Tooltip';
 
-// Series tokens are accent-independent (Task 3), so the ramp is read once at
-// module scope. series.css is imported in main.tsx before createRoot, so the
-// stylesheet is already applied by the time this module runs.
-const SERIES = Array.from({ length: 10 }, (_, i) => readToken(`--axi-series-${i + 1}`));
+// Series tokens are accent-independent (Task 3), so the ramp only needs to
+// be read once - but not at module-evaluation time: this module can be
+// imported (via the static App -> AppLayout -> PulseView -> BoonsSubview
+// chain) before series.css has been evaluated, which would resolve every
+// entry to readToken's 'currentColor' fallback. Lazy + cached avoids
+// depending on import order in a file this one doesn't control.
+let SERIES: string[] | null = null;
+const getSeries = () => (SERIES ??= Array.from({ length: 10 }, (_, i) => readToken(`--axi-series-${i + 1}`)));
 
 const DISTANCE_THRESHOLD = 600;
 
@@ -125,15 +129,24 @@ function ChartBody({
     const tickColor = useMemo(() => readToken('--axi-text-faint'), [accentId]);
     const ruleColor = useMemo(() => readToken('--axi-rule'), [accentId]);
     const controlLineColor = useMemo(() => readToken('--axi-ink-line'), [accentId]);
-    const groundColor = useMemo(() => readToken('--axi-ground'), [accentId]);
+    // --axi-surface, not --axi-ground: the ground colour is near-identical
+    // to the ink-line outline, which left the brush control almost
+    // contrastless against its own border.
+    const brushFillColor = useMemo(() => readToken('--axi-surface'), [accentId]);
     const dangerColor = useMemo(() => readToken('--axi-danger'), [accentId]);
     const warnColor = useMemo(() => readToken('--axi-warn'), [accentId]);
     const textColor = useMemo(() => readToken('--axi-text'), [accentId]);
 
     const { data, hasIncomingHeat, partyColorByKey } = useMemo(() => {
         const incomingMax = breakdown.partyIncomingDamage.reduce((m, v) => Math.max(m, v), 0);
+        // The self line already claims one ink (selfColor, accent-derived);
+        // drop any ramp entry that resolves to the same value so a party
+        // member never lands on top of it. A resolved-value comparison,
+        // not a slot index, so this holds for every accent, not just the
+        // ones we happened to notice collide (emerald-mint == series-2).
+        const availableSeries = getSeries().filter(c => c !== selfColor);
         const colorByKey = Object.fromEntries(
-            breakdown.partyMembers.map((m, mi) => [m.key, SERIES[mi % SERIES.length]] as const),
+            breakdown.partyMembers.map((m, mi) => [m.key, availableSeries[mi % availableSeries.length]] as const),
         );
         const points: ChartPoint[] = breakdown.buckets.map((b, i) => {
             const incomingDamage = breakdown.partyIncomingDamage[i] ?? 0;
@@ -152,7 +165,7 @@ function ChartBody({
             return point;
         });
         return { data: points, hasIncomingHeat: incomingMax > 0, partyColorByKey: colorByKey };
-    }, [breakdown]);
+    }, [breakdown, selfColor]);
 
     return (
         <>
@@ -192,8 +205,6 @@ function ChartBody({
                             <BoonTooltip {...props} breakdown={breakdown}
                                 partyColorByKey={partyColorByKey}
                                 selfColor={selfColor}
-                                warnColor={warnColor}
-                                textColor={textColor}
                                 showHeatmap={showHeatmap}
                                 showDeaths={showDeaths}
                                 showDistance={showDistance} />
@@ -250,7 +261,7 @@ function ChartBody({
                         })}
                         {data.length > 10 && (
                             <Brush dataKey="label" height={20}
-                                stroke={controlLineColor} fill={groundColor}
+                                stroke={controlLineColor} fill={brushFillColor}
                                 travellerWidth={8} tickFormatter={() => ''} />
                         )}
                     </ComposedChart>
@@ -280,15 +291,13 @@ function ToggleButton({
 }
 
 function BoonTooltip({
-    payload, label, breakdown, partyColorByKey, selfColor, warnColor, textColor, showHeatmap, showDeaths, showDistance,
+    payload, label, breakdown, partyColorByKey, selfColor, showHeatmap, showDeaths, showDistance,
 }: {
     payload?: any[];
     label?: string;
     breakdown: BoonPerfBreakdown;
     partyColorByKey: Record<string, string>;
     selfColor: string;
-    warnColor: string;
-    textColor: string;
     showHeatmap: boolean;
     showDeaths: boolean;
     showDistance: boolean;
@@ -301,8 +310,8 @@ function BoonTooltip({
         .sort((a, b) => a.displayName.localeCompare(b.displayName));
 
     return (
-        <div className="axi-tooltip">
-            <div style={{ color: textColor }}>
+        <div className="ap-chart-tooltip">
+            <div style={{ color: 'var(--axi-text)' }}>
                 {String(label || '')}
                 {gen > 0 && (
                     <span style={{ color: selfColor }}>{` · Gen: ${gen.toFixed(2)} stacks`}</span>
@@ -324,12 +333,12 @@ function BoonTooltip({
                         <span>{m.displayName}</span>
                         <span>: {stacks === 0 ? 'None' : `${stacks.toFixed(1)} stacks`}</span>
                         {showDistance && distance > 0 && (
-                            <span className="flex items-center gap-0.5" style={{ color: hasFar ? warnColor : 'var(--axi-text-dim)' }}>
+                            <span className="flex items-center gap-0.5" style={{ color: hasFar ? 'var(--axi-warn)' : 'var(--axi-text-dim)' }}>
                                 <MapPin className="inline w-3 h-3" />
                                 {Math.round(distance)}u
                             </span>
                         )}
-                        {showDeaths && deaths > 0 && <Skull className="inline w-3.5 h-3.5" style={{ color: textColor }} />}
+                        {showDeaths && deaths > 0 && <Skull className="inline w-3.5 h-3.5" style={{ color: 'var(--axi-text)' }} />}
                     </div>
                 );
             })}

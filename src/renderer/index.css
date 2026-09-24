@@ -269,9 +269,31 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
     transition: color var(--ap-duration-fast) ease;
 }
 .ap-chart-toggle:hover { color: var(--axi-text-dim); }
-.ap-chart-toggle--active,
-.ap-chart-toggle--active:hover {
-    color: var(--ap-chart-toggle-ink, var(--axi-accent));
+.ap-chart-toggle--active { color: var(--ap-chart-toggle-ink, var(--axi-accent)); }
+/* The mechanism (bg-white/[0.03] wash) was illegal, not the affordance: all
+   three toggles default to "on", so the active state is what a first-time
+   user actually hovers, and it needs its own step too. */
+.ap-chart-toggle--active:hover { color: var(--axi-text); }
+
+/* .axi-tooltip's token recipe, copied rather than reused, for recharts' own
+   tooltip content (BoonPerformanceChart's hover box) - NOT the portaled
+   Tooltip component, which keeps .axi-tooltip as-is.
+   position: static, not fixed: recharts measures this element's own
+   width/height (useElementOffset) to decide whether to flip the tooltip off
+   the right/bottom edge of the plot area. A fixed element is out of flow
+   and always measures 0x0, so the flip never fires and the tooltip runs off
+   the plot on right-hand buckets. Do not "simplify" this back to
+   .axi-tooltip - fixed positioning is that class's contract, load-bearing
+   for the portaled component appended to document.body. */
+.ap-chart-tooltip {
+    position: static;
+    padding: 5px 8px;
+    background: var(--axi-ink-line);
+    color: var(--axi-text);
+    border: var(--axi-border-hairline) solid var(--axi-rule);
+    font: var(--axi-t-micro);
+    white-space: normal;
+    pointer-events: none;
 }
 
 /* --- reduced motion --- */
