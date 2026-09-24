@@ -14,19 +14,22 @@ export default function Tooltip({ text, children, delay = 400, position = 'top' 
     const timerRef = useRef<number | null>(null);
     const triggerRef = useRef<HTMLDivElement>(null);
 
+    const measure = () => {
+        if (!triggerRef.current) return;
+        const rect = triggerRef.current.getBoundingClientRect();
+        if (position === 'right') {
+            setCoords({ x: rect.right, y: rect.top + rect.height / 2 });
+        } else {
+            setCoords({
+                x: rect.left + rect.width / 2,
+                y: position === 'top' ? rect.top : rect.bottom,
+            });
+        }
+    };
+
     const show = () => {
         timerRef.current = window.setTimeout(() => {
-            if (triggerRef.current) {
-                const rect = triggerRef.current.getBoundingClientRect();
-                if (position === 'right') {
-                    setCoords({ x: rect.right, y: rect.top + rect.height / 2 });
-                } else {
-                    setCoords({
-                        x: rect.left + rect.width / 2,
-                        y: position === 'top' ? rect.top : rect.bottom,
-                    });
-                }
-            }
+            measure();
             setVisible(true);
         }, delay);
     };
@@ -42,6 +45,23 @@ export default function Tooltip({ text, children, delay = 400, position = 'top' 
     useEffect(() => () => {
         if (timerRef.current) window.clearTimeout(timerRef.current);
     }, []);
+
+    // The trigger can itself be moving (an SVG marker under playback, whose
+    // <g> transform changes every frame without the Tooltip instance
+    // remounting - see MovementView.tsx). A one-shot measurement at show()
+    // time is only correct for a stationary trigger. Re-measuring every
+    // frame is cheap for a boundingClientRect read but is only ever done
+    // while the tooltip is actually showing - a hidden/static tooltip (e.g.
+    // BoonPerformanceChart's help button) never enters this loop.
+    useEffect(() => {
+        if (!visible) return;
+        let raf = requestAnimationFrame(function track() {
+            measure();
+            raf = requestAnimationFrame(track);
+        });
+        return () => cancelAnimationFrame(raf);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [visible, position]);
 
     if (!text) return children;
 

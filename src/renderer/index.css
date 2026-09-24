@@ -240,10 +240,11 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
     transition: color var(--ap-duration-fast) ease;
 }
 .ap-icon-btn:hover { color: var(--axi-text); }
-/* A toggled icon button (movement replay's play/pause, playback speed): the
-   active state is an ink step, matching .ap-navbtn--active's own :hover
-   override so the "currently on" colour survives a hover pass rather than
-   being masked by it. */
+/* A toggled icon button (movement replay's play/pause, playback speed) has
+   no box to fill, so its active state is an ink step rather than the solid
+   accent fill .ap-navbtn--active uses for a boxed tab. It borrows only the
+   :hover-survives-active structure from .ap-navbtn--active, so the
+   "currently on" colour isn't masked by a hover pass. */
 .ap-icon-btn--active,
 .ap-icon-btn--active:hover { color: var(--axi-accent); }
 

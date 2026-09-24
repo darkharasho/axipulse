@@ -495,12 +495,16 @@ export function MovementView() {
                                                         {boon?.icon ? (
                                                             <img src={boon.icon} alt="" className="w-full h-full" />
                                                         ) : (
-                                                            <div className="w-full h-full" style={{ background: 'var(--axi-surface-raised)' }} />
+                                                            // One elevation step above the (ground-toned) card, so it
+                                                            // reads as a tile sitting on the card.
+                                                            <div className="w-full h-full" style={{ background: 'var(--axi-surface)' }} />
                                                         )}
                                                         {stacks > 1 && (
-                                                            // A chip raised off the (ground-toned) card, not the ground
-                                                            // itself, or the count would sit at the same value as its
-                                                            // own background and disappear.
+                                                            // A chip raised off the tile/card beneath it (surface-raised
+                                                            // is one step above both --axi-ground, the card, and
+                                                            // --axi-surface, the iconless placeholder tile above), or
+                                                            // the count would sit at the same value as whatever is
+                                                            // directly behind it and disappear.
                                                             <span className="absolute -bottom-0.5 -right-0.5 text-[8px] font-bold leading-none px-0.5" style={{ background: 'var(--axi-surface-raised)', color: 'var(--axi-text)' }}>
                                                                 {stacks}
                                                             </span>
@@ -677,7 +681,7 @@ export function MovementView() {
                                             getBoundingClientRect measures true screen position under the
                                             map's own pan/zoom transform - see Tooltip.tsx's portal note. */}
                                         <foreignObject x={-12} y={-12} width={24} height={24} style={{ overflow: 'visible' }}>
-                                            <Tooltip text={`${member.name} · ${member.profession}`} position="top">
+                                            <Tooltip text={`${member.name} · ${member.profession}`} position="top" delay={0}>
                                                 <div style={{ width: 24, height: 24, cursor: 'pointer' }} />
                                             </Tooltip>
                                         </foreignObject>
@@ -707,7 +711,12 @@ export function MovementView() {
                                 distToTag = Math.round(Math.hypot(pos[0] - commanderPos[0], pos[1] - commanderPos[1]) / inchToPixel);
                             }
 
-                            const tooltipText = `${member.name} · ${member.profession}`
+                            // name and account are separate facts (character name vs. the
+                            // Player.1234 handle - shared/types.ts, shared/extract/movement.ts)
+                            // and share no substring for a typical player; the account handle
+                            // was rendered nowhere else after the old hand-rolled tooltip was
+                            // removed, so it belongs back in the one line that replaced it.
+                            const tooltipText = `${member.name} · ${member.account} · ${member.profession}`
                                 + (member.isCommander ? ' · Commander' : distToTag != null ? ` · ${distToTag} to tag` : '');
 
                             return (
@@ -799,7 +808,7 @@ export function MovementView() {
                                             getBoundingClientRect measures true screen position under the
                                             map's own pan/zoom transform - see Tooltip.tsx's portal note. */}
                                         <foreignObject x={-16} y={-16} width={32} height={32} style={{ overflow: 'visible' }}>
-                                            <Tooltip text={tooltipText} position="top">
+                                            <Tooltip text={tooltipText} position="top" delay={0}>
                                                 <div style={{ width: 32, height: 32, cursor: 'pointer' }} />
                                             </Tooltip>
                                         </foreignObject>

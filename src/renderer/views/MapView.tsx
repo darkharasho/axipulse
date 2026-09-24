@@ -204,14 +204,23 @@ function MapOverview() {
                         </button>
                     )}
                     <div className="flex items-center gap-3 ml-2 text-[10px]" style={{ color: 'var(--axi-text-faint)' }}>
-                        {(['keep', 'tower', 'camp', 'ruins'] as const).map(type => (
-                            <span key={type} className="flex items-center gap-1">
-                                <svg width="10" height="12" viewBox="0 0 24 24" style={{ fill: TYPE_COLORS[type] }}>
-                                    <path d={PIN_PATH} />
-                                </svg>
-                                {type}
-                            </span>
-                        ))}
+                        {/* Every landmark type is var(--axi-accent) now (chrome, not domain
+                            data - rule 9), so hue no longer distinguishes them: size is the
+                            only remaining cue (TYPE_SCALES, also applied to the on-map pins
+                            below). The legend has to carry the same cue or it stops teaching
+                            the mapping it exists to teach. Scaled relative to `keep`, the
+                            largest type, so it keeps its previous 10x12 size exactly. */}
+                        {(['keep', 'tower', 'camp', 'ruins'] as const).map(type => {
+                            const legendScale = TYPE_SCALES[type] / TYPE_SCALES.keep;
+                            return (
+                                <span key={type} className="flex items-center gap-1">
+                                    <svg width={10 * legendScale} height={12 * legendScale} viewBox="0 0 24 24" style={{ fill: TYPE_COLORS[type] }}>
+                                        <path d={PIN_PATH} />
+                                    </svg>
+                                    {type}
+                                </span>
+                            );
+                        })}
                         {/* No border-radius (rule 2), so the "fight" legend swatch is a
                             small bordered square, the same shape .ap-status-dot uses. */}
                         <span className="flex items-center gap-1">
