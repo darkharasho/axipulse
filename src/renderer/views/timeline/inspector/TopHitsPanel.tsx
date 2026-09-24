@@ -24,7 +24,7 @@ export function TopHitsPanel({ topDamageTakenSkills }: TopHitsPanelProps) {
                                         src={skill.icon}
                                         alt={skill.name}
                                         className="w-3.5 h-3.5"
-                                        style={{ border: 'var(--axi-border-hairline) solid var(--axi-ink-line)' }}
+                                        style={{ border: 'var(--axi-border-control) solid var(--axi-ink-line)' }}
                                     />
                                 )}
                                 {skill.name}

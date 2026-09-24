@@ -73,11 +73,24 @@ const BUFF_COLORS: Record<number, string> = {
 const LABEL_HEIGHT = 8;
 const ROW_GAP = 2;
 
+// box-sizing is border-box app-wide, so the track's own `border:
+// var(--axi-border-control) solid ...` (3px, top and bottom) eats into its
+// height budget: the PADDING box — the containing block absolutely
+// positioned rows are placed against — is the track's own `height` (which
+// we set to `laneHeight` via the parent's `h-full`) minus 2 * that border
+// width, not `laneHeight` itself. This is the exact bug class documented at
+// index.css:99-102 for `.ap-meter` (a 6px track with a 2px border left only
+// a 2px content box): here it clipped the last buff row's bar, and it got
+// worse when the label-above-bar restructure made each row taller. Budget
+// the border explicitly rather than approximating it away.
+const CONTROL_BORDER_PX = 3; // matches --axi-border-control
+const TRACK_BORDER_BUDGET = CONTROL_BORDER_PX * 2; // top + bottom
+
 export function TimelineBoonLane({ label, color, buffs, durationMs }: TimelineBoonLaneProps) {
     const buffEntries = Object.entries(buffs);
     const rowHeight = buffEntries.length > 0 ? Math.max(7, Math.min(10, 36 / buffEntries.length)) : 10;
     const rowUnit = LABEL_HEIGHT + rowHeight + ROW_GAP;
-    const laneHeight = Math.max(28, buffEntries.length * rowUnit + ROW_GAP);
+    const laneHeight = Math.max(28, buffEntries.length * rowUnit + ROW_GAP + TRACK_BORDER_BUDGET);
 
     return (
         <div className="flex items-center mb-0.5" style={{ height: laneHeight }}>
