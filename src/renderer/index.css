@@ -93,6 +93,21 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
     animation: ap-bar-fill-in 0.6s var(--ap-ease-out-expo) both;
 }
 
+/* The Pulse stat bars: a quantity is drawn as length (rule 9), not as an
+   opacity or saturation change. .ap-meter-fill takes its colour from an
+   inline `style={{ background: <token> }}` where a series or status ink is
+   wanted; the track itself never carries colour meaning. */
+.ap-meter {
+    height: 6px;
+    background: var(--axi-ground);
+    border: var(--axi-border-hairline) solid var(--axi-ink-line);
+    overflow: hidden;
+}
+.ap-meter-fill {
+    height: 100%;
+    background: var(--axi-accent);
+}
+
 /* Rajdhani's actual job here was column alignment in stat tables. Tabular
    numerals do that job without leaving the language's type scale. */
 .font-stat { font-variant-numeric: tabular-nums; }
@@ -245,20 +260,15 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
    absent, so that every un-converted rule-violating call site renders
    visibly wrong. That is the to-do list, not a bug. */
 :root {
-    --bg-base: var(--axi-ground);
     --bg-card: var(--axi-surface);
-    --bg-card-inner: var(--axi-ground);
-    --bg-input: var(--axi-surface);
 
     --border-subtle: var(--axi-ink-line);
-    --border-default: var(--axi-ink-line);
 
     --text-primary: var(--axi-text);
     --text-secondary: var(--axi-text-dim);
     --text-muted: var(--axi-text-faint);
 
     --brand-primary: var(--axi-accent);
-    --brand-secondary: var(--axi-accent);
 
     --status-success: var(--axi-ok);
     --status-error: var(--axi-danger);
