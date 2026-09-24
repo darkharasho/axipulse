@@ -1,7 +1,9 @@
 # Residual list — axi-design conversion, `feat/axi-design-conversion`
 
 Recorded during the final fix round (2026-09-24), after the whole-branch review.
-Every item below is **real and unfixed**. None was implemented in that round:
+Every item below was **real and unfixed** when this file was written. Item 1
+was closed in the pre-merge once-over; the rest stand. None was implemented in
+that round:
 the branch gets exactly one fix cycle at this stage, and all five are either
 pre-existing or non-regressive. This file exists so the branch's residual list
 is complete and honest — the three blocking findings were fixed, these five
@@ -12,7 +14,15 @@ likely each is to matter to a user.
 
 ---
 
-## 1. Reduced-motion coverage is incomplete across the app
+## 1. Reduced-motion coverage is incomplete across the app — **CLOSED**
+
+> **Closed 2026-09-24** in the pre-merge once-over, commit `db99dc6` and its
+> follow-up. All three bullets below are fixed: `<MotionConfig
+> reducedMotion="user">` in `App.tsx` covers the twelve framer-motion
+> consumers, `.animate-spin { animation: none; }` covers the three spinners,
+> and `.ap-swatch, .ap-history-entry { transition: none; }` covers the two
+> hover-lift rules. The description is kept below as the record of what was
+> wrong.
 
 **Where:** `src/renderer/app/AppLayout.tsx:168`,
 `src/renderer/views/SettingsView.tsx:178`,
