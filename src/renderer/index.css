@@ -228,9 +228,56 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
    inherited one, so the flip has to be declared on them rather than relying
    on inheritance from the button. This deliberately overrides the death
    count's danger red too: the fill already asserts state, and accent-ink is
-   the one colour guaranteed legible on the accent — do not "restore" it. */
+   the one colour guaranteed legible on the accent — do not "restore" it.
+
+   SCOPE: this rule flips TEXT COLOUR ONLY. It says nothing about a
+   descendant that brings its own BACKGROUND, and a descendant background is
+   not inherited, so it is not repainted by the accent fill. Any such child
+   has to be re-backgrounded explicitly — see the .axi-chip rule below, which
+   is the case that proved it. Adding a new self-backgrounded child here
+   without its own pairing rule reintroduces that defect. */
 .ap-history-entry--active,
 .ap-history-entry--active * { color: var(--axi-accent-ink); }
+
+/* .axi-chip carries its own background: var(--axi-surface-raised). On the
+   selected row that surface sits on the accent fill while the rule above
+   paints its label accent-ink — near-black on near-black, 1.48:1. The chip
+   is therefore inverted on the selected row: the accent-ink becomes the
+   chip's FILL and the accent becomes its label, which is the same pairing
+   the package ships as .axi-chip--accent, read the other way round. Worst
+   case across the eleven accents is violet-purple at 4.56:1; best is
+   axi-gold at 12.24:1. Specificity is (0,2,0) here against (0,1,0) above,
+   so this wins without !important. */
+.ap-history-entry--active .axi-chip {
+    background: var(--axi-accent-ink);
+    border-color: var(--axi-accent-ink);
+    color: var(--axi-accent);
+}
+
+/* "This is the latest fight" used to be drawn as an accent BORDER on the
+   row. That collapses whenever the latest fight is also the selected one —
+   which is the default state, since the app auto-loads each new fight — as
+   the selected row's background is already the accent. The affordance is not
+   deleted, it is re-drawn as a solid cap down the row's leading edge (rule
+   5: status is asserted with a solid fill, never a tint), because a cap can
+   be painted in whichever ink is legible against the row it is on:
+   the accent on an unselected surface row, and accent-ink — the one ink
+   guaranteed legible on the accent — on the selected row. The cap is
+   absolutely positioned against the padding box, so it sits just inside the
+   row's own ink-line border rather than replacing it. */
+.ap-history-entry--current { position: relative; }
+.ap-history-entry--current::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: var(--axi-border-panel);
+    background: var(--axi-accent);
+}
+.ap-history-entry--current.ap-history-entry--active::before {
+    background: var(--axi-accent-ink);
+}
 
 /* A bare icon-only affordance (a modal's close button) has no box to lift,
    so it takes the plain colour-step hover .axi-tabs uses for the same

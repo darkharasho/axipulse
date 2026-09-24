@@ -204,12 +204,14 @@ function MapOverview() {
                         </button>
                     )}
                     <div className="flex items-center gap-3 ml-2 text-[10px]" style={{ color: 'var(--axi-text-faint)' }}>
-                        {/* Every landmark type is var(--axi-accent) now (chrome, not domain
-                            data - rule 9), so hue no longer distinguishes them: size is the
-                            only remaining cue (TYPE_SCALES, also applied to the on-map pins
-                            below). The legend has to carry the same cue or it stops teaching
-                            the mapping it exists to teach. Scaled relative to `keep`, the
-                            largest type, so it keeps its previous 10x12 size exactly. */}
+                        {/* TYPE_COLORS is a THREE-ink encoding over five landmark types
+                            (keep/tower/camp = accent, ruins = meta, named = faint), so hue
+                            still separates those three bands — but it cannot separate keep
+                            from tower from camp, which share the accent. Size is the
+                            additional cue that does (TYPE_SCALES, also applied to the on-map
+                            pins below). The legend has to carry the same cue or it stops
+                            teaching the mapping it exists to teach. Scaled relative to `keep`,
+                            the largest type, so it keeps its previous 10x12 size exactly. */}
                         {(['keep', 'tower', 'camp', 'ruins'] as const).map(type => {
                             const legendScale = TYPE_SCALES[type] / TYPE_SCALES.keep;
                             return (
@@ -294,8 +296,20 @@ function MapOverview() {
                                    (keep/tower/camp = accent, ruins = meta, named = faint) into
                                    a single ink. A whole-group dim of already-outlined geometry
                                    is a far weaker violation than a colour mixed at alpha, and
-                                   removing it deletes a live affordance. The two maps must
-                                   agree on this. */
+                                   removing it deletes a live affordance.
+
+                                   The two maps do NOT share a number here, and that is
+                                   deliberate. This is a reskin, so each map preserves the
+                                   landmark recession it had before the branch: MapView had no
+                                   group opacity and carried 0.8 on the pin path and dot
+                                   individually, which the group `opacity={0.8}` below now
+                                   expresses in one place; MovementView already had its group
+                                   at 0.4 (MovementView.tsx:654) and keeps it. They legitimately
+                                   differ because they are different pictures — this map is a
+                                   static overview where the landmarks are most of the content,
+                                   while MovementView animates a replay over them and needs the
+                                   layer pushed further back. Do not "reconcile" 0.8 and 0.4;
+                                   changing either is a behaviour change. */
                                 <g key={i} transform={`translate(${lm.x}, ${lm.y})`} opacity={0.8}>
                                     <g transform={`translate(${-12 * s}, ${-dotOffsetY}) scale(${s})`}>
                                         <path d={PIN_PATH} style={{ fill: 'none', stroke: color }} strokeWidth={1.5} />

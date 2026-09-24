@@ -4,6 +4,22 @@ import type { FightComposition } from '../../../shared/types';
 import { getProfessionIconPath } from '../../classIconUtils';
 import { getProfessionColor } from '../../../shared/professionUtils';
 
+// Squad / Allies / Enemy T1..T3 is ONE categorical domain scale, so every
+// member of it comes from --axi-series-* (rule 9) and NONE of it comes from
+// a chrome ink. Squad used to be var(--axi-accent) and Allies var(--axi-meta),
+// and both were defects: the accent is byte-identical to two of the enemy
+// tokens under two of the eleven accents (crimson-red === -damage-dealt,
+// rose-pink === -hard-cc), which collapsed Squad into Enemy T1 or T3 in both
+// the bar and the legend; and --axi-meta is reserved by rule 6 for meta
+// information, so using it as a data-series colour gave that token two
+// meanings. Keep the accent out of this scale. The only place the accent
+// legitimately appears below is the ACTIVE legend pill's fill, which is a
+// selection state, not a series identity.
+const GROUP_COLORS = {
+    squad: 'var(--axi-series-4)',
+    ally: 'var(--axi-series-1)',
+} as const;
+
 const SEGMENT_COLORS = [
     'var(--axi-series-metric-damage-dealt)',
     'var(--axi-series-6)',
@@ -32,8 +48,8 @@ export function FightCompositionCard({ composition, isSupport }: { composition: 
     if (squadCount + allyCount + enemyCount === 0) return null;
 
     const groups: Group[] = [];
-    if (squadCount > 0) groups.push({ key: 'squad', label: 'Squad', count: squadCount, color: 'var(--axi-accent)', classCounts: squadClassCounts });
-    if (allyCount > 0)  groups.push({ key: 'ally',  label: 'Allies', count: allyCount, color: 'var(--axi-meta)', classCounts: allyClassCounts });
+    if (squadCount > 0) groups.push({ key: 'squad', label: 'Squad', count: squadCount, color: GROUP_COLORS.squad, classCounts: squadClassCounts });
+    if (allyCount > 0)  groups.push({ key: 'ally',  label: 'Allies', count: allyCount, color: GROUP_COLORS.ally, classCounts: allyClassCounts });
     teamBreakdown.forEach(({ teamId, count }, i) => {
         groups.push({
             key: `team-${teamId}`,

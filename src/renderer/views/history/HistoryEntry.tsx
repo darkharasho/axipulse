@@ -8,13 +8,19 @@ interface HistoryEntryProps {
 }
 
 export function HistoryEntry({ entry, isActive, isCurrent, onClick }: HistoryEntryProps) {
+    // `isCurrent` ("this is the latest fight") is asserted twice, and both
+    // cues have to survive the `isActive` state, because the app auto-loads
+    // each new fight and so the newest row is routinely BOTH: the "Latest"
+    // chip, which .ap-history-entry--active .axi-chip re-backgrounds so it
+    // stays legible on the accent fill, and the leading-edge cap drawn by
+    // .ap-history-entry--current::before. The cap replaced an accent border,
+    // which was invisible on a row already filled with the accent.
     return (
         <button
             onClick={onClick}
-            className={`ap-history-entry w-full text-left px-3 py-2.5${isActive ? ' ap-history-entry--active' : ''}`}
+            className={`ap-history-entry w-full text-left px-3 py-2.5${isActive ? ' ap-history-entry--active' : ''}${isCurrent ? ' ap-history-entry--current' : ''}`}
             style={{
                 background: isActive ? 'var(--axi-accent)' : 'var(--axi-surface)',
-                borderColor: isCurrent ? 'var(--axi-accent)' : undefined,
             }}
         >
             <div className="flex items-center justify-between">
