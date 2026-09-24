@@ -34,12 +34,16 @@ export function MapView() {
     );
 }
 
+// Landmarks are chrome, not domain data - see MovementView.tsx for the full
+// rationale. This file already imports MovementView's component below but
+// not its TYPE_COLORS/TYPE_SCALES consts, which predate this task and stay
+// duplicated here rather than being refactored into a shared export.
 const TYPE_COLORS: Record<WvwLandmark['type'], string> = {
-    keep: '#ef4444',
-    tower: '#f59e0b',
-    camp: '#22c55e',
-    ruins: '#8b5cf6',
-    named: '#6b7280',
+    keep: 'var(--axi-accent)',
+    tower: 'var(--axi-accent)',
+    camp: 'var(--axi-accent)',
+    ruins: 'var(--axi-meta)',
+    named: 'var(--axi-text-faint)',
 };
 
 const TYPE_SCALES: Record<WvwLandmark['type'], number> = {
@@ -152,9 +156,9 @@ function MapOverview() {
     if (!currentFight) {
         return (
             <div className="flex flex-col items-center justify-center h-full gap-2">
-                <MapPin className="w-8 h-8" style={{ color: 'var(--text-muted)' }} />
-                <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Fight Map</span>
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Map data will appear here after a fight is parsed</span>
+                <MapPin className="w-8 h-8" style={{ color: 'var(--axi-text-faint)' }} />
+                <span className="text-sm font-medium" style={{ color: 'var(--axi-text-dim)' }}>Fight Map</span>
+                <span className="text-xs" style={{ color: 'var(--axi-text-faint)' }}>Map data will appear here after a fight is parsed</span>
             </div>
         );
     }
@@ -170,9 +174,9 @@ function MapOverview() {
     if (pixelSize === null) {
         return (
             <div className="flex flex-col items-center justify-center h-full gap-2">
-                <MapPin className="w-8 h-8" style={{ color: 'var(--text-muted)' }} />
-                <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>No Map Assets</span>
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                <MapPin className="w-8 h-8" style={{ color: 'var(--axi-text-faint)' }} />
+                <span className="text-sm font-medium" style={{ color: 'var(--axi-text-dim)' }}>No Map Assets</span>
+                <span className="text-xs" style={{ color: 'var(--axi-text-faint)' }}>
                     {mapName} is not a WvW map this app has landmark or tile data for
                 </span>
             </div>
@@ -183,33 +187,35 @@ function MapOverview() {
     return (
         <div className="flex flex-col h-full gap-3">
             <div className="flex items-center gap-4">
-                <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{mapName}</span>
+                <span className="text-sm font-medium" style={{ color: 'var(--axi-text)' }}>{mapName}</span>
                 {currentFight.nearestLandmark && (
-                    <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>Near {currentFight.nearestLandmark}</span>
+                    <span className="text-xs" style={{ color: 'var(--axi-text-dim)' }}>Near {currentFight.nearestLandmark}</span>
                 )}
                 <div className="flex items-center gap-2 ml-auto">
-                    <button onClick={() => zoomCenter(1)} className="p-1 rounded hover:bg-white/10 transition-colors" style={{ color: 'var(--text-muted)' }}>
+                    <button onClick={() => zoomCenter(1)} className="ap-icon-btn p-1">
                         <ZoomIn className="w-3.5 h-3.5" />
                     </button>
-                    <button onClick={() => zoomCenter(-1)} className="p-1 rounded hover:bg-white/10 transition-colors" style={{ color: 'var(--text-muted)' }}>
+                    <button onClick={() => zoomCenter(-1)} className="ap-icon-btn p-1">
                         <ZoomOut className="w-3.5 h-3.5" />
                     </button>
                     {view.scale !== 1 && (
-                        <button onClick={resetView} className="p-1 rounded hover:bg-white/10 transition-colors" style={{ color: 'var(--text-muted)' }}>
+                        <button onClick={resetView} className="ap-icon-btn p-1">
                             <RotateCcw className="w-3.5 h-3.5" />
                         </button>
                     )}
-                    <div className="flex items-center gap-3 ml-2 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                    <div className="flex items-center gap-3 ml-2 text-[10px]" style={{ color: 'var(--axi-text-faint)' }}>
                         {(['keep', 'tower', 'camp', 'ruins'] as const).map(type => (
                             <span key={type} className="flex items-center gap-1">
-                                <svg width="10" height="12" viewBox="0 0 24 24" fill={TYPE_COLORS[type]}>
+                                <svg width="10" height="12" viewBox="0 0 24 24" style={{ fill: TYPE_COLORS[type] }}>
                                     <path d={PIN_PATH} />
                                 </svg>
                                 {type}
                             </span>
                         ))}
+                        {/* No border-radius (rule 2), so the "fight" legend swatch is a
+                            small bordered square, the same shape .ap-status-dot uses. */}
                         <span className="flex items-center gap-1">
-                            <span className="inline-block w-2.5 h-2.5 rounded-full border-2" style={{ borderColor: 'var(--brand-primary)', background: 'transparent' }} />
+                            <span className="inline-block w-2.5 h-2.5" style={{ border: 'var(--axi-border-hairline) solid var(--axi-accent)', background: 'transparent' }} />
                             fight
                         </span>
                     </div>
@@ -238,14 +244,14 @@ function MapOverview() {
                         <img
                             src={mapImageUrl}
                             alt={mapName}
-                            className="w-full h-full object-contain rounded"
+                            className="w-full h-full object-contain"
                             style={{ opacity: 0.7 }}
                             draggable={false}
                         />
                     ) : (
                         <div
-                            className="w-full h-full rounded"
-                            style={{ background: 'var(--bg-card)', aspectRatio: `${width}/${height}`, minHeight: 400 }}
+                            className="w-full h-full"
+                            style={{ background: 'var(--axi-surface)', aspectRatio: `${width}/${height}`, minHeight: 400 }}
                         />
                     )}
 
@@ -255,6 +261,9 @@ function MapOverview() {
                         preserveAspectRatio="xMidYMid meet"
                         overflow="visible"
                     >
+                        {/* fill/stroke are SVG presentation attributes and do not parse
+                            var(), so the token-bearing colour is set via style - see
+                            MovementView.tsx for the same fix. */}
                         {landmarks.map((lm, i) => {
                             const s = TYPE_SCALES[lm.type];
                             const color = TYPE_COLORS[lm.type];
@@ -262,16 +271,15 @@ function MapOverview() {
                             return (
                                 <g key={i} transform={`translate(${lm.x}, ${lm.y})`}>
                                     <g transform={`translate(${-12 * s}, ${-dotOffsetY}) scale(${s})`}>
-                                        <path d={PIN_PATH} fill={color} fillOpacity={0.15} stroke={color} strokeWidth={1.5} opacity={0.8} />
-                                        <circle cx={12} cy={10} r={2.5} fill={color} opacity={0.8} />
+                                        <path d={PIN_PATH} style={{ fill: color, stroke: color }} fillOpacity={0.15} strokeWidth={1.5} opacity={0.8} />
+                                        <circle cx={12} cy={10} r={2.5} style={{ fill: color }} opacity={0.8} />
                                     </g>
                                     <text
                                         x={0}
                                         y={-dotOffsetY - 2}
                                         textAnchor="middle"
-                                        fill="#e8eaed"
+                                        style={{ fill: 'var(--axi-text)' }}
                                         fontSize={9}
-                                        fontFamily="Inter, sans-serif"
                                     >
                                         {lm.name}
                                     </text>
@@ -281,8 +289,8 @@ function MapOverview() {
 
                         {avgPosition && (
                             <>
-                                <circle cx={avgPosition[0]} cy={avgPosition[1]} r={4} fill="#10b981" opacity={0.9} />
-                                <circle cx={avgPosition[0]} cy={avgPosition[1]} r={6} fill="none" stroke="#10b981" strokeWidth={1.5} opacity={0}>
+                                <circle cx={avgPosition[0]} cy={avgPosition[1]} r={4} style={{ fill: 'var(--axi-accent)' }} opacity={0.9} />
+                                <circle cx={avgPosition[0]} cy={avgPosition[1]} r={6} fill="none" style={{ stroke: 'var(--axi-accent)' }} strokeWidth={1.5} opacity={0}>
                                     <animate attributeName="r" values="6;28" dur="1.8s" repeatCount="indefinite" />
                                     <animate attributeName="opacity" values="0.8;0" dur="1.8s" repeatCount="indefinite" />
                                 </circle>

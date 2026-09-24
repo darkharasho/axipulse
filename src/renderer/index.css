@@ -240,6 +240,12 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
     transition: color var(--ap-duration-fast) ease;
 }
 .ap-icon-btn:hover { color: var(--axi-text); }
+/* A toggled icon button (movement replay's play/pause, playback speed): the
+   active state is an ink step, matching .ap-navbtn--active's own :hover
+   override so the "currently on" colour survives a hover pass rather than
+   being masked by it. */
+.ap-icon-btn--active,
+.ap-icon-btn--active:hover { color: var(--axi-accent); }
 
 /* A troubleshoot check's result, drawn as a small bordered dot per R8 rather
    than a coloured icon glyph: filled means status. */
@@ -296,6 +302,20 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
     pointer-events: none;
 }
 
+/* --- movement replay map --- */
+
+/* The four inline `transition:` declarations MovementView used to carry
+   (party panel tab slide, its chevron rotate, the party health bar, and the
+   recent-skill/squad-visibility opacity fades) collapsed to one timing
+   recipe covering every property any of the four sites actually animates,
+   so a single reduced-motion rule below can reach all of them. */
+.ap-map-toggle, .ap-map-chevron, .ap-map-bar, .ap-map-fade {
+    transition: transform var(--ap-duration-normal) ease,
+        opacity var(--ap-duration-fast) ease,
+        width var(--ap-duration-normal) ease,
+        background-color var(--ap-duration-normal) ease;
+}
+
 /* --- reduced motion --- */
 
 @media (prefers-reduced-motion: reduce) {
@@ -303,6 +323,7 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
        watching-for-logs state stays legible; it just stops blinking. */
     .ap-work { animation: none; }
     .stat-bar-fill { animation: none; }
+    .ap-map-toggle, .ap-map-chevron, .ap-map-bar, .ap-map-fade { transition: none; }
     .theme-transitioning *,
     .theme-transitioning *::before,
     .theme-transitioning *::after { transition: none !important; }
@@ -319,8 +340,6 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
    absent, so that every un-converted rule-violating call site renders
    visibly wrong. That is the to-do list, not a bug. */
 :root {
-    --bg-card: var(--axi-surface);
-
     --border-subtle: var(--axi-ink-line);
 
     --text-primary: var(--axi-text);
