@@ -29,14 +29,7 @@ export function BoonStatePanel({ offensiveBoons, defensiveBoons, timeMs }: BoonS
                         <span className="text-[10px]" style={{ color: snap.active ? 'var(--axi-ok)' : 'var(--axi-danger)' }}>
                             {snap.active ? '✓' : '✗'}
                         </span>
-                        {snap.icon && (
-                            <img
-                                src={snap.icon}
-                                alt={snap.name}
-                                className="w-3.5 h-3.5"
-                                style={{ border: 'var(--axi-border-hairline) solid var(--axi-ink-line)' }}
-                            />
-                        )}
+                        {snap.icon && <img src={snap.icon} alt={snap.name} className="w-3.5 h-3.5" />}
                         <span
                             className={`text-[10px] ${snap.active ? '' : 'line-through'}`}
                             style={{ color: snap.active ? 'var(--axi-text)' : 'var(--axi-text-dim)' }}

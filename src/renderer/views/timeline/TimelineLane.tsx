@@ -53,7 +53,11 @@ export function TimelineLane({ label, color, data, domainMs }: TimelineLaneProps
             >
                 <svg width="100%" height="100%" viewBox="0 0 1 1" preserveAspectRatio="none">
                     <path d={fillPath} style={{ fill: color }} />
-                    <path d={strokePath} fill="none" style={{ stroke: color }} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+                    {/* Stroke and fill would otherwise resolve to the same colour
+                        (dead paint: an invisible line on its own fill). Ground
+                        gives the top contour a crisp edge against the solid fill,
+                        which is the cue the stroke exists for. */}
+                    <path d={strokePath} fill="none" style={{ stroke: 'var(--axi-ground)' }} strokeWidth={1} vectorEffect="non-scaling-stroke" />
                 </svg>
             </div>
         </div>

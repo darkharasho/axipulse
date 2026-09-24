@@ -10,6 +10,24 @@ import { TIMELINE_LANES } from './TimelinePresets';
 const laneColor = (key: keyof TimelineLayerToggles): string =>
     TIMELINE_LANES.find(l => l.key === key)?.color ?? 'var(--axi-text-dim)';
 
+// The selection band's edges are drawn in the accent, but a lane fill is
+// also drawn in whatever colour its own metric owns — and several metric
+// tokens are byte-identical to an official accent (amber-warm ===
+// --axi-series-metric-distance-to-tag, rose-pink === -hard-cc, crimson-red
+// === -damage-dealt). An accent edge sitting directly on a same-coloured
+// fill is invisible under those accents. Rather than special-case those
+// three, every edge gets a 1px --axi-ground guard on both sides so the
+// boundary reads against ANY lane fill under ANY accent.
+function EdgeGuard({ x }: { x: string }) {
+    return (
+        <>
+            <div className="absolute top-0 bottom-0 z-[5] pointer-events-none" style={{ left: `calc(${x} - 1px)`, width: 1, background: 'var(--axi-ground)' }} />
+            <div className="absolute top-0 bottom-0 z-[5] pointer-events-none" style={{ left: x, width: 'var(--axi-border-control)', background: 'var(--axi-accent)' }} />
+            <div className="absolute top-0 bottom-0 z-[5] pointer-events-none" style={{ left: `calc(${x} + var(--axi-border-control))`, width: 1, background: 'var(--axi-ground)' }} />
+        </>
+    );
+}
+
 interface TimelineSwimlanesProps {
     data: TimelineData;
     toggles: TimelineLayerToggles;
@@ -170,18 +188,13 @@ export function TimelineSwimlanes({ data, toggles, durationMs, onSelectionChange
                 onMouseUp={handleMouseUp}
                 onMouseLeave={() => { handleMouseUp(); setHoverX(null); }}
             >
-                {/* Selection highlight */}
+                {/* Selection highlight — two accent edges, each guarded by
+                    ground on both sides so they read against any lane fill. */}
                 {activeSelection && activeSelection.endMs - activeSelection.startMs > 500 && (
-                    <div
-                        className="absolute top-0 bottom-0 z-[5] pointer-events-none"
-                        style={{
-                            left: `calc(${labelWidth}px + ${(activeSelection.startMs / durationMs)} * (100% - ${labelWidth}px))`,
-                            width: `calc(${((activeSelection.endMs - activeSelection.startMs) / durationMs)} * (100% - ${labelWidth}px))`,
-                            background: 'transparent',
-                            borderLeft: 'var(--axi-border-control) solid var(--axi-accent)',
-                            borderRight: 'var(--axi-border-control) solid var(--axi-accent)',
-                        }}
-                    />
+                    <>
+                        <EdgeGuard x={`calc(${labelWidth}px + ${(activeSelection.startMs / durationMs)} * (100% - ${labelWidth}px))`} />
+                        <EdgeGuard x={`calc(${labelWidth}px + ${(activeSelection.endMs / durationMs)} * (100% - ${labelWidth}px) - var(--axi-border-control))`} />
+                    </>
                 )}
 
                 {/* Crosshair + tooltip */}

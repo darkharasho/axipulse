@@ -60,10 +60,24 @@ const BUFF_COLORS: Record<number, string> = {
     26766: 'var(--axi-series-cc-slow)',
 };
 
+// The row label used to sit inline with the bar (right: 2, overlapping
+// whatever segment was drawn there) with an opaque backdrop plate behind it.
+// Two of Task 10's fix-round rulings make that untenable together: solid
+// fills (no more translucency) mean the bar segment nearest the label is now
+// fully opaque, and the canonical boon-token remap collapsed several boons
+// in the same lane onto near-identical hues (Def Boons is two blues and two
+// ambers), so the NAME label is now the primary way to tell them apart. A
+// label that occludes the exact moment ("did I still have Stability when I
+// died?") fights its own job. So the label gets its own thin strip above
+// the bar instead of overlaying it — no backdrop needed, nothing to hide.
+const LABEL_HEIGHT = 8;
+const ROW_GAP = 2;
+
 export function TimelineBoonLane({ label, color, buffs, durationMs }: TimelineBoonLaneProps) {
     const buffEntries = Object.entries(buffs);
     const rowHeight = buffEntries.length > 0 ? Math.max(7, Math.min(10, 36 / buffEntries.length)) : 10;
-    const laneHeight = Math.max(28, buffEntries.length * (rowHeight + 2) + 4);
+    const rowUnit = LABEL_HEIGHT + rowHeight + ROW_GAP;
+    const laneHeight = Math.max(28, buffEntries.length * rowUnit + ROW_GAP);
 
     return (
         <div className="flex items-center mb-0.5" style={{ height: laneHeight }}>
@@ -81,47 +95,44 @@ export function TimelineBoonLane({ label, color, buffs, durationMs }: TimelineBo
                     const id = Number(idStr);
                     const segments = getBarSegments(entry.states, durationMs);
                     const barColor = BUFF_COLORS[id] ?? color;
+                    const rowTop = ROW_GAP + rowIdx * rowUnit;
 
                     return (
-                        <div
-                            key={id}
-                            className="absolute w-full"
-                            style={{ top: 2 + rowIdx * (rowHeight + 2), height: rowHeight }}
-                        >
-                            {segments.map((seg, i) => (
-                                <div
-                                    key={i}
-                                    className="absolute"
-                                    style={{
-                                        left: `${seg.startPct}%`,
-                                        width: `${seg.widthPct}%`,
-                                        height: '100%',
-                                        background: barColor,
-                                    }}
-                                >
-                                    {i === 0 && entry.icon && seg.widthPct > 3 && (
-                                        <img
-                                            src={entry.icon}
-                                            alt={entry.name}
-                                            style={{ left: 1, top: 0, height: rowHeight, width: rowHeight, position: 'absolute' }}
-                                        />
-                                    )}
-                                </div>
-                            ))}
+                        <div key={id} className="absolute w-full" style={{ top: rowTop, height: rowUnit }}>
                             <span
                                 className="absolute text-right truncate pointer-events-none"
                                 style={{
                                     right: 2, top: 0,
                                     zIndex: 2,
-                                    fontSize: 10, color: barColor,
-                                    lineHeight: `${rowHeight}px`,
-                                    maxWidth: 70,
-                                    background: 'var(--axi-surface-raised)',
-                                    padding: '0 3px',
+                                    fontSize: 8, color: barColor,
+                                    lineHeight: `${LABEL_HEIGHT}px`,
+                                    maxWidth: 80,
                                 }}
                             >
                                 {entry.name}
                             </span>
+                            <div className="absolute w-full" style={{ top: LABEL_HEIGHT, height: rowHeight }}>
+                                {segments.map((seg, i) => (
+                                    <div
+                                        key={i}
+                                        className="absolute"
+                                        style={{
+                                            left: `${seg.startPct}%`,
+                                            width: `${seg.widthPct}%`,
+                                            height: '100%',
+                                            background: barColor,
+                                        }}
+                                    >
+                                        {i === 0 && entry.icon && seg.widthPct > 3 && (
+                                            <img
+                                                src={entry.icon}
+                                                alt={entry.name}
+                                                style={{ left: 1, top: 0, height: rowHeight, width: rowHeight, position: 'absolute' }}
+                                            />
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     );
                 })}

@@ -40,9 +40,9 @@ export function TopHitsPanel({ topDamageTakenSkills }: TopHitsPanelProps) {
                     </div>
                 ))}
                 {remaining.length > 0 && (
-                    <div className="flex justify-between text-[10px]">
+                    <div className="flex justify-between text-[9px]">
                         <span style={{ color: 'var(--axi-text-dim)' }}>+ {remaining.length} more</span>
-                        <span style={{ color: 'var(--axi-danger)' }}>-{remainingTotal.toLocaleString()}</span>
+                        <span style={{ color: 'var(--axi-text-dim)' }}>-{remainingTotal.toLocaleString()}</span>
                     </div>
                 )}
             </div>

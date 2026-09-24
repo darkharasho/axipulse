@@ -43,7 +43,7 @@ export function TimelineView() {
 
     return (
         <div className="flex flex-col">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-3 min-w-0">
                 <SubviewCapsule
                     pills={TIMELINE_PILLS}
                     activeId={preset}

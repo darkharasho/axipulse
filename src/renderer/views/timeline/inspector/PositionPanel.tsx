@@ -17,7 +17,7 @@ export function PositionPanel({ distanceToTag, startMs, endMs }: PositionPanelPr
             <div className="axi-panel p-2.5">
                 <div className="axi-eyebrow" style={{ color: 'var(--axi-warn)' }}>Positioning</div>
                 <div className="text-center py-3">
-                    <div style={{ font: 'var(--axi-t-h2)', color: 'var(--axi-text-faint)' }}>—</div>
+                    <div style={{ font: 'var(--axi-t-h2)', letterSpacing: 'var(--axi-ls-h2)', color: 'var(--axi-text-faint)' }}>—</div>
                     <div className="text-[9px]" style={{ color: 'var(--axi-text-dim)' }}>no distance data in this range</div>
                 </div>
             </div>
@@ -31,13 +31,13 @@ export function PositionPanel({ distanceToTag, startMs, endMs }: PositionPanelPr
         <div className="axi-panel p-2.5">
             <div className="axi-eyebrow" style={{ color: 'var(--axi-warn)' }}>Positioning</div>
             <div className="text-center mb-2">
-                <div style={{ font: 'var(--axi-t-h2)', color: distColor }}>{avg.toLocaleString()}</div>
+                <div style={{ font: 'var(--axi-t-h2)', letterSpacing: 'var(--axi-ls-h2)', color: distColor }}>{avg.toLocaleString()}</div>
                 <div className="text-[9px]" style={{ color: 'var(--axi-text-dim)' }}>avg distance to tag</div>
             </div>
             <div className="ap-meter mb-1.5">
                 <div className="ap-meter-fill" style={{ width: `${barPct}%`, background: distColor }} />
             </div>
-            <div className="flex justify-between" style={{ font: 'var(--axi-t-micro)', color: 'var(--axi-text-faint)' }}>
+            <div className="flex justify-between" style={{ font: 'var(--axi-t-micro)', letterSpacing: 'var(--axi-ls-micro)', color: 'var(--axi-text-faint)' }}>
                 <span>0</span><span>600</span><span>1200</span><span>2400+</span>
             </div>
             {avg > 1200 && (

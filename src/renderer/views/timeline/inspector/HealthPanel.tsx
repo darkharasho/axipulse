@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { getHealthInRange } from '../../../../shared/timelineInspector';
+import { STATUS_COLORS, healthBand, buildSegments } from '../healthBands';
 
 interface HealthPanelProps {
     healthPercent: [number, number][];
@@ -7,56 +8,6 @@ interface HealthPanelProps {
     endMs: number;
     downEvents: number[];
     deathEvents: number[];
-}
-
-// Health is status (rule 5), so it reads through the fixed --axi-ok/-warn/
-// -danger inks rather than a continuous red-amber-green blend — rule 2
-// forbids the gradient/opacity that used to draw it. These are CSS
-// declarations (style={{}}), which parse var() fine.
-const STATUS_COLORS = { ok: 'var(--axi-ok)', warn: 'var(--axi-warn)', danger: 'var(--axi-danger)' } as const;
-type Band = keyof typeof STATUS_COLORS;
-
-function healthBand(pct: number): Band {
-    const clamped = Math.max(0, Math.min(100, pct));
-    if (clamped > 66) return 'ok';
-    if (clamped > 33) return 'warn';
-    return 'danger';
-}
-
-interface Segment {
-    fillPath: string;
-    strokePath: string;
-    band: Band;
-}
-
-function buildSegments(pts: { x: number; y: number; pct: number }[]): Segment[] {
-    if (pts.length === 0) return [];
-    const segments: Segment[] = [];
-    let run: typeof pts = [pts[0]];
-    let runBand = healthBand(pts[0].pct);
-
-    const flush = () => {
-        if (run.length === 0) return;
-        let d = `M ${run[0].x} ${run[0].y}`;
-        for (let i = 1; i < run.length; i++) d += ` L ${run[i].x} ${run[i].y}`;
-        const fill = `${d} L ${run[run.length - 1].x} 1 L ${run[0].x} 1 Z`;
-        segments.push({ fillPath: fill, strokePath: d, band: runBand });
-    };
-
-    for (let i = 1; i < pts.length; i++) {
-        const band = healthBand(pts[i].pct);
-        if (band !== runBand) {
-            run.push(pts[i]);
-            flush();
-            run = [pts[i]];
-            runBand = band;
-        } else {
-            run.push(pts[i]);
-        }
-    }
-    flush();
-
-    return segments;
 }
 
 export function HealthPanel({ healthPercent, startMs, endMs, downEvents, deathEvents }: HealthPanelProps) {
@@ -98,7 +49,7 @@ export function HealthPanel({ healthPercent, startMs, endMs, downEvents, deathEv
                                 key={`stroke-${i}`}
                                 d={seg.strokePath}
                                 fill="none"
-                                style={{ stroke: STATUS_COLORS[seg.band] }}
+                                style={{ stroke: 'var(--axi-ground)' }}
                                 strokeWidth={0.02}
                                 vectorEffect="non-scaling-stroke"
                             />
