@@ -10,10 +10,10 @@ export function HistoryView() {
 
     if (sessionHistory.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center h-full gap-4 text-[color:var(--text-muted)]">
+            <div className="flex flex-col items-center justify-center h-full gap-4 text-[color:var(--axi-text-faint)]">
                 <Clock3 className="w-12 h-12 opacity-30" />
                 <div className="text-center">
-                    <p className="text-sm font-medium text-[color:var(--text-secondary)]">Session History</p>
+                    <p className="text-sm font-medium text-[color:var(--axi-text-dim)]">Session History</p>
                     <p className="text-xs mt-1">Past fights from this session will appear here</p>
                 </div>
             </div>

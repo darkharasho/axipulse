@@ -177,6 +177,19 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
     box-shadow: var(--axi-offset-control-hover) var(--axi-offset-control-hover) 0 var(--axi-ink-line);
 }
 
+/* A history entry is a short list of things you act on (R8's counterpart),
+   so it stays a card, not a table row. It is itself a <button> that loads a
+   session, so the hover lift is legitimate per R4. */
+.ap-history-entry {
+    background: var(--axi-surface);
+    border: var(--axi-border-control) solid var(--axi-ink-line);
+    transition: transform var(--ap-duration-fast) ease, box-shadow var(--ap-duration-fast) ease;
+}
+.ap-history-entry:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: var(--axi-offset-control) var(--axi-offset-control) 0 var(--axi-ink-line);
+}
+
 /* --- reduced motion --- */
 
 @media (prefers-reduced-motion: reduce) {

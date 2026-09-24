@@ -11,22 +11,18 @@ export function HistoryEntry({ entry, isActive, isCurrent, onClick }: HistoryEnt
     return (
         <button
             onClick={onClick}
-            className={`w-full text-left px-3 py-2.5 rounded transition-colors ${
-                isActive ? 'ring-1 ring-[color:var(--accent-border)]' : ''
-            }`}
+            className="ap-history-entry w-full text-left px-3 py-2.5"
             style={{
-                background: isActive ? 'var(--accent-bg)' : isCurrent ? 'rgba(16, 185, 129, 0.06)' : 'var(--bg-card)',
-                borderLeft: isCurrent ? '2px solid var(--brand-primary)' : '2px solid transparent',
+                background: isActive ? 'var(--axi-accent)' : 'var(--axi-surface)',
+                color: isActive ? 'var(--axi-accent-ink)' : undefined,
+                borderColor: isCurrent ? 'var(--axi-accent)' : undefined,
             }}
         >
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <span className="text-xs font-medium text-[color:var(--text-primary)]">{entry.fightLabel}</span>
                     {isCurrent && (
-                        <span
-                            className="text-[9px] font-semibold px-1.5 py-0.5 rounded"
-                            style={{ color: 'var(--brand-primary)', background: 'var(--accent-bg)', border: '1px solid var(--accent-border)' }}
-                        >
+                        <span className="axi-chip">
                             Latest
                         </span>
                     )}
