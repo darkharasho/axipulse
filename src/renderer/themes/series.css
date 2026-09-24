@@ -1,1 +1,50 @@
-/* populated in Task 3 */
+/* Domain palettes — the one file in this app permitted colour literals.
+   RULES.md rule 10: "a profession, a team, a map colour is domain data…
+   it is the data's colour rather than the system's."
+
+   These are FIXED. They are deliberately not recoloured by the accent: a
+   Necromancer is green in Guild Wars 2 regardless of what the app's chrome
+   is wearing. The accent drives chrome only — frame, legend, overlay
+   panels, landmarks, selection highlight. */
+
+:root {
+    /* --- profession (GW2 official colours) --- */
+    --axi-series-prof-guardian: #72C1D9;
+    --axi-series-prof-revenant: #D16E5A;
+    --axi-series-prof-warrior: #FFD166;
+    --axi-series-prof-engineer: #D09C59;
+    --axi-series-prof-ranger: #8CDC82;
+    --axi-series-prof-thief: #C08F95;
+    --axi-series-prof-elementalist: #F68A87;
+    --axi-series-prof-mesmer: #B679D5;
+    --axi-series-prof-necromancer: #52A76F;
+    --axi-series-prof-unknown: #64748B;
+
+    /* --- categorical ramp: distinguish N series in one chart --- */
+    --axi-series-1: #a78bfa;
+    --axi-series-2: #34d399;
+    --axi-series-3: #f59e0b;
+    --axi-series-4: #60a5fa;
+    --axi-series-5: #f472b6;
+    --axi-series-6: #fb923c;
+    --axi-series-7: #4ade80;
+    --axi-series-8: #e879f9;
+    --axi-series-9: #38bdf8;
+    --axi-series-10: #fbbf24;
+
+    /* --- timeline metrics ---
+       Deliberately NOT mapped onto --axi-ok/-warn/-danger even where it is
+       tempting (health→ok, damage-dealt→danger). Rule 5: a filled status
+       ink asserts state. Spending those three inks on chart series would
+       make every chart read as an alarm. */
+    --axi-series-metric-health: #10b981;
+    --axi-series-metric-damage-dealt: #ef4444;
+    --axi-series-metric-damage-taken: #f87171;
+    --axi-series-metric-distance-to-tag: #f59e0b;
+    --axi-series-metric-incoming-healing: #4ade80;
+    --axi-series-metric-incoming-barrier: #a78bfa;
+    --axi-series-metric-offensive-boons: #60a5fa;
+    --axi-series-metric-defensive-boons: #38bdf8;
+    --axi-series-metric-hard-cc: #f43f5e;
+    --axi-series-metric-soft-cc: #c084fc;
+}

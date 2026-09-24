@@ -1,61 +1,10 @@
 // src/shared/professionUtils.ts
-export const PROFESSION_COLORS: Record<string, string> = {
-    'Guardian': '#72C1D9',
-    'Dragonhunter': '#72C1D9',
-    'Firebrand': '#72C1D9',
-    'Willbender': '#72C1D9',
-    'Luminary': '#72C1D9',
-
-    'Revenant': '#D16E5A',
-    'Herald': '#D16E5A',
-    'Renegade': '#D16E5A',
-    'Vindicator': '#D16E5A',
-    'Conduit': '#D16E5A',
-
-    'Warrior': '#FFD166',
-    'Berserker': '#FFD166',
-    'Spellbreaker': '#FFD166',
-    'Bladesworn': '#FFD166',
-    'Paragon': '#FFD166',
-
-    'Engineer': '#D09C59',
-    'Scrapper': '#D09C59',
-    'Holosmith': '#D09C59',
-    'Mechanist': '#D09C59',
-    'Amalgam': '#D09C59',
-
-    'Ranger': '#8CDC82',
-    'Druid': '#8CDC82',
-    'Soulbeast': '#8CDC82',
-    'Untamed': '#8CDC82',
-    'Galeshot': '#8CDC82',
-
-    'Thief': '#C08F95',
-    'Daredevil': '#C08F95',
-    'Deadeye': '#C08F95',
-    'Specter': '#C08F95',
-    'Antiquary': '#C08F95',
-
-    'Elementalist': '#F68A87',
-    'Tempest': '#F68A87',
-    'Weaver': '#F68A87',
-    'Catalyst': '#F68A87',
-    'Evoker': '#F68A87',
-
-    'Mesmer': '#B679D5',
-    'Chronomancer': '#B679D5',
-    'Mirage': '#B679D5',
-    'Virtuoso': '#B679D5',
-    'Troubadour': '#B679D5',
-
-    'Necromancer': '#52A76F',
-    'Reaper': '#52A76F',
-    'Scourge': '#52A76F',
-    'Harbinger': '#52A76F',
-    'Ritualist': '#52A76F',
-
-    'Unknown': '#64748B',
-};
+//
+// The 51 profession/elite-spec names collapse onto ten base professions, so
+// there are ten colours, not 51. Those colours are GW2 domain data - rule 10
+// of the axi-design spec - and live as fixed tokens in
+// src/renderer/themes/series.css; they are NOT recoloured by the accent.
+// This module names the token; it never names the colour.
 
 const PROFESSION_BASE: Record<string, string> = {
     Guardian: 'Guardian', Dragonhunter: 'Guardian', Firebrand: 'Guardian', Willbender: 'Guardian', Luminary: 'Guardian',
@@ -70,11 +19,29 @@ const PROFESSION_BASE: Record<string, string> = {
     Unknown: 'Unknown',
 };
 
+// The ten bases that have a token in series.css. An unrecognised name - a
+// future elite spec, an empty string - must land here rather than produce
+// `var(--axi-series-prof-)`, which computes to nothing and renders black.
+const TOKENED_BASES = new Set([
+    'Guardian', 'Revenant', 'Warrior', 'Engineer', 'Ranger',
+    'Thief', 'Elementalist', 'Mesmer', 'Necromancer', 'Unknown',
+]);
+
 export function getProfessionBase(profession: string): string {
     if (!profession) return 'Unknown';
     return PROFESSION_BASE[profession] ?? profession;
 }
 
 export function getProfessionColor(profession: string): string {
-    return PROFESSION_COLORS[profession] ?? PROFESSION_COLORS['Unknown'];
+    const base = getProfessionBase(profession);
+    const known = TOKENED_BASES.has(base) ? base : 'Unknown';
+    return `var(--axi-series-prof-${known.toLowerCase()})`;
+}
+
+// Membership test only - "is this a recognised profession/elite-spec name",
+// with no colour involved. classIconUtils.ts used PROFESSION_COLORS[profession]
+// this way before the colour map moved to CSS tokens; PROFESSION_BASE carries
+// the exact same key set, so this predicate preserves that truth table.
+export function isKnownProfession(profession: string): boolean {
+    return profession in PROFESSION_BASE;
 }
