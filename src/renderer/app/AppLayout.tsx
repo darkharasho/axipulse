@@ -42,10 +42,14 @@ export function AppLayout() {
         // value fetched before the click. The snapshot settles that race in
         // the user's favour: only adopt the disk value if nothing changed.
         const accentAtMount = useAppStore.getState().accentId;
+        const surfaceAtMount = useAppStore.getState().surfaceId;
         window.electronAPI?.getSettings().then(s => {
             if (s.logDirectory) useAppStore.getState().setLogDirectory(s.logDirectory);
             if (useAppStore.getState().accentId === accentAtMount) {
                 useAppStore.getState().setAccentId(s.accentId);
+            }
+            if (useAppStore.getState().surfaceId === surfaceAtMount) {
+                useAppStore.getState().setSurfaceId(s.surfaceId);
             }
         });
         window.electronAPI?.getAppVersion().then((v: string) => setAppVersion(v));

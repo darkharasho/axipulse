@@ -146,10 +146,11 @@ function setupIpcHandlers(): void {
             logDirectory: store.get('logDirectory', '') as string,
             devMinFileSize: store.get('devMinFileSize', 0) as number,
             accentId: store.get('accentId', 'emerald-mint') as string,
+            surfaceId: store.get('surfaceId', 'axi') as string,
         };
     });
 
-    ipcMain.on('save-settings', (_event, settings: { logDirectory?: string; devMinFileSize?: number; accentId?: string }) => {
+    ipcMain.on('save-settings', (_event, settings: { logDirectory?: string; devMinFileSize?: number; accentId?: string; surfaceId?: string }) => {
         if (settings.logDirectory !== undefined) {
             store.set('logDirectory', settings.logDirectory);
         }
@@ -158,6 +159,9 @@ function setupIpcHandlers(): void {
         }
         if (settings.accentId !== undefined) {
             store.set('accentId', settings.accentId);
+        }
+        if (settings.surfaceId !== undefined) {
+            store.set('surfaceId', settings.surfaceId);
         }
     });
 

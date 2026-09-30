@@ -2,7 +2,10 @@
 import { create } from 'zustand';
 import type { PlayerFightData, FightHistoryEntry } from '../shared/types';
 import { resolveAccentId } from './themes/accents';
-import { applyTheme, readStoredAccentId } from './themes/applyTheme';
+import {
+    applyTheme, readStoredAccentId,
+    applySurface, readStoredSurfaceId, resolveSurfaceId, type SurfaceId,
+} from './themes/applyTheme';
 
 export type View = 'pulse' | 'timeline' | 'map' | 'history' | 'settings';
 export type PulseSubview = 'overview' | 'damage' | 'support' | 'defense' | 'boons';
@@ -86,6 +89,9 @@ interface AppState {
 
     accentId: string;
     setAccentId: (id: string) => void;
+
+    surfaceId: SurfaceId;
+    setSurfaceId: (id: string) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -170,4 +176,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     accentId: resolveAccentId(readStoredAccentId()),
     setAccentId: (id) => set({ accentId: applyTheme(id) }),
+
+    surfaceId: resolveSurfaceId(readStoredSurfaceId()),
+    setSurfaceId: (id) => set({ surfaceId: applySurface(id) }),
 }));

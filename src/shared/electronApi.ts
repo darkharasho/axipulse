@@ -26,8 +26,8 @@ export interface ElectronAPI {
      *  axilog cutover it was `unknown` and the renderer cast it. */
     onParseComplete: (callback: (data: { logId: string; logPath: string; data: ReportV1 }) => void) => () => void;
     onParseError: (callback: (data: { logId: string; logPath: string; error: string }) => void) => () => void;
-    getSettings: () => Promise<{ logDirectory: string; devMinFileSize: number; accentId: string }>;
-    saveSettings: (settings: { logDirectory?: string; devMinFileSize?: number; accentId?: string }) => void;
+    getSettings: () => Promise<{ logDirectory: string; devMinFileSize: number; accentId: string; surfaceId: string }>;
+    saveSettings: (settings: { logDirectory?: string; devMinFileSize?: number; accentId?: string; surfaceId?: string }) => void;
     getAppVersion: () => Promise<string>;
     openExternal: (url: string) => Promise<void>;
     getReleaseNotes: (version: string, lastSeenVersion?: string | null) => Promise<{ source: 'github' | 'bundled' | 'none'; markdown: string | null }>;
