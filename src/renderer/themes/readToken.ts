@@ -6,9 +6,10 @@
 // attributes. Everywhere else - every style={{}} object, every CSS rule -
 // use var() directly.
 //
-// Series tokens are accent-independent and may be read once at module scope.
-// Chrome tokens (--axi-accent, --axi-text-faint, ...) change with the
-// accent, so a component reading one must re-read when the accent changes.
+// Series tokens are accent-independent and surface-independent, and may be
+// read once at module scope. Chrome tokens (--axi-accent, --axi-text-faint,
+// ...) change with the accent or the surface, so a component reading one
+// must re-read when either changes.
 export function readToken(name: string, fallback = 'currentColor'): string {
     const value = getComputedStyle(document.documentElement)
         .getPropertyValue(name)
