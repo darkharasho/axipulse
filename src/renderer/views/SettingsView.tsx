@@ -4,6 +4,7 @@ import { useAppStore } from '../store';
 import { FolderOpen, CheckCircle, AlertCircle, Loader2, Dices, ExternalLink, Stethoscope } from 'lucide-react';
 import { TroubleshootModal } from './TroubleshootModal';
 import { ACCENTS } from '../themes/accents';
+import { SURFACES } from '../themes/applyTheme';
 
 const IS_DEV = import.meta.env.DEV;
 
@@ -54,6 +55,8 @@ export function SettingsView() {
     const requestWhatsNew = useAppStore(s => s.requestWhatsNew);
     const accentId = useAppStore(s => s.accentId);
     const setAccentId = useAppStore(s => s.setAccentId);
+    const surfaceId = useAppStore(s => s.surfaceId);
+    const setSurfaceId = useAppStore(s => s.setSurfaceId);
     const [devMinFileSize, setDevMinFileSize] = useState<number>(0);
     const [debugParsing, setDebugParsing] = useState(false);
     const [debugResult, setDebugResult] = useState<{ ok: boolean; msg: string } | null>(null);
@@ -137,6 +140,29 @@ export function SettingsView() {
                                     window.electronAPI?.saveSettings({ accentId: a.id });
                                 }}
                             />
+                        ))}
+                    </div>
+                </SectionCard>
+
+                {/* Surface */}
+                <SectionCard label="Surface">
+                    <div className="flex flex-wrap gap-2">
+                        {SURFACES.map((s) => (
+                            <button
+                                key={s.id}
+                                type="button"
+                                aria-pressed={s.id === surfaceId}
+                                className={`axi-btn axi-btn--sm${s.id === surfaceId ? ' axi-btn--primary' : ''}`}
+                                onClick={() => {
+                                    // setSurfaceId applies and mirrors via the
+                                    // store; calling applySurface here too would
+                                    // double the crossfade.
+                                    setSurfaceId(s.id);
+                                    window.electronAPI?.saveSettings({ surfaceId: s.id });
+                                }}
+                            >
+                                {s.label}
+                            </button>
                         ))}
                     </div>
                 </SectionCard>
