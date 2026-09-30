@@ -237,7 +237,7 @@ describe('the whole renderer obeys the axi-design contract', () => {
 // with no lazy() anywhere), so every one of those module bodies runs the
 // instant `import App from './App.tsx'` is evaluated.
 //
-// If that App import is ever moved back ABOVE the four CSS imports, those
+// If that App import is ever moved back ABOVE the six CSS imports, those
 // module bodies run before any stylesheet exists and every readToken call
 // reachable from them silently resolves to its 'currentColor' fallback -
 // chart series, profession colours, timeline inks, all flattened to one ink.
@@ -248,7 +248,7 @@ describe('the whole renderer obeys the axi-design contract', () => {
 // regardless of import order. Only `npm run dev` is broken, and only a human
 // looking at the screen would notice. This test is the only automated guard.
 describe('main.tsx loads its stylesheets before the app', () => {
-    it('imports all four stylesheets ahead of App', () => {
+    it('imports all six stylesheets ahead of App', () => {
         const main = readFileSync(resolve('src/renderer/main.tsx'), 'utf8');
         const lines = stripLineComments(stripComments(main)).split('\n');
 
@@ -261,6 +261,7 @@ describe('main.tsx loads its stylesheets before the app', () => {
         const app = lineOf(/from\s+['"]\.\/App(\.tsx)?['"]/);
 
         for (const sheet of [/axi-design\/axi\.css/, /axi-design\/accents\.css/,
+            /axi-design\/themes\/flat\.css/, /axi-design\/themes\/glass\.css/,
             /['"]\.\/index\.css['"]/, /['"]\.\/themes\/series\.css['"]/]) {
             expect(lineOf(sheet), `${sheet} must be imported before App`).toBeLessThan(app);
         }
