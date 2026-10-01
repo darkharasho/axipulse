@@ -100,7 +100,11 @@ export function BoonsSubview({ data }: { data: PlayerFightData }) {
                     >
                         <table className="w-full text-sm">
                             <thead>
-                                <tr style={{ background: 'var(--axi-ground)' }}>
+                                {/* A table head is raised off the panel it is in, not a
+                                    hole through to the page: --axi-surface-raised is the
+                                    token for it, and unlike --axi-ground it stays a step
+                                    above the surface under a translucent theme. */}
+                                <tr style={{ background: 'var(--axi-surface-raised)' }}>
                                     <th className="text-left font-medium px-3 py-2 text-[color:var(--axi-text-faint)]">Boon</th>
                                     <th className="text-right font-medium px-3 py-2 text-[color:var(--axi-text-faint)]">Self</th>
                                     <th className="text-right font-medium px-3 py-2 text-[color:var(--axi-text-faint)]">Group</th>

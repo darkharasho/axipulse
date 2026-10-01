@@ -116,13 +116,13 @@ const mdComponents = {
     li: ({ children }: { children?: ReactNode }) => <li className="leading-relaxed">{children}</li>,
     code: ({ children }: { children?: ReactNode }) => (
         <code className="px-1 py-0.5 text-[0.85em]"
-            style={{ background: 'var(--axi-ground)', border: 'var(--axi-border-hairline) solid var(--axi-ink-line)', color: 'var(--axi-text)' }}>
+            style={{ background: 'var(--axi-well-fill)', border: 'var(--axi-border-hairline) solid var(--axi-ink-line)', color: 'var(--axi-text)' }}>
             {children}
         </code>
     ),
     pre: ({ children }: { children?: ReactNode }) => (
         <pre className="overflow-x-auto px-3 py-2 my-2 text-[0.85em]"
-            style={{ background: 'var(--axi-ground)', border: 'var(--axi-border-control) solid var(--axi-ink-line)', color: 'var(--axi-text)' }}>
+            style={{ background: 'var(--axi-well-fill)', border: 'var(--axi-border-control) solid var(--axi-ink-line)', color: 'var(--axi-text)' }}>
             {children}
         </pre>
     ),

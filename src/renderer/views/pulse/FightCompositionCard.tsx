@@ -136,7 +136,12 @@ export function FightCompositionCard({ composition, isSupport }: { composition: 
                                     <div
                                         key={spec}
                                         className="flex items-center gap-1 text-[10px] px-1.5 py-0.5"
-                                        style={{ background: 'var(--axi-ground)', border: `var(--axi-border-control) solid ${getProfessionColor(spec)}` }}
+                                        // A chip raised off the card it sits on, so
+                                        // --axi-surface-raised (tokens.css: "a chip, a hover, a
+                                        // table head"). It was --axi-ground, which is the page
+                                        // and is opaque under every theme - a black tile on
+                                        // glass's translucent card.
+                                        style={{ background: 'var(--axi-surface-raised)', border: `var(--axi-border-control) solid ${getProfessionColor(spec)}` }}
                                     >
                                         {iconUrl
                                             ? <img src={iconUrl} alt={spec} width={14} height={14} />

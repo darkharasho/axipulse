@@ -97,7 +97,7 @@ export function TimelineBoonLane({ label, color, buffs, durationMs }: TimelineBo
             <div className="w-[90px] text-right pr-2.5 text-[10px] font-medium shrink-0" style={{ color }}>{label}</div>
             <div
                 className="flex-1 h-full relative overflow-hidden"
-                style={{ background: 'var(--axi-ground)', border: 'var(--axi-border-control) solid var(--axi-ink-line)', padding: '2px 0' }}
+                style={{ background: 'var(--axi-well-fill)', border: 'var(--axi-border-control) solid var(--axi-ink-line)', padding: '2px 0' }}
             >
                 {buffEntries.length === 0 && (
                     <div className="flex items-center justify-center h-full">

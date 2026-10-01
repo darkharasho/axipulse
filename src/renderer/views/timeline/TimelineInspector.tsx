@@ -25,9 +25,21 @@ export function TimelineInspector({ data, selection, topDamageTakenSkills, isFul
     return (
         <div>
             <div className="my-3 relative" style={{ borderTop: 'var(--axi-border-hairline) solid var(--axi-ink-line)' }}>
+                {/* This label is a knockout: it paints over the hairline rule behind
+                    it so the text sits in a gap in the line, and the timeline view is
+                    laid out straight on the page, so the colour it knocks out IS the
+                    page. Longhands rather than the `background` shorthand, which would
+                    reset background-image to none and drop a theme's atmosphere layer,
+                    leaving an opaque patch over the gradient; `fixed` attachment
+                    matches body's, so the light lines up instead of restarting here. */}
                 <span
                     className="absolute top-[-8px] left-1/2 -translate-x-1/2 px-3 text-[9px] tracking-wider"
-                    style={{ background: 'var(--axi-ground)', color: 'var(--axi-accent)' }}
+                    style={{
+                        backgroundColor: 'var(--axi-ground)',
+                        backgroundImage: 'var(--axi-ground-image)',
+                        backgroundAttachment: 'fixed',
+                        color: 'var(--axi-accent)',
+                    }}
                 >
                     {label}
                 </span>

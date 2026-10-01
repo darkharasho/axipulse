@@ -440,7 +440,12 @@ export function MovementView() {
                                 ? Math.round(Math.hypot(memberPos[0] - commanderPos[0], memberPos[1] - commanderPos[1]) / inchToPixel)
                                 : null;
                             return (
-                                <div key={member.account} className="flex flex-col gap-1.5 px-2.5 py-2" style={{ background: 'var(--axi-ground)' }}>
+                                // A recess cut into the party panel (--axi-surface) above, so
+                                // --axi-well-fill. It was --axi-ground, which is the page: the
+                                // two are the same colour under the default theme, but the page
+                                // is opaque under every theme, so a glass panel would have held
+                                // a column of solid black cards.
+                                <div key={member.account} className="flex flex-col gap-1.5 px-2.5 py-2" style={{ background: 'var(--axi-well-fill)' }}>
                                     <div className="flex items-center gap-2">
                                         {iconUrl ? (
                                             <img src={iconUrl} alt="" className="w-5 h-5" />
@@ -453,9 +458,14 @@ export function MovementView() {
                                         {panelDist != null && (
                                             <span
                                                 className="text-[9px] tabular-nums px-1 font-semibold"
+                                                // Ink written ON a saturated status fill is
+                                                // --axi-ink-on-fill, never --axi-ink-line:
+                                                // --axi-ink-line is the OUTLINE colour, and flat
+                                                // and glass relight it to a translucent white,
+                                                // which washed this number out on its own red.
                                                 style={{
                                                     background: panelDist > 600 ? 'var(--axi-danger)' : panelDist > 300 ? 'var(--axi-warn)' : 'var(--axi-ok)',
-                                                    color: 'var(--axi-ink-line)',
+                                                    color: 'var(--axi-ink-on-fill)',
                                                 }}
                                             >
                                                 {panelDist}
@@ -495,13 +505,13 @@ export function MovementView() {
                                                         {boon?.icon ? (
                                                             <img src={boon.icon} alt="" className="w-full h-full" />
                                                         ) : (
-                                                            // One elevation step above the (ground-toned) card, so it
+                                                            // One elevation step above the (well-toned) card, so it
                                                             // reads as a tile sitting on the card.
                                                             <div className="w-full h-full" style={{ background: 'var(--axi-surface)' }} />
                                                         )}
                                                         {stacks > 1 && (
                                                             // A chip raised off the tile/card beneath it (surface-raised
-                                                            // is one step above both --axi-ground, the card, and
+                                                            // is one step above both --axi-well-fill, the card, and
                                                             // --axi-surface, the iconless placeholder tile above), or
                                                             // the count would sit at the same value as whatever is
                                                             // directly behind it and disappear.

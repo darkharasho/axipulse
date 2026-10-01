@@ -115,10 +115,17 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
    app-wide, so a 6px track with a 2px hairline border leaves only a 2px
    content box for the fill - a 95% bar and a 40% bar both render as
    slivers. Raised to 10px so the fill is legible at any percentage without
-   a per-call-site height override. */
+   a per-call-site height override.
+
+   The track is --axi-well-fill and not --axi-ground: a meter is a recess cut
+   into whatever panel carries it, and --axi-ground is the page. The two are
+   byte-identical under the default theme, which is why the wrong one read as
+   right - but glass restates --axi-well-fill as a translucent darkening while
+   --axi-ground stays opaque, so the page colour here would have rendered every
+   bar as a black tile floating on a translucent pane. */
 .ap-meter {
     height: 10px;
-    background: var(--axi-ground);
+    background: var(--axi-well-fill);
     border: var(--axi-border-hairline) solid var(--axi-ink-line);
     overflow: hidden;
 }
@@ -162,13 +169,21 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
    switches between live inside a view that is already inside a panel, so it
    takes the control weight, not the panel weight. The active segment is a
    solid fill (R5's status branch: it reads which one is on) rather than the
-   translucent gradient it replaces. */
+   translucent gradient it replaces.
+
+   The trough is --axi-well-fill, not --axi-ground. A segmented control is
+   allowed to keep the page colour where its inactive trough is meant to read
+   as a hole punched through to the page - but this one is not on the page: by
+   the comment above it sits inside a view that is already inside a panel, so
+   there is no page behind it to be a hole through to. It is a recess in a
+   surface, which is what --axi-well-fill names, and which glass restates as a
+   translucent darkening for exactly this case. */
 .ap-capsule {
     display: inline-flex;
     align-items: center;
     gap: 1px;
     padding: 3px;
-    background: var(--axi-ground);
+    background: var(--axi-well-fill);
     border: var(--axi-border-control) solid var(--axi-ink-line);
 }
 
@@ -351,11 +366,19 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
    and always measures 0x0, so the flip never fires and the tooltip runs off
    the plot on right-hand buckets. Do not "simplify" this back to
    .axi-tooltip - fixed positioning is that class's contract, load-bearing
-   for the portaled component appended to document.body. */
+   for the portaled component appended to document.body.
+
+   The fill is --axi-ground-deep, matching .axi-tooltip, and NOT
+   --axi-ink-line. They hold the same value under the default theme, which is
+   the whole reason the conflation survived: one is the colour an edge is drawn
+   IN, the other the colour a chrome shape is made OF. flat and glass relight
+   --axi-ink-line to a translucent white, so spelling it here turned the
+   tooltip into a pale box carrying --axi-text - the exact failure tokens.css
+   predicts where it splits the two names. */
 .ap-chart-tooltip {
     position: static;
     padding: 5px 8px;
-    background: var(--axi-ink-line);
+    background: var(--axi-ground-deep);
     color: var(--axi-text);
     border: var(--axi-border-hairline) solid var(--axi-rule);
     font: var(--axi-t-micro);

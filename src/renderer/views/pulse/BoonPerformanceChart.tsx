@@ -135,10 +135,18 @@ function ChartBody({
     const tickColor = useMemo(() => readToken('--axi-text-faint'), [accentId, surfaceId]);
     const ruleColor = useMemo(() => readToken('--axi-rule'), [accentId, surfaceId]);
     const controlLineColor = useMemo(() => readToken('--axi-ink-line'), [accentId, surfaceId]);
-    // --axi-surface, not --axi-ground: the ground colour is near-identical
-    // to the ink-line outline, which left the brush control almost
-    // contrastless against its own border.
-    const brushFillColor = useMemo(() => readToken('--axi-surface'), [accentId, surfaceId]);
+    // --axi-surface-paint, not --axi-ground: the ground colour is
+    // near-identical to the ink-line outline, which left the brush control
+    // almost contrastless against its own border - and not plain
+    // --axi-surface either, because a surface token is allowed to hold a
+    // GRADIENT (both flat.css and glass.css put a linear-gradient in it) and
+    // recharts forwards this straight to the SVG `fill` attribute, which takes
+    // <paint> and not <image>. An invalid fill is dropped at computed-value
+    // time and `fill` inherits, so the failure is silent: the brush would adopt
+    // its ancestor's paint under every theme but the default one.
+    // --axi-surface-paint is that surface reduced to one flat colour, which is
+    // the reason the token exists.
+    const brushFillColor = useMemo(() => readToken('--axi-surface-paint'), [accentId, surfaceId]);
     const dangerColor = useMemo(() => readToken('--axi-danger'), [accentId, surfaceId]);
     const warnColor = useMemo(() => readToken('--axi-warn'), [accentId, surfaceId]);
     const textColor = useMemo(() => readToken('--axi-text'), [accentId, surfaceId]);

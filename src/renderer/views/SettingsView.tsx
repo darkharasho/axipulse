@@ -109,7 +109,7 @@ export function SettingsView() {
                 <SectionCard label="Log Directory">
                     <div className="flex items-center gap-2">
                         <div className="flex-1 px-2.5 py-1.5 text-[11px] truncate font-mono min-w-0"
-                            style={{ background: 'var(--axi-ground)', color: logDirectory ? 'var(--axi-text)' : 'var(--axi-text-faint)', border: 'var(--axi-border-control) solid var(--axi-ink-line)' }}>
+                            style={{ background: 'var(--axi-well-fill)', color: logDirectory ? 'var(--axi-text)' : 'var(--axi-text-faint)', border: 'var(--axi-border-control) solid var(--axi-ink-line)' }}>
                             {logDirectory || 'Not configured'}
                         </div>
                         <Btn onClick={handleBrowse} variant="primary">
