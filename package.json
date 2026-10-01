@@ -1,7 +1,7 @@
 {
   "name": "axipulse",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "AxiPulse - Personal GW2 Combat Analysis Dashboard",
   "author": {
     "name": "darkharasho",

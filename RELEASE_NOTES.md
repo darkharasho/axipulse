@@ -1,5 +1,20 @@
 # Release Notes
 
+Version v0.4.0 — October 1, 2026
+
+## Pick how AxiPulse looks
+
+Settings has a new **Surface** control beside the accent picker, with three choices. **Axi** is the look AxiPulse shipped in 0.3.0 — flat and outlined, square corners, hard offset blocks instead of blurred shadows — and it stays the default, so nothing changes unless you go looking. **Flat** keeps those shapes but rounds the corners and uses real shadows. **Glass** makes panels translucent, with depth and blur behind them.
+
+Your choice sticks between launches, and switching it repaints everything at once — panels, buttons, the title bar, the charts.
+
+## Fixes
+
+- The Boon Performance chart kept the colours of whichever surface was active when it first drew. It now repaints with the rest of the app when you switch surfaces.
+- The window controls sit on the title bar strip at full height instead of hanging off the status group, where they came out short and misaligned.
+- On Flat and Glass the window's rounded corners are now actually round; the page used to paint square corners over them.
+- Recessed areas are filled with the surface's own recess colour rather than the page colour, so wells read as wells on all three.
+
 Version v0.3.0 — September 24, 2026
 
 ## AxiPulse has a new look
