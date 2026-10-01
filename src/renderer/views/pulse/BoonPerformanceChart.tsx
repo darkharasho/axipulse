@@ -128,7 +128,7 @@ function ChartBody({
     // Chrome tokens read under the same accent-or-surface dependency as
     // selfColor - --axi-danger/-warn don't themselves move with either, but
     // one rule for every token read in this file is simpler than reasoning
-    // about which ones do. The other five (surface, rule, ink-line,
+    // about which ones do. The other five (surface-paint, rule, ink-line,
     // text-faint, text) are restated by both flat.css and glass.css, so
     // missing the surfaceId dependency here would leave the chart painted in
     // the previous surface's colours until the accent next changed.
