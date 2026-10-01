@@ -15,7 +15,7 @@ export function TimelineLane({ label, color, data, domainMs }: TimelineLaneProps
                 <div className="w-[90px] text-right pr-2.5 text-[10px] font-medium" style={{ color }}>{label}</div>
                 <div
                     className="flex-1 h-full flex items-center justify-center"
-                    style={{ background: 'var(--axi-ground)', border: 'var(--axi-border-control) solid var(--axi-ink-line)' }}
+                    style={{ background: 'var(--axi-well-fill)', border: 'var(--axi-border-control) solid var(--axi-ink-line)' }}
                 >
                     <span className="text-[8px]" style={{ color: 'var(--axi-text-faint)' }}>No data</span>
                 </div>
@@ -49,7 +49,7 @@ export function TimelineLane({ label, color, data, domainMs }: TimelineLaneProps
             <div className="w-[90px] text-right pr-2.5 text-[10px] font-medium shrink-0" style={{ color }}>{label}</div>
             <div
                 className="flex-1 h-full overflow-hidden"
-                style={{ background: 'var(--axi-ground)', border: 'var(--axi-border-control) solid var(--axi-ink-line)' }}
+                style={{ background: 'var(--axi-well-fill)', border: 'var(--axi-border-control) solid var(--axi-ink-line)' }}
             >
                 <svg width="100%" height="100%" viewBox="0 0 1 1" preserveAspectRatio="none">
                     <path d={fillPath} style={{ fill: color }} />

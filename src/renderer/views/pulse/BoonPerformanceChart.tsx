@@ -10,12 +10,14 @@ import { readToken } from '../../themes/readToken';
 import { SubviewCapsule } from '../../app/SubviewCapsule';
 import Tooltip from '../../components/Tooltip';
 
-// Series tokens are accent-independent (Task 3), so the ramp only needs to
-// be read once - but not at module-evaluation time: this module can be
-// imported (via the static App -> AppLayout -> PulseView -> BoonsSubview
-// chain) before series.css has been evaluated, which would resolve every
-// entry to readToken's 'currentColor' fallback. Lazy + cached avoids
-// depending on import order in a file this one doesn't control.
+// Series tokens are accent-independent (Task 3) and surface-independent
+// (Task 3 rollout): neither flat.css nor glass.css restates any
+// --axi-series-N token, so the ramp only needs to be read once - but not at
+// module-evaluation time: this module can be imported (via the static
+// App -> AppLayout -> PulseView -> BoonsSubview chain) before series.css has
+// been evaluated, which would resolve every entry to readToken's
+// 'currentColor' fallback. Lazy + cached avoids depending on import order in
+// a file this one doesn't control.
 let SERIES: string[] | null = null;
 const getSeries = () => (SERIES ??= Array.from({ length: 10 }, (_, i) => readToken(`--axi-series-${i + 1}`)));
 
@@ -49,10 +51,11 @@ export function BoonPerformanceChart({ performance }: Props) {
     const [showDistance, setShowDistance] = useState(true);
 
     const accentId = useAppStore(s => s.accentId);
+    const surfaceId = useAppStore(s => s.surfaceId);
     // The self series is the app's own colour rather than domain data, so it
-    // tracks the accent - and must re-read when the accent changes, since
-    // readToken reads computed style at call time.
-    const selfColor = useMemo(() => readToken('--axi-accent'), [accentId]);
+    // tracks the accent or surface - and must re-read when either changes,
+    // since readToken reads computed style at call time.
+    const selfColor = useMemo(() => readToken('--axi-accent'), [accentId, surfaceId]);
 
     const breakdown = performance[activeBoon];
 
@@ -121,20 +124,32 @@ function ChartBody({
     showDistance: boolean;
 }) {
     const accentId = useAppStore(s => s.accentId);
-    // Chrome tokens read under the same accentId dependency as selfColor -
-    // --axi-text-faint/-rule/-ink-line/-ground/-warn don't themselves move
-    // with the accent, but one rule for every token read in this file is
-    // simpler than reasoning about which ones do.
-    const tickColor = useMemo(() => readToken('--axi-text-faint'), [accentId]);
-    const ruleColor = useMemo(() => readToken('--axi-rule'), [accentId]);
-    const controlLineColor = useMemo(() => readToken('--axi-ink-line'), [accentId]);
-    // --axi-surface, not --axi-ground: the ground colour is near-identical
-    // to the ink-line outline, which left the brush control almost
-    // contrastless against its own border.
-    const brushFillColor = useMemo(() => readToken('--axi-surface'), [accentId]);
-    const dangerColor = useMemo(() => readToken('--axi-danger'), [accentId]);
-    const warnColor = useMemo(() => readToken('--axi-warn'), [accentId]);
-    const textColor = useMemo(() => readToken('--axi-text'), [accentId]);
+    const surfaceId = useAppStore(s => s.surfaceId);
+    // Chrome tokens read under the same accent-or-surface dependency as
+    // selfColor - --axi-danger/-warn don't themselves move with either, but
+    // one rule for every token read in this file is simpler than reasoning
+    // about which ones do. The other five (surface-paint, rule, ink-line,
+    // text-faint, text) are restated by both flat.css and glass.css, so
+    // missing the surfaceId dependency here would leave the chart painted in
+    // the previous surface's colours until the accent next changed.
+    const tickColor = useMemo(() => readToken('--axi-text-faint'), [accentId, surfaceId]);
+    const ruleColor = useMemo(() => readToken('--axi-rule'), [accentId, surfaceId]);
+    const controlLineColor = useMemo(() => readToken('--axi-ink-line'), [accentId, surfaceId]);
+    // --axi-surface-paint, not --axi-ground: the ground colour is
+    // near-identical to the ink-line outline, which left the brush control
+    // almost contrastless against its own border - and not plain
+    // --axi-surface either, because a surface token is allowed to hold a
+    // GRADIENT (both flat.css and glass.css put a linear-gradient in it) and
+    // recharts forwards this straight to the SVG `fill` attribute, which takes
+    // <paint> and not <image>. An invalid fill is dropped at computed-value
+    // time and `fill` inherits, so the failure is silent: the brush would adopt
+    // its ancestor's paint under every theme but the default one.
+    // --axi-surface-paint is that surface reduced to one flat colour, which is
+    // the reason the token exists.
+    const brushFillColor = useMemo(() => readToken('--axi-surface-paint'), [accentId, surfaceId]);
+    const dangerColor = useMemo(() => readToken('--axi-danger'), [accentId, surfaceId]);
+    const warnColor = useMemo(() => readToken('--axi-warn'), [accentId, surfaceId]);
+    const textColor = useMemo(() => readToken('--axi-text'), [accentId, surfaceId]);
 
     const { data, hasIncomingHeat, partyColorByKey } = useMemo(() => {
         const incomingMax = breakdown.partyIncomingDamage.reduce((m, v) => Math.max(m, v), 0);

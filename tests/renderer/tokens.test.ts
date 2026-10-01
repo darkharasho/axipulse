@@ -59,6 +59,28 @@ const LITERAL_WEIGHT = /(^|[\s(])\d*\.?\d+(px|rem|em|pt)\b/i;
 // they read the var() name a declaration spells, never what it is worth.
 const FORM_TOKEN_DECLARATION = /^(--axi-(border|offset|radius)[a-z0-9-]*)\s*:/i;
 
+// What a box-shadow is allowed to name. The COMPOSED tokens are the spelling
+// every outward block must use: --axi-shadow-* is the one token a theme
+// restates to say what "raised" looks like in its material, so asking for the
+// block by name is what lets flat and glass answer with their soft drop. A
+// hand-assembled `var(--axi-offset-panel) var(--axi-offset-panel) 0
+// var(--axi-ink-line)` is NOT equivalent - it pins the default theme's hard
+// near-black step, and since flat and glass zero the offsets it collapses to
+// no relief at all. This list is the guard against that spelling coming back.
+//
+// The offset tokens stay allowed to exactly one kind of site: a block drawn
+// INWARD (`inset calc(-1 * ...)`), which is .axi-window and nothing else
+// today. The language ships no composed token for an inset block, so that rule
+// has to compose, and it is also the one site where collapsing to nothing
+// under flat and glass is the correct outcome. An OUTWARD shadow naming an
+// offset token is the defect, and the check below rejects it.
+const SHADOW_TOKENS = [
+    '--axi-shadow-control',
+    '--axi-shadow-control-hover',
+    '--axi-shadow-panel',
+    '--axi-shadow-panel-hover',
+];
+
 const OFFSET_TOKENS = [
     '--axi-offset-control',
     '--axi-offset-control-hover',
@@ -81,16 +103,26 @@ describe('src/renderer/index.css obeys the axi-design contract', () => {
         expect(bad).toEqual([]);
     });
 
-    it('draws every box-shadow offset from the four offset tokens, with no blur', () => {
+    it('draws every box-shadow from a composed shadow token, with no blur of its own', () => {
         const bad: string[] = [];
         for (const d of declarations(CSS())) {
             if (!/^box-shadow\s*:/i.test(d.text)) continue;
             const value = valueOf(d.text);
             if (/^\s*(none|inherit|initial|unset)\s*$/i.test(value)) continue;
-            const tokens = [...value.matchAll(/var\(\s*(--axi-offset-[a-z-]+)/g)].map((m) => m[1]);
-            const ok = tokens.length > 0 && tokens.every((t) => OFFSET_TOKENS.includes(t));
+            const tokens = [...value.matchAll(/var\(\s*(--axi-(?:shadow|offset)-[a-z-]+)/g)].map(
+                (m) => m[1],
+            );
+            // `inset` anywhere in the value marks the inward-block exception,
+            // which may compose from the offsets; every other shadow must name
+            // a composed token and must not name an offset at all.
+            const allowed = /\binset\b/.test(value)
+                ? [...SHADOW_TOKENS, ...OFFSET_TOKENS]
+                : SHADOW_TOKENS;
+            const ok = tokens.length > 0 && tokens.every((t) => allowed.includes(t));
             // Any bare length that is not `0` is either a rogue offset or a
-            // blur radius; both are the thing this check exists to catch.
+            // blur radius; both are the thing this check exists to catch. A
+            // theme's own blur lives inside --axi-shadow-*, which this scan
+            // never expands, so flat's and glass's soft drops are unaffected.
             const bareLength = /(^|[\s(])\d*\.?\d+(px|rem|em)\b/i.test(
                 value.replace(/var\([^)]*\)/g, '').replace(/calc\([^)]*\)/g, ''),
             );
@@ -237,7 +269,7 @@ describe('the whole renderer obeys the axi-design contract', () => {
 // with no lazy() anywhere), so every one of those module bodies runs the
 // instant `import App from './App.tsx'` is evaluated.
 //
-// If that App import is ever moved back ABOVE the four CSS imports, those
+// If that App import is ever moved back ABOVE the six CSS imports, those
 // module bodies run before any stylesheet exists and every readToken call
 // reachable from them silently resolves to its 'currentColor' fallback -
 // chart series, profession colours, timeline inks, all flattened to one ink.
@@ -248,7 +280,7 @@ describe('the whole renderer obeys the axi-design contract', () => {
 // regardless of import order. Only `npm run dev` is broken, and only a human
 // looking at the screen would notice. This test is the only automated guard.
 describe('main.tsx loads its stylesheets before the app', () => {
-    it('imports all four stylesheets ahead of App', () => {
+    it('imports all six stylesheets ahead of App', () => {
         const main = readFileSync(resolve('src/renderer/main.tsx'), 'utf8');
         const lines = stripLineComments(stripComments(main)).split('\n');
 
@@ -261,6 +293,7 @@ describe('main.tsx loads its stylesheets before the app', () => {
         const app = lineOf(/from\s+['"]\.\/App(\.tsx)?['"]/);
 
         for (const sheet of [/axi-design\/axi\.css/, /axi-design\/accents\.css/,
+            /axi-design\/themes\/flat\.css/, /axi-design\/themes\/glass\.css/,
             /['"]\.\/index\.css['"]/, /['"]\.\/themes\/series\.css['"]/]) {
             expect(lineOf(sheet), `${sheet} must be imported before App`).toBeLessThan(app);
         }

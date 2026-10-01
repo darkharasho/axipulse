@@ -199,7 +199,7 @@ export function TroubleshootModal({ onClose }: Props) {
                                         )}
                                     </div>
                                     {step.fix && (step.status === 'fail' || step.status === 'warn') && (
-                                        <div className="mt-1.5 flex items-start gap-1.5 text-[11px] px-2 py-1.5" style={{ background: 'var(--axi-ground)', color: 'var(--axi-text-dim)' }}>
+                                        <div className="mt-1.5 flex items-start gap-1.5 text-[11px] px-2 py-1.5" style={{ background: 'var(--axi-well-fill)', color: 'var(--axi-text-dim)' }}>
                                             <ChevronRight className="w-3 h-3 mt-0.5 flex-shrink-0" style={{ color: 'var(--axi-accent)' }} />
                                             <span>{step.fix}</span>
                                         </div>

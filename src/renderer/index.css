@@ -6,7 +6,20 @@
    Frameless-window plumbing and the app's own shapes, under the `ap-`
    prefix. No colour literals: every colour is a token. The one exception in
    this app is themes/series.css, which holds the fixed GW2 domain palettes
-   under rule 10. */
+   under rule 10.
+
+   RAISED FORM IS ASKED FOR BY NAME. Every rule below that lifts something off
+   its background says `box-shadow: var(--axi-shadow-panel)` (or -control, or
+   either -hover) and never hand-assembles that block out of
+   --axi-offset-* + --axi-ink-line. The composed --axi-shadow-* token IS the
+   question "what does raised look like here"; the offsets are only the default
+   theme's answer to it. flat and glass answer with a soft drop and an inset
+   top highlight, and zero the offsets - so a hand-assembled block gave those
+   themes the default theme's hard near-black step, which read as a stray plate
+   behind every card and broke glass's rounded corners. Spelling the composed
+   token is what lets a theme repaint the relief. The one exception is
+   .axi-window below, which draws its block INWARD; there is no composed token
+   for an inset block, and zeroed offsets correctly collapse it to nothing. */
 
 /* --- app-layer timing (no colour, no form) --- */
 
@@ -23,6 +36,16 @@
 
 html, body, #root { height: 100%; width: 100%; }
 body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
+
+/* The window itself is transparent (see createWindow in src/main/index.ts), so
+   .axi-window is the only thing that paints: it carries the ground, the outline
+   and the radius, and its shape is the shape the window should be. The package
+   also paints <body> with the ground, which is right for a page in a browser and
+   wrong for a window shell - body has no radius, so it fills the corners back in
+   behind the shell and the rounding disappears. Longhands rather than the
+   shorthand, so the colour, font and background-attachment the package sets on
+   the same rule are left alone. */
+html, body { background-color: transparent; background-image: none; }
 
 /* A frameless window has nothing behind it for a block to fall onto, so the
    window's offset block is drawn inward. */
@@ -47,6 +70,14 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
 .axi-titlebar__btns button {
     display: grid;
     place-items: center;
+}
+
+/* This strip carries three groups, not the package's two: brand, status, then
+   the window controls. The status group takes the auto margin that pushes it
+   right, so the controls have to give theirs up - two auto margins would split
+   the free space between them and strand the status group mid-bar. */
+.axi-titlebar__btns {
+    margin-left: 0;
 }
 
 /* --- accent crossfade --- */
@@ -102,10 +133,17 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
    app-wide, so a 6px track with a 2px hairline border leaves only a 2px
    content box for the fill - a 95% bar and a 40% bar both render as
    slivers. Raised to 10px so the fill is legible at any percentage without
-   a per-call-site height override. */
+   a per-call-site height override.
+
+   The track is --axi-well-fill and not --axi-ground: a meter is a recess cut
+   into whatever panel carries it, and --axi-ground is the page. The two are
+   byte-identical under the default theme, which is why the wrong one read as
+   right - but glass restates --axi-well-fill as a translucent darkening while
+   --axi-ground stays opaque, so the page colour here would have rendered every
+   bar as a black tile floating on a translucent pane. */
 .ap-meter {
     height: 10px;
-    background: var(--axi-ground);
+    background: var(--axi-well-fill);
     border: var(--axi-border-hairline) solid var(--axi-ink-line);
     overflow: hidden;
 }
@@ -123,7 +161,7 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
     overflow: hidden;
     background: var(--axi-surface);
     border: var(--axi-border-panel) solid var(--axi-ink-line);
-    box-shadow: var(--axi-offset-panel) var(--axi-offset-panel) 0 var(--axi-ink-line);
+    box-shadow: var(--axi-shadow-panel);
 }
 
 /* Rajdhani's actual job here was column alignment in stat tables. Tabular
@@ -149,13 +187,21 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
    switches between live inside a view that is already inside a panel, so it
    takes the control weight, not the panel weight. The active segment is a
    solid fill (R5's status branch: it reads which one is on) rather than the
-   translucent gradient it replaces. */
+   translucent gradient it replaces.
+
+   The trough is --axi-well-fill, not --axi-ground. A segmented control is
+   allowed to keep the page colour where its inactive trough is meant to read
+   as a hole punched through to the page - but this one is not on the page: by
+   the comment above it sits inside a view that is already inside a panel, so
+   there is no page behind it to be a hole through to. It is a recess in a
+   surface, which is what --axi-well-fill names, and which glass restates as a
+   translucent darkening for exactly this case. */
 .ap-capsule {
     display: inline-flex;
     align-items: center;
     gap: 1px;
     padding: 3px;
-    background: var(--axi-ground);
+    background: var(--axi-well-fill);
     border: var(--axi-border-control) solid var(--axi-ink-line);
 }
 
@@ -189,8 +235,8 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
    selected swatch needs an affordance that isn't a hover state (rule 4's
    guard against hover on non-interactive elements does not apply here - the
    swatch is itself a button - but "selected" must still read without a
-   pointer over it), so it takes the same blocked offset a hover lift ends
-   at, permanently, per R4. */
+   pointer over it), so it takes the same raised block a hover lift ends at,
+   permanently, per R4. */
 .ap-swatch {
     width: 26px;
     height: 26px;
@@ -200,14 +246,14 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
 }
 .ap-swatch:hover {
     transform: translate(-2px, -2px);
-    box-shadow: var(--axi-offset-control) var(--axi-offset-control) 0 var(--axi-ink-line);
+    box-shadow: var(--axi-shadow-control);
 }
 .ap-swatch--active {
-    box-shadow: var(--axi-offset-control) var(--axi-offset-control) 0 var(--axi-ink-line);
+    box-shadow: var(--axi-shadow-control);
 }
 .ap-swatch--active:hover {
     transform: translate(-2px, -2px);
-    box-shadow: var(--axi-offset-control-hover) var(--axi-offset-control-hover) 0 var(--axi-ink-line);
+    box-shadow: var(--axi-shadow-control-hover);
 }
 
 /* A history entry is a short list of things you act on (R8's counterpart),
@@ -220,7 +266,7 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
 }
 .ap-history-entry:hover {
     transform: translate(-2px, -2px);
-    box-shadow: var(--axi-offset-control) var(--axi-offset-control) 0 var(--axi-ink-line);
+    box-shadow: var(--axi-shadow-control);
 }
 /* The row asserts selection with a solid accent fill (rule 5), so every
    text node inside it has to switch to the ink that pairs with that fill.
@@ -338,11 +384,19 @@ body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; }
    and always measures 0x0, so the flip never fires and the tooltip runs off
    the plot on right-hand buckets. Do not "simplify" this back to
    .axi-tooltip - fixed positioning is that class's contract, load-bearing
-   for the portaled component appended to document.body. */
+   for the portaled component appended to document.body.
+
+   The fill is --axi-ground-deep, matching .axi-tooltip, and NOT
+   --axi-ink-line. They hold the same value under the default theme, which is
+   the whole reason the conflation survived: one is the colour an edge is drawn
+   IN, the other the colour a chrome shape is made OF. flat and glass relight
+   --axi-ink-line to a translucent white, so spelling it here turned the
+   tooltip into a pale box carrying --axi-text - the exact failure tokens.css
+   predicts where it splits the two names. */
 .ap-chart-tooltip {
     position: static;
     padding: 5px 8px;
-    background: var(--axi-ink-line);
+    background: var(--axi-ground-deep);
     color: var(--axi-text);
     border: var(--axi-border-hairline) solid var(--axi-rule);
     font: var(--axi-t-micro);

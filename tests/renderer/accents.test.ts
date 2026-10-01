@@ -3,8 +3,8 @@ import { ACCENTS, DEFAULT_ACCENT_ID, resolveAccentId } from '../../src/renderer/
 import { applyTheme, readStoredAccentId, ACCENT_STORAGE_KEY } from '../../src/renderer/themes/applyTheme';
 
 describe('the accent list', () => {
-    it('is the eleven official accents', () => {
-        expect(ACCENTS).toHaveLength(11);
+    it('is the twelve official accents', () => {
+        expect(ACCENTS).toHaveLength(12);
         expect(ACCENTS.map((a) => a.id)).toContain('emerald-mint');
         expect(ACCENTS[0].id).toBe('axi-gold');
     });

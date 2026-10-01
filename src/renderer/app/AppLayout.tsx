@@ -42,10 +42,14 @@ export function AppLayout() {
         // value fetched before the click. The snapshot settles that race in
         // the user's favour: only adopt the disk value if nothing changed.
         const accentAtMount = useAppStore.getState().accentId;
+        const surfaceAtMount = useAppStore.getState().surfaceId;
         window.electronAPI?.getSettings().then(s => {
             if (s.logDirectory) useAppStore.getState().setLogDirectory(s.logDirectory);
             if (useAppStore.getState().accentId === accentAtMount) {
                 useAppStore.getState().setAccentId(s.accentId);
+            }
+            if (useAppStore.getState().surfaceId === surfaceAtMount) {
+                useAppStore.getState().setSurfaceId(s.surfaceId);
             }
         });
         window.electronAPI?.getAppVersion().then((v: string) => setAppVersion(v));
@@ -117,7 +121,7 @@ export function AppLayout() {
     return (
         <div className="axi-window select-none">
             {/* Title Bar */}
-            <div className="axi-titlebar draggable px-4 justify-between">
+            <div className="axi-titlebar draggable">
                 <div className="flex items-center gap-2.5">
                     <img src="./img/axipulse-glyph.svg" alt="AxiPulse" className="h-5 w-5 object-contain opacity-90" draggable={false} />
                     <span className="axi-brand">
@@ -138,7 +142,7 @@ export function AppLayout() {
                         </span>
                     )}
                 </div>
-                <div className="flex items-center gap-4 no-drag">
+                <div className="flex items-center gap-4 no-drag ml-auto mr-2">
                     {isParsing && currentFight && (
                         <Activity className="w-4 h-4 ap-work" style={{ color: 'var(--axi-accent)' }} />
                     )}
@@ -185,17 +189,22 @@ export function AppLayout() {
                             </span>
                         )}
                     </div>
-                    <div className="axi-titlebar__btns">
-                        <button onClick={() => window.electronAPI?.windowControl('minimize')}>
-                            <Minus className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => window.electronAPI?.windowControl('maximize')}>
-                            <Square className="w-3 h-3" />
-                        </button>
-                        <button onClick={() => window.electronAPI?.windowControl('close')}>
-                            <X className="w-4 h-4" />
-                        </button>
-                    </div>
+                </div>
+                {/* A direct child of the strip, not of the status group: the
+                    package sizes these at `height: 100%`, which only resolves
+                    against the strip's own 38px. Nested one level deeper it
+                    collapsed to glyph height and sat as a short island instead
+                    of a flush, full-height target in the window's corner. */}
+                <div className="axi-titlebar__btns">
+                    <button onClick={() => window.electronAPI?.windowControl('minimize')}>
+                        <Minus className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => window.electronAPI?.windowControl('maximize')}>
+                        <Square className="w-3 h-3" />
+                    </button>
+                    <button onClick={() => window.electronAPI?.windowControl('close')}>
+                        <X className="w-4 h-4" />
+                    </button>
                 </div>
             </div>
 

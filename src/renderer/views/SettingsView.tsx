@@ -4,6 +4,7 @@ import { useAppStore } from '../store';
 import { FolderOpen, CheckCircle, AlertCircle, Loader2, Dices, ExternalLink, Stethoscope } from 'lucide-react';
 import { TroubleshootModal } from './TroubleshootModal';
 import { ACCENTS } from '../themes/accents';
+import { SURFACES } from '../themes/applyTheme';
 
 const IS_DEV = import.meta.env.DEV;
 
@@ -54,6 +55,8 @@ export function SettingsView() {
     const requestWhatsNew = useAppStore(s => s.requestWhatsNew);
     const accentId = useAppStore(s => s.accentId);
     const setAccentId = useAppStore(s => s.setAccentId);
+    const surfaceId = useAppStore(s => s.surfaceId);
+    const setSurfaceId = useAppStore(s => s.setSurfaceId);
     const [devMinFileSize, setDevMinFileSize] = useState<number>(0);
     const [debugParsing, setDebugParsing] = useState(false);
     const [debugResult, setDebugResult] = useState<{ ok: boolean; msg: string } | null>(null);
@@ -106,7 +109,7 @@ export function SettingsView() {
                 <SectionCard label="Log Directory">
                     <div className="flex items-center gap-2">
                         <div className="flex-1 px-2.5 py-1.5 text-[11px] truncate font-mono min-w-0"
-                            style={{ background: 'var(--axi-ground)', color: logDirectory ? 'var(--axi-text)' : 'var(--axi-text-faint)', border: 'var(--axi-border-control) solid var(--axi-ink-line)' }}>
+                            style={{ background: 'var(--axi-well-fill)', color: logDirectory ? 'var(--axi-text)' : 'var(--axi-text-faint)', border: 'var(--axi-border-control) solid var(--axi-ink-line)' }}>
                             {logDirectory || 'Not configured'}
                         </div>
                         <Btn onClick={handleBrowse} variant="primary">
@@ -137,6 +140,29 @@ export function SettingsView() {
                                     window.electronAPI?.saveSettings({ accentId: a.id });
                                 }}
                             />
+                        ))}
+                    </div>
+                </SectionCard>
+
+                {/* Surface */}
+                <SectionCard label="Surface">
+                    <div className="flex flex-wrap gap-2">
+                        {SURFACES.map((s) => (
+                            <button
+                                key={s.id}
+                                type="button"
+                                aria-pressed={s.id === surfaceId}
+                                className={`axi-btn axi-btn--sm${s.id === surfaceId ? ' axi-btn--primary' : ''}`}
+                                onClick={() => {
+                                    // setSurfaceId applies and mirrors via the
+                                    // store; calling applySurface here too would
+                                    // double the crossfade.
+                                    setSurfaceId(s.id);
+                                    window.electronAPI?.saveSettings({ surfaceId: s.id });
+                                }}
+                            >
+                                {s.label}
+                            </button>
                         ))}
                     </div>
                 </SectionCard>

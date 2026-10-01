@@ -107,7 +107,7 @@ export function DamageSubview({ data }: { data: PlayerFightData }) {
                                     ) : (
                                         <div
                                             className="w-7 h-7 shrink-0"
-                                            style={{ background: 'var(--axi-ground)', border: 'var(--axi-border-hairline) solid var(--axi-ink-line)' }}
+                                            style={{ background: 'var(--axi-well-fill)', border: 'var(--axi-border-hairline) solid var(--axi-ink-line)' }}
                                         />
                                     )}
                                     <span className="w-40 truncate text-sm font-medium text-[color:var(--axi-text-dim)] group-hover:text-[color:var(--axi-text)] transition-colors">
