@@ -99,7 +99,7 @@ export default function Tooltip({ text, children, delay = 400, position = 'top' 
             raf = requestAnimationFrame(track);
         });
         return () => cancelAnimationFrame(raf);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [visible, position]);
 
     // Escape dismisses the hint. The listener is on the window rather than on
@@ -110,7 +110,7 @@ export default function Tooltip({ text, children, delay = 400, position = 'top' 
         const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') hide(); };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [visible]);
 
     if (!text) return children;

@@ -348,7 +348,7 @@ function openUtilityProcessChannel(): ParseChannel {
  */
 export const PRODUCTION_DISPATCHER_OPTIONS: ParseDispatcherOptions = {
     timeoutMs: PARSE_TIMEOUT_MS,
-    // eslint-disable-next-line no-console -- the main process has no window
+     
     // to surface this in, and it must not be swallowed.
     reportProtocolError: (err) => console.error(err.message),
 };
