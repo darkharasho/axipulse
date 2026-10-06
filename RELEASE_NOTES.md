@@ -1,5 +1,13 @@
 # Release Notes
 
+Version v0.5.1 — October 6, 2026
+
+## Fixes
+
+- If access is revoked and AxiPulse can't save that to disk, it now restarts straight into the block screen, so nothing keeps running behind it. Before, the block screen covered an app that was still running.
+- The portable Windows build now restarts itself correctly after an access change. It used to restart the temporary copy it unpacks instead of the `.exe` you ran.
+- Fixed a crash in Movement Replay when a fight loaded, and in the timeline when a lane went from no data to data.
+
 Version v0.5.0 — October 5, 2026
 
 ## Access check
