@@ -33,7 +33,7 @@ export async function startAccess(deps: AccessDeps): Promise<AccessBoot> {
 export function recorderIdentities(report: ReportV1): Identity[] {
     const recordedBy = report?.encounter?.recorded_by as unknown
     if (typeof recordedBy !== 'number' || !Array.isArray(report.entities)) return []
-    const entity = report.entities.find(e => e.id === recordedBy)
+    const entity = report.entities.find(e => e?.id === recordedBy)
     if (!entity) return []
     const out: Identity[] = []
     if (typeof entity.account === 'string' && entity.account) out.push({ kind: 'gw2_account', value: entity.account })

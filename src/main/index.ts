@@ -390,10 +390,16 @@ app.whenReady().then(async () => {
     fs.writeFileSync(path.join(app.getPath('userData'), 'axiom-version'), app.getVersion(), 'utf8')
 
     // Access check first: when blocked, no window, IPC, updater or log watcher is started.
-    const access = await startAccess({ electron: { app, BrowserWindow, shell } })
-    if (access.blocked) return;
+    let access: Awaited<ReturnType<typeof startAccess>> | null = null;
+    try {
+        access = await startAccess({ electron: { app, BrowserWindow, shell } })
+    } catch {
+        // Fail open: a bug in the check must not take the app down.
+        console.warn('access check unavailable');
+    }
+    if (access?.blocked) return;
     accessAllowed = true;
-    accessGate = access.gate;
+    accessGate = access ? access.gate : null;
 
     setupIpcHandlers();
     setupAutoUpdate();
