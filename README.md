@@ -106,6 +106,12 @@ npm run build            # make sure it compiles
 
 ---
 
+## Access
+
+AxiPulse checks a public access list when it starts and every few hours, by downloading `https://config.axi.link/v1/manifest`. Access to the Axi apps can be revoked for accounts, guilds or Discord servers that violate the terms of use. The list holds only one-way SHA-256 hashes, and the comparison happens on your device: AxiPulse compares the account and guild that recorded each log (never other players) against it and never sends them, or anything else about you, anywhere. If the list can't be reached, AxiPulse keeps working. If you believe your access was revoked by mistake, use the contact link on the block screen, or reach the author through https://github.com/darkharasho.
+
+---
+
 ## License
 
 See [LICENSE](LICENSE) for details.

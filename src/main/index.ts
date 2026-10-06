@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, nativeTheme, nativeImage } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, nativeTheme, nativeImage, shell } from 'electron'
 import path from 'node:path'
 import fs from 'fs'
 import { autoUpdater } from 'electron-updater'
@@ -8,6 +8,8 @@ import { LogWatcher } from './watcher'
 import { parseLog } from './axilogParser'
 import { registerReleaseNotesHandlers } from './handlers/releaseNotesHandlers'
 import { checkArcdps } from './arcdpsDetect'
+import { startAccess, recorderIdentities } from './access'
+import type { AccessGate } from '@axiapps/axi-config'
 
 for (const stream of [process.stdout, process.stderr]) {
     stream?.on?.('error', (err: NodeJS.ErrnoException) => { if (err.code !== 'EPIPE') throw err; });
@@ -23,6 +25,9 @@ if (APP_PROFILE && !app.isPackaged) {
 const store = new Store();
 const logWatcher = new LogWatcher();
 let mainWindow: BrowserWindow | null = null;
+// False until the boot access check passes, so activate can't open a window early or when blocked.
+let accessAllowed = false;
+let accessGate: AccessGate | null = null;
 
 function isWindowsTaskbarDark(): boolean {
     try {
@@ -210,6 +215,7 @@ function setupIpcHandlers(): void {
 
         try {
             const result = await parseLog(logPath);
+            void accessGate?.checkIdentities(recorderIdentities(result));
             mainWindow?.webContents.send('parse-complete', { logId, logPath, data: result });
             return { success: true, logPath };
         } catch (err: any) {
@@ -258,7 +264,8 @@ function setupIpcHandlers(): void {
         if (allFiles.length === 0) return { success: false, error: 'No logs found' };
         const logPath = allFiles[Math.floor(Math.random() * allFiles.length)];
         try {
-            await parseLog(logPath);
+            const result = await parseLog(logPath);
+            void accessGate?.checkIdentities(recorderIdentities(result));
             return { success: true, logPath };
         } catch (err: any) {
             return { success: false, error: err?.message ?? 'Parse failed' };
@@ -371,6 +378,7 @@ function setupLogWatcher(): void {
 
         try {
             const result = await parseLog(logPath);
+            void accessGate?.checkIdentities(recorderIdentities(result));
             mainWindow?.webContents.send('parse-complete', { logId, logPath, data: result });
         } catch (err: any) {
             mainWindow?.webContents.send('parse-error', { logId, logPath, error: err?.message || 'Parse failed' });
@@ -378,8 +386,14 @@ function setupLogWatcher(): void {
     });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
     fs.writeFileSync(path.join(app.getPath('userData'), 'axiom-version'), app.getVersion(), 'utf8')
+
+    // Access check first: when blocked, no window, IPC, updater or log watcher is started.
+    const access = await startAccess({ electron: { app, BrowserWindow, shell } })
+    if (access.blocked) return;
+    accessAllowed = true;
+    accessGate = access.gate;
 
     setupIpcHandlers();
     setupAutoUpdate();
@@ -410,7 +424,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+    if (accessAllowed && BrowserWindow.getAllWindows().length === 0) {
         createWindow();
     }
 });
