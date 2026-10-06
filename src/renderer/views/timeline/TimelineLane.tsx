@@ -9,21 +9,9 @@ interface TimelineLaneProps {
 }
 
 export function TimelineLane({ label, color, data, domainMs }: TimelineLaneProps) {
-    if (data.length === 0) {
-        return (
-            <div className="flex items-center mb-0.5" style={{ height: 32 }}>
-                <div className="w-[90px] text-right pr-2.5 text-[10px] font-medium" style={{ color }}>{label}</div>
-                <div
-                    className="flex-1 h-full flex items-center justify-center"
-                    style={{ background: 'var(--axi-well-fill)', border: 'var(--axi-border-control) solid var(--axi-ink-line)' }}
-                >
-                    <span className="text-[8px]" style={{ color: 'var(--axi-text-faint)' }}>No data</span>
-                </div>
-            </div>
-        );
-    }
-
     const { fillPath, strokePath } = useMemo(() => {
+        // Above the empty-data return, so the hook runs on every render.
+        if (data.length === 0) return { fillPath: '', strokePath: '' };
         const sorted = data.map(d => d.value).sort((a, b) => a - b);
         const p95Idx = Math.floor(sorted.length * 0.95);
         const p95 = sorted[p95Idx] || sorted[sorted.length - 1];
@@ -43,6 +31,20 @@ export function TimelineLane({ label, color, data, domainMs }: TimelineLaneProps
         const fill = `${d} L ${pts[pts.length - 1].x} 1 L ${pts[0].x} 1 Z`;
         return { fillPath: fill, strokePath: d };
     }, [data, domainMs]);
+
+    if (data.length === 0) {
+        return (
+            <div className="flex items-center mb-0.5" style={{ height: 32 }}>
+                <div className="w-[90px] text-right pr-2.5 text-[10px] font-medium" style={{ color }}>{label}</div>
+                <div
+                    className="flex-1 h-full flex items-center justify-center"
+                    style={{ background: 'var(--axi-well-fill)', border: 'var(--axi-border-control) solid var(--axi-ink-line)' }}
+                >
+                    <span className="text-[8px]" style={{ color: 'var(--axi-text-faint)' }}>No data</span>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex items-center mb-0.5" style={{ height: 32 }}>

@@ -281,17 +281,13 @@ export function MovementView() {
         });
     }, []);
 
-    if (!currentFight) {
-        return (
-            <div className="flex flex-col items-center justify-center h-full gap-2">
-                <MapPin className="w-8 h-8" style={{ color: 'var(--axi-text-faint)' }} />
-                <span className="text-sm font-medium" style={{ color: 'var(--axi-text-dim)' }}>Movement Replay</span>
-                <span className="text-xs" style={{ color: 'var(--axi-text-faint)' }}>Movement data will appear here after a fight is parsed</span>
-            </div>
-        );
-    }
-
-    const { mapImageUrl, mapSize, mapId, mapName, movementData } = currentFight;
+    // Read with `?.` so the tile `useMemo` below runs on every render, fight or
+    // not; the no-fight screen returns after it.
+    const mapImageUrl = currentFight?.mapImageUrl ?? null;
+    const mapSize = currentFight?.mapSize ?? null;
+    const mapId = currentFight?.mapId ?? null;
+    const mapName = currentFight?.mapName ?? '';
+    const movementData = currentFight?.movementData ?? null;
     // By map ID, not by display name. `resolveMapFromMapId` covers all four
     // WvW maps and cannot be broken by a localisation or a rewording.
     const map = mapId === null ? null : resolveMapFromMapId(mapId);
@@ -312,6 +308,16 @@ export function MovementView() {
     );
 
     // After every hook, so the rules of hooks hold on both branches.
+    if (!currentFight) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full gap-2">
+                <MapPin className="w-8 h-8" style={{ color: 'var(--axi-text-faint)' }} />
+                <span className="text-sm font-medium" style={{ color: 'var(--axi-text-dim)' }}>Movement Replay</span>
+                <span className="text-xs" style={{ color: 'var(--axi-text-faint)' }}>Movement data will appear here after a fight is parsed</span>
+            </div>
+        );
+    }
+
     if (pixelSize === null) {
         return (
             <div className="flex flex-col items-center justify-center h-full gap-2">

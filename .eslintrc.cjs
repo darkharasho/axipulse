@@ -10,8 +10,7 @@ module.exports = {
     'coverage', 'build', 'graphify-out', 'marketing', 'public', '*.d.ts',
   ],
   rules: {
-    // Existing code has conditional hook calls (MovementView, TimelineLane); fixing changes runtime behavior.
-    'react-hooks/rules-of-hooks': 'off',
+    'react-hooks/rules-of-hooks': 'error',
     'react-hooks/exhaustive-deps': 'off',
     '@typescript-eslint/no-explicit-any': 'off',
     '@typescript-eslint/no-var-requires': 'off',
