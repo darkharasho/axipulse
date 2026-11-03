@@ -55,7 +55,7 @@ const RUNBACK_FLOOR_INCHES = 400;
  * `Anon174.7438` -- carry one real `blocks.replay.by_entity[id].dead`
  * interval each, and `extractPlayerData.test.ts` reaches them by repointing
  * `encounter.recorded_by`. For `Anon151.6587` the exclusion moves the mean
- * from 17986 to 2046 inches. Both figures are pinned, so dropping the
+ * from 16280 to 2040 inches. Both figures are pinned, so dropping the
  * argument fails. (An earlier revision of this comment said the intervals
  * were the local player's; they are not.)
  *

@@ -30,7 +30,7 @@
   "dependencies": {
     "@axiapps/axi-config": "^0.1.1",
     "@axiapps/axi-design": "^1.49.0",
-    "@axiapps/axilog": "1.5.1",
+    "@axiapps/axilog": "1.16.2",
     "chokidar": "^3.5.3",
     "clsx": "^2.0.0",
     "electron-log": "^5.4.3",

@@ -463,9 +463,12 @@ describe('party member distances: the unsampled-bucket fallback (native)', () =>
      * actor's mean distance to the commander), but the padded NUMBER does
      * not always match EI's own `statsAll[0].distToCom`.
      *
-     * Measured across all 46 squad members: median relative difference
-     * 0.55%, 38 within 1%, 44 within 2%, and two far-from-tag players at
-     * 26.5% (19861.4 vs 15695.9) and 16.3% (19130.5 vs 16455.1). That is an
+     * Measured across all 46 squad members (axilog 1.16.2): median relative
+     * difference 0.035%, 44 within 1% and within 2%, and two far-from-tag
+     * players at 26.5% (19861.5 vs 15695.9) and 16.3% (19131.1 vs 16455.1).
+     * (It was 0.55% / 38 within 1% on axilog 1.5.1; axilog 1.10.1 bounded
+     * replay interpolation to arcdps's poll window, which closed most of
+     * the gap.) That is an
      * upstream difference in which polls each parser counts as "active" -- a
      * coverage-population difference, the class this plan documents rather
      * than reconciles. The MECHANISM behind the two outliers specifically is
@@ -501,12 +504,12 @@ describe('party member distances: the unsampled-bucket fallback (native)', () =>
         }
         expect(rels.length).toBe(46);
         rels.sort((a, b) => a - b);
-        expect(rels[Math.floor(rels.length / 2)]).toBeCloseTo(0.00554, 4);
-        expect(rels.filter(x => x <= 0.01).length).toBe(38);
+        expect(rels[Math.floor(rels.length / 2)]).toBeCloseTo(0.00035, 4);
+        expect(rels.filter(x => x <= 0.01).length).toBe(44);
         expect(rels.filter(x => x <= 0.02).length).toBe(44);
         expect(worst.sort()).toEqual([
-            'Anon151.6587 19861.4 vs 15695.9',
-            'Anon175.7475 19130.5 vs 16455.1',
+            'Anon151.6587 19861.5 vs 15695.9',
+            'Anon175.7475 19131.1 vs 16455.1',
         ]);
         expect(rels[rels.length - 1]).toBeCloseTo(0.2654, 4);
     });

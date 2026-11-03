@@ -492,7 +492,7 @@ describe('extractPlayerFightData -- distanceToTag summary', () => {
      * different one: `blocks.replay.by_entity[id].dist_to_com` is axilog's
      * own mean distance to commander over the actor's ACTIVE polls, and for
      * all three it sits with the UNEXCLUDED figure -- 19861 vs an unexcluded
-     * 17986 for `Anon151.6587`, against 2046 excluded. `dist_to_com` does
+     * 16280 for `Anon151.6587`, against 2040 excluded. `dist_to_com` does
      * not itself exclude the runback, which is exactly why this function
      * exists.
      */
@@ -518,20 +518,20 @@ describe('extractPlayerFightData -- distanceToTag summary', () => {
             {
                 account: 'Anon151.6587',
                 dead: [[40075, 54671]],
-                excluded: { average: 2046, median: 2136 },
-                unexcluded: { average: 17986, median: 17906 },
+                excluded: { average: 2040, median: 2136 },
+                unexcluded: { average: 16280, median: 14848 },
             },
             {
                 account: 'Anon175.7475',
                 dead: [[19849, 30603]],
-                excluded: { average: 1805, median: 1496 },
-                unexcluded: { average: 19027, median: 16352 },
+                excluded: { average: 1443, median: 1385 },
+                unexcluded: { average: 17329, median: 16205 },
             },
             {
                 account: 'Anon174.7438',
                 dead: [[113683, 127711]],
-                excluded: { average: 454, median: 173 },
-                unexcluded: { average: 592, median: 196 },
+                excluded: { average: 456, median: 174 },
+                unexcluded: { average: 598, median: 196 },
             },
         ]);
     });
@@ -544,9 +544,9 @@ describe('extractPlayerFightData -- distanceToTag summary', () => {
         const byAccount = new Map(squadMembers(native).map(e => [accountOf(e), e.id]));
 
         for (const [account, expected] of [
-            ['Anon151.6587', { average: 2046, median: 2136 }],
-            ['Anon175.7475', { average: 1805, median: 1496 }],
-            ['Anon174.7438', { average: 454, median: 173 }],
+            ['Anon151.6587', { average: 2040, median: 2136 }],
+            ['Anon175.7475', { average: 1443, median: 1385 }],
+            ['Anon174.7438', { average: 456, median: 174 }],
         ] as const) {
             const d = extractPlayerFightData(
                 withEncounter(native, { recorded_by: byAccount.get(account) }), 1, BUCKET_MS,
@@ -698,10 +698,14 @@ describe('extractPlayerFightData -- replay-derived positions', () => {
      * index form is only correct for a track that begins at 0.
      *
      * The local player never went down, so the assertion is made against the
-     * three squad members who did. For `Anon174.7438` the two forms differ
-     * by over 40 units, so this is a real discriminator and not a vacuous
-     * pass: the index form is asserted to be WRONG as well as the time form
-     * to be right.
+     * six squad members who did. The index form is asserted to be WRONG
+     * as well as the time form to be right, so this is a real discriminator
+     * and not a vacuous pass. The gap is small since axilog 1.10.1 bounded
+     * replay interpolation to arcdps's poll window: a downed player now
+     * holds still between polls instead of being smeared across the gap,
+     * so the two joins differ by 0.03-0.22 units rather than the 40+ they
+     * did on axilog 1.5.1. Any nonzero gap still discriminates, because the
+     * `toEqual` above is exact.
      */
     it('places down/death markers through time, not through the array index', () => {
         const native = loadNativeFixture();
@@ -729,21 +733,23 @@ describe('extractPlayerFightData -- replay-derived positions', () => {
                 for (const t of times) {
                     const naive = m.positions[Math.floor(t / poll)];
                     const correct = memberPosAt(m, t, poll)!;
-                    if (naive && Math.hypot(naive[0] - correct[0], naive[1] - correct[1]) > 1) {
+                    if (naive && Math.hypot(naive[0] - correct[0], naive[1] - correct[1]) > 0) {
                         discriminated++;
                     }
                 }
             }
         }
-        // Vacuity guard, PINNED rather than bounded. Measured: exactly 2 of
-        // the 6 down/death events across the three members who went down are
-        // placed differently by the two joins. `toBeGreaterThan(0)` would
+        // Vacuity guard, PINNED rather than bounded. Measured (axilog 1.16.2,
+        // 9 down/death events across 6 members):
+        // exactly 3 of the down/death events -- the three `down` events of
+        // Anon151, Anon175 and Anon174 -- are placed differently by the two
+        // joins. `toBeGreaterThan(0)` would
         // keep passing if a fixture or bucketing change eroded that to 1,
         // silently thinning the evidence for the assertion above until it
         // rested on a single event. If this number moves, look at WHY before
         // updating it.
         expect(discriminated, 'events where the index join gives a different position')
-            .toBe(2);
+            .toBe(3);
     });
 
     /**

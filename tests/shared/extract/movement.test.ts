@@ -559,10 +559,10 @@ describe('extractMovement', () => {
 
         const cmd = commanderId(native)!;
         const first = native.blocks.replay!.tracks!.by_entity[String(cmd)].samples[0];
-        expect(first).toEqual([300, -5130.7, -2971.7]);
+        expect(first).toEqual([300, -5131.9, -2971.8]);
         const cmdMember = m.members.find(x => x.isCommander)!;
-        expect(cmdMember.positions[0][0]).toBeCloseTo(217.7214611816406, 6);
-        expect(cmdMember.positions[0][1]).toBeCloseTo(400.9111676897321, 6);
+        expect(cmdMember.positions[0][0]).toBeCloseTo(217.7112512207031, 6);
+        expect(cmdMember.positions[0][1]).toBeCloseTo(400.9120396205358, 6);
     });
 
     // ---- identity ------------------------------------------------------
@@ -984,8 +984,8 @@ describe('extractMovement', () => {
             if (def.icon === eiDef.icon) iconAgrees++;
             else if (!def.icon && eiDef.icon) missingIcon.push(signed);
         }
-        expect(sharedIds).toBe(585);
-        expect(iconAgrees).toBe(569);
+        expect(sharedIds).toBe(588);
+        expect(iconAgrees).toBe(572);
         expect(missingIcon.length).toBe(16);
         // Never the other way round: axilog has no icon EI lacks.
         expect(sharedIds - iconAgrees - missingIcon.length).toBe(0);
