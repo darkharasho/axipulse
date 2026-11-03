@@ -1,5 +1,21 @@
 # Release Notes
 
+Version v0.5.2 — November 2, 2026
+
+## Squad counts
+
+- Squad members who were in the squad but never fought (no hits, no casts, never entered combat) no longer count toward the squad. Squad sizes now match Elite Insights, and squad-wide boon generation is averaged over the people who were actually there.
+- Allies on the newest arcdps build no longer show up as enemies, and squad members that arcdps tags with a bogus team no longer get filed as enemies either.
+
+## Movement Replay
+
+- Positions are more accurate. A player who is downed or standing still now stays put between position samples instead of drifting, so markers and distance-to-tag line up better with what happened.
+
+## QoL Improvements
+
+- More skills show their real name instead of a bare id.
+- On the Glass surface, dropdown menus are now solid so you can actually read them, and the loading spinner is a new three-bar loader.
+
 Version v0.5.1 — October 6, 2026
 
 ## Fixes
