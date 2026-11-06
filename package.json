@@ -99,6 +99,12 @@
     },
     "win": {
       "artifactName": "AxiPulse-${version}-Setup.${ext}",
+      "azureSignOptions": {
+        "publisherName": "Michael Stephens",
+        "endpoint": "https://eus.codesigning.azure.net/",
+        "codeSigningAccountName": "darkharasho-signing",
+        "certificateProfileName": "public-trust"
+      },
       "target": [
         "nsis"
       ],
